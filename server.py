@@ -660,7 +660,7 @@ function renderResults(data) {
 function renderProduct(p, idx) {
   var thumbHtml = '';
   if (p.thumbnail) {
-    thumbHtml = '<img src="' + p.thumbnail + '" onerror="this.style.display=\'none\'">';
+    thumbHtml = '<img src="' + p.thumbnail + '" onerror="this.hidden=true">';
   } else {
     thumbHtml = '<div class="placeholder">' + (p.is_tr ? '&#x1F1F9;&#x1F1F7;' : '&#x1F6D2;') + '</div>';
   }
