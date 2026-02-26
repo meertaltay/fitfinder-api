@@ -109,41 +109,76 @@ def upload_image(image_bytes):
     return None
 
 
-def search_shopping(query, limit=8):
+TR_TRANSLATIONS = {
+    "jacket": "ceket", "leather jacket": "deri ceket", "bomber jacket": "bomber ceket",
+    "leather bomber jacket": "deri bomber ceket", "denim jacket": "kot ceket",
+    "puffer jacket": "mont", "coat": "kaban", "blazer": "blazer ceket",
+    "hoodie": "kapusonlu sweatshirt", "hoodie sweatshirt": "kapusonlu sweatshirt",
+    "sweatshirt": "sweatshirt", "t-shirt": "tisort", "shirt": "gomlek",
+    "polo shirt": "polo tisort", "tank top": "atlet", "top": "ust",
+    "sweater": "kazak", "cardigan": "hırka", "vest": "yelek",
+    "jeans": "kot pantolon", "straight leg jeans": "duz kesim kot pantolon",
+    "wide leg jeans": "bol paca kot pantolon", "skinny jeans": "dar kot pantolon",
+    "pants": "pantolon", "trousers": "pantolon", "shorts": "sort",
+    "cargo pants": "kargo pantolon", "chinos": "chino pantolon",
+    "sneakers": "spor ayakkabi", "athletic sneakers": "spor ayakkabi",
+    "boots": "bot", "loafers": "loafer ayakkabi", "shoes": "ayakkabi",
+    "sandals": "sandalet", "heels": "topuklu ayakkabi",
+    "baseball cap": "sapka", "hat": "sapka", "beanie": "bere",
+    "sunglasses": "gunes gozlugu", "bag": "canta", "backpack": "sirt cantasi",
+    "scarf": "atki", "belt": "kemer", "watch": "kol saati",
+    "dress": "elbise", "skirt": "etek",
+    "brown": "kahverengi", "black": "siyah", "white": "beyaz",
+    "blue": "mavi", "red": "kirmizi", "green": "yesil",
+    "gray": "gri", "grey": "gri", "beige": "bej", "navy": "lacivert",
+    "cream": "krem", "pink": "pembe", "orange": "turuncu", "yellow": "sari",
+}
+
+
+def to_turkish(text):
+    text_lower = text.lower().strip()
+    # Tam eslestirme
+    if text_lower in TR_TRANSLATIONS:
+        return TR_TRANSLATIONS[text_lower]
+    # Parcali eslestirme
+    result = text_lower
+    for en, tr in sorted(TR_TRANSLATIONS.items(), key=lambda x: len(x[0]), reverse=True):
+        if en in result:
+            result = result.replace(en, tr)
+    return result
+
+
+def search_shopping(query, limit=6):
     products = []
     seen = set()
-    try:
-        search = GoogleSearch({
-            "engine": "google_shopping", "q": query,
-            "gl": "tr", "hl": "tr", "api_key": SERPAPI_KEY,
-        })
-        for item in search.get_dict().get("shopping_results", []):
-            link = item.get("link", "")
-            title = item.get("title", "")
-            if not link or link in seen or not title: continue
-            seen.add(link)
-            source = item.get("source", "")
-            products.append({
-                "title": title, "brand": detect_brand(link, source),
-                "source": source, "link": link,
-                "price": item.get("price", ""), "thumbnail": item.get("thumbnail", ""),
-                "is_tr": is_tr_store(link, source),
-            })
-            if len(products) >= limit: break
-    except: pass
 
-    # TR az geldiyse global ekle
-    tr_count = sum(1 for p in products if p["is_tr"])
-    if tr_count < 2:
+    # Turkce query olustur
+    tr_query = to_turkish(query)
+
+    queries_to_try = []
+    if tr_query != query.lower():
+        queries_to_try.append(("tr", tr_query))
+    queries_to_try.append(("tr", query))
+    queries_to_try.append(("us", query))
+
+    for gl, q in queries_to_try:
+        if len(products) >= limit:
+            break
         try:
-            search2 = GoogleSearch({
-                "engine": "google_shopping", "q": query,
-                "gl": "us", "hl": "en", "api_key": SERPAPI_KEY,
-            })
-            for item in search2.get_dict().get("shopping_results", []):
+            params = {
+                "engine": "google_shopping",
+                "q": q,
+                "gl": gl if gl != "us" else "us",
+                "hl": "tr" if gl == "tr" else "en",
+                "api_key": SERPAPI_KEY,
+            }
+            search = GoogleSearch(params)
+            data = search.get_dict()
+            for item in data.get("shopping_results", []):
                 link = item.get("link", "")
                 title = item.get("title", "")
                 if not link or link in seen or not title: continue
+                if is_blocked(link): continue
                 seen.add(link)
                 source = item.get("source", "")
                 products.append({
@@ -153,7 +188,8 @@ def search_shopping(query, limit=8):
                     "is_tr": is_tr_store(link, source),
                 })
                 if len(products) >= limit: break
-        except: pass
+        except Exception as e:
+            print(f"Shopping search error for '{q}': {e}")
 
     return sort_products(products)[:limit]
 
@@ -272,19 +308,27 @@ async def full_analyze(file: UploadFile = File(...)):
     # 3) Her parca icin Google Shopping
     piece_results = []
     for piece in pieces:
+        desc = piece.get("description", "")
+        color = piece.get("color", "")
+        brand = piece.get("brand", "")
+
+        # Query olustur
         parts = []
-        if piece.get("brand") and piece["brand"] != "?":
-            parts.append(piece["brand"])
-        parts.append(piece.get("description", ""))
-        if piece.get("color"):
-            parts.append(piece["color"])
+        if brand and brand != "?":
+            parts.append(brand)
+        parts.append(desc)
+        if color:
+            parts.append(color)
         query = " ".join(parts).strip()
 
+        print(f"Searching for piece: {piece.get('category')} -> query: '{query}'")
         products = search_shopping(query) if query else []
+        print(f"  Found {len(products)} products")
+
         piece_results.append({
             "category": piece.get("category", ""),
-            "description": piece.get("description", ""),
-            "color": piece.get("color", ""),
+            "description": desc,
+            "color": color,
             "brand": piece.get("brand", ""),
             "products": products,
         })
