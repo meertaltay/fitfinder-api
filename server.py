@@ -172,9 +172,25 @@ def search_shopping(query, limit=6):
                 "hl": "tr" if gl == "tr" else "en",
                 "api_key": SERPAPI_KEY,
             }
+            print(f"  SerpAPI call: q='{q}' gl={params['gl']} hl={params['hl']}")
             search = GoogleSearch(params)
             data = search.get_dict()
-            for item in data.get("shopping_results", []):
+
+            # Log what we got back
+            if "error" in data:
+                print(f"  SerpAPI ERROR: {data['error']}")
+                continue
+
+            shopping = data.get("shopping_results", [])
+            print(f"  SerpAPI returned {len(shopping)} shopping results")
+            if len(shopping) == 0:
+                # Check other keys
+                keys = [k for k in data.keys() if k not in ('search_metadata', 'search_parameters', 'search_information')]
+                print(f"  Available keys: {keys}")
+                if 'search_information' in data:
+                    print(f"  Search info: {data['search_information']}")
+
+            for item in shopping:
                 link = item.get("link", "")
                 title = item.get("title", "")
                 if not link or link in seen or not title: continue
@@ -189,7 +205,7 @@ def search_shopping(query, limit=6):
                 })
                 if len(products) >= limit: break
         except Exception as e:
-            print(f"Shopping search error for '{q}': {e}")
+            print(f"  Shopping search EXCEPTION for '{q}': {type(e).__name__}: {e}")
 
     return sort_products(products)[:limit]
 
