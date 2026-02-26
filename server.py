@@ -202,6 +202,19 @@ SADECE JSON array dondur:
     return None
 
 
+BLOCKED_DOMAINS = [
+    "pinterest.", "instagram.", "facebook.", "twitter.", "x.com",
+    "tiktok.", "youtube.", "reddit.", "tumblr.", "flickr.",
+    "weheartit.", "lookbook.", "chictopia.", "polyvore.",
+    "blogspot.", "wordpress.", "medium.com", "wattpad.",
+]
+
+
+def is_blocked(link):
+    link_lower = link.lower()
+    return any(d in link_lower for d in BLOCKED_DOMAINS)
+
+
 def search_lens(image_url):
     products = []
     seen = set()
@@ -214,6 +227,7 @@ def search_lens(image_url):
             link = match.get("link", "")
             title = match.get("title", "")
             if not link or link in seen or not title: continue
+            if is_blocked(link): continue
             seen.add(link)
             source = match.get("source", "")
             price_info = match.get("price", {})
