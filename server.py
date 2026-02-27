@@ -46,6 +46,7 @@ BLOCKED = [
     "wordpress.", "medium.com", "threads.net", "etsy.com",
     "ebay.com", "ebay.", "amazon.com", "aliexpress.",
     "wish.com", "dhgate.", "alibaba.", "flickr.",
+    "tripadvisor.", "booking.", "yelp.",
 ]
 
 FASHION_DOMAINS = [
@@ -247,16 +248,24 @@ async def full_analyze(file: UploadFile = File(...)):
 
     print("\n=== AUTO ANALYZE ===")
 
-    pieces = await claude_detect(b64)
+    # Claude detect + Upload in PARALLEL
+    detect_task = claude_detect(b64)
+    upload_task = upload_img(contents)
+    pieces, url = await asyncio.gather(detect_task, upload_task)
+
+    # Full image Lens (gorsel eslesme - birebir urun bulur)
+    lens_results = []
+    if url:
+        lens_results = await asyncio.to_thread(_lens, url)
+        print(f"Full image Lens: {len(lens_results)}")
+
     if not pieces:
-        url = await upload_img(contents)
-        lens = await asyncio.to_thread(_lens, url) if url else []
-        return {"success":True,"pieces":[],"lens_fallback":lens}
+        return {"success":True,"pieces":[],"lens_results":lens_results}
 
     print(f"Claude: {len(pieces)} pieces")
     tasks = [process_piece(p, contents) for p in pieces]
     results = list(await asyncio.gather(*tasks))
-    return {"success":True,"pieces":results}
+    return {"success":True,"pieces":results,"lens_results":lens_results}
 
 
 # ─── MANUAL SEARCH (cropped by user) ───
@@ -528,43 +537,48 @@ function showErr(m){var e=document.getElementById('err');e.style.display='block'
 // ─── RENDER AUTO ───
 function renderAuto(d){
   document.getElementById('prev').style.maxHeight='160px';
-  var pieces=d.pieces||[];
+  var pieces=d.pieces||[],lens=d.lens_results||[];
   var ra=document.getElementById('res');ra.style.display='block';
   var h='';
+
+  // ─── LENS: Gorsel Eslesmeler (birebir urun) ───
+  if(lens.length>0){
+    var hero=lens[0],rest=lens.slice(1);
+    h+='<div style="margin-bottom:24px">';
+    h+='<div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:10px">&#x1F3AF; Gorsel Eslesme</div>';
+    h+=heroHTML(hero,true);
+    if(rest.length>0)h+=altsHTML(rest);
+    h+='</div>';
+  }
+
+  // ─── PIECES: Parca Bazli ───
+  if(pieces.length>0){
+    h+='<div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px">&#x1F455; Parca Bazli Sonuclar</div>';
+  }
 
   for(var i=0;i<pieces.length;i++){
     var p=pieces[i],pr=p.products||[],hero=pr[0],alts=pr.slice(1);
     h+='<div class="piece" style="animation-delay:'+(i*.1)+'s">';
 
     h+='<div class="p-hdr">';
-    if(p.crop_preview)h+='<img class="p-thumb" src="'+p.crop_preview+'">';
-    else h+='<div style="width:52px;height:52px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid var(--border)">'+(IC[p.category]||'')+'</div>';
+    h+='<div style="width:52px;height:52px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid var(--border)">'+(IC[p.category]||'')+'</div>';
     h+='<div><span class="p-title">'+(p.short_title_tr||p.category)+'</span>';
     if(p.brand&&p.brand!=='?')h+='<span class="p-brand">'+p.brand+'</span>';
     var vt=p.visible_text||'';
     if(vt&&vt.toLowerCase()!=='none')h+='<div style="font-size:10px;color:var(--accent);font-style:italic;margin-top:2px">"'+vt+'"</div>';
-    if(p.lens_count>0)h+='<div style="font-size:9px;color:var(--green);margin-top:1px">'+p.lens_count+' Lens eslesmesi</div>';
     h+='</div></div>';
 
     if(!hero){h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">Urun bulunamadi</div></div>';continue}
 
-    h+=heroHTML(hero,p.lens_count>0);
+    h+=heroHTML(hero,false);
     if(alts.length>0)h+=altsHTML(alts);
     h+='</div>';
   }
 
-  if(!pieces.length){
-    var lf=d.lens_fallback||[];
-    if(lf.length>0){
-      h+='<div style="font-size:13px;color:var(--green);font-weight:600;margin:14px 0">&#x1F3AF; Gorsel Eslesmeler</div>';
-      h+=heroHTML(lf[0],true);
-      if(lf.length>1)h+=altsHTML(lf.slice(1));
-    } else {
-      h='<div style="text-align:center;padding:40px;color:var(--dim)">Sonuc bulunamadi. "Kendim Seceyim" ile dene!</div>';
-    }
+  if(!pieces.length&&!lens.length){
+    h='<div style="text-align:center;padding:40px;color:var(--dim)">Sonuc bulunamadi. "Kendim Seceyim" ile dene!</div>';
   }
   ra.innerHTML=h;
-  // Show manual button after auto results
   ra.innerHTML+='<button class="btn-main btn-outline" onclick="showScreen()" style="margin-top:20px">&#x2702;&#xFE0F; Kendim Seceyim ile Tekrar Dene</button>';
 }
 
