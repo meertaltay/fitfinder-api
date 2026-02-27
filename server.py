@@ -360,11 +360,10 @@ For each item:
 - color: in {lang}
 - brand: If readable or design strongly resembles famous brand, write it. Else "?"
 - visible_text: ALL readable text/logos
-- box_2d: [ymin, xmin, ymax, xmax] on 1000x1000 grid. INTEGERS ONLY! [0,0]=top-left, [1000,1000]=bottom-right. Make it WIDE enough for the ENTIRE item.
 - search_query: 4-6 word ULTRA SPECIFIC {lang} shopping query with gender, brand, iconic details.
 
 Return ONLY valid JSON array:
-[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","box_2d":[0,0,1000,1000],"search_query":""}}]"""},
+[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","search_query":""}}]"""},
                     ]}],
                 })
             data = r.json()
@@ -437,75 +436,156 @@ def _shop(q, cc="tr", limit=6):
     if res: cache_set(cache_key, res)
     return res
 
-# ─── Process Auto Piece (crop → conditional rembg → lens + shop) ───
-REMBG_CATS = {"jacket", "top", "bottom", "dress"}  # Only cloth items get rembg
+# ─── PIECE KEYWORDS (multilingual, for matching Lens → pieces) ───
+PIECE_KEYWORDS = {
+    "hat": ["hat", "beanie", "cap", "bere", "şapka", "sapka", "kepçe", "bucket", "fedora", "bonnet", "kappe", "mütze", "chapeau", "bonnet"],
+    "sunglasses": ["sunglasses", "glasses", "güneş gözlüğü", "gozluk", "gözlük", "eyewear", "shades", "sonnenbrille", "lunettes"],
+    "scarf": ["scarf", "atkı", "atki", "şal", "sal", "fular", "echarpe", "schal"],
+    "jacket": ["jacket", "coat", "bomber", "blazer", "ceket", "mont", "kaban", "parka", "denim jacket", "leather", "deri", "mantel", "veste", "blouson"],
+    "top": ["shirt", "t-shirt", "tshirt", "hoodie", "sweatshirt", "sweater", "polo", "blouse", "kazak", "tişört", "tisort", "gömlek", "gomlek", "triko", "pullover", "chemise", "haut"],
+    "bottom": ["pants", "jeans", "trousers", "shorts", "pantolon", "jean", "denim", "jogger", "chino", "cargo", "hose", "pantalon"],
+    "dress": ["dress", "elbise", "gown", "jumpsuit", "tulum", "kleid", "robe"],
+    "shoes": ["shoe", "sneaker", "boot", "loafer", "sandal", "ayakkabı", "ayakkabi", "bot", "terlik", "schuh", "chaussure", "trainer"],
+    "bag": ["bag", "purse", "backpack", "çanta", "canta", "sırt çantası", "tasche", "sac"],
+    "watch": ["watch", "saat", "kol saati", "uhr", "montre", "timepiece", "horloge"],
+    "accessory": ["necklace", "bracelet", "ring", "belt", "kemer", "kolye", "bileklik", "yüzük", "accessory", "jewelry"],
+}
 
-async def process_auto_piece(p, img_obj, cc):
-    """Per-piece pipeline: crop → dynamic rembg → upload+shop parallel → lens → brand filter."""
-    cat = p.get("category", "")
-    box = p.get("box_2d")
-    q = p.get("search_query", "")
-    brand = p.get("brand", "")
-    color = p.get("color", "")
+
+# ─── Match Lens results → Pieces by keyword + brand ───
+def match_lens_to_pieces(lens_results, pieces):
+    """Assign each Lens result to the best matching piece using keywords + brand."""
+    piece_lens = {i: [] for i in range(len(pieces))}
+
+    for lr in lens_results:
+        title_lower = lr["title"].lower()
+        link_lower = (lr.get("source", "") + " " + lr.get("link", "")).lower()
+
+        best_piece = -1
+        best_score = 0
+
+        for i, p in enumerate(pieces):
+            cat = p.get("category", "")
+            keywords = PIECE_KEYWORDS.get(cat, [])
+            score = 0
+
+            # Keyword match
+            for kw in keywords:
+                if kw in title_lower:
+                    score += 2
+                    break
+
+            if score == 0:
+                continue
+
+            # Brand bonus
+            piece_brand = p.get("brand", "?").lower().strip()
+            if piece_brand and piece_brand != "?" and len(piece_brand) > 2:
+                combined = title_lower + " " + link_lower
+                if piece_brand in combined:
+                    score += 10  # Strong brand match
+
+            if score > best_score:
+                best_score = score
+                best_piece = i
+
+        if best_piece >= 0:
+            piece_lens[best_piece].append(lr)
+
+    return piece_lens
+
+
+# ─── API ENDPOINTS ───
+
+@app.post("/api/full-analyze")
+async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
+    """Auto mode: Claude detect + full image Lens + Shopping per piece + keyword matching."""
+    if not SERPAPI_KEY:
+        raise HTTPException(500, "No API key")
+    cc = country.lower()
+    contents = await file.read()
 
     try:
-        print(f"  [{cat}] box={box} q='{q}'")
+        img = Image.open(io.BytesIO(contents)).convert("RGB")
+        img = ImageOps.exif_transpose(img)
+        img.thumbnail((800, 800))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        optimized = buf.getvalue()
+        b64 = base64.b64encode(optimized).decode()
+    except Exception:
+        optimized = contents
+        b64 = base64.b64encode(contents).decode()
 
-        # Step 1: Crop from high-res image (instant)
-        cropped_bytes = None
-        if box and isinstance(box, list) and len(box) == 4:
-            cropped_bytes = await asyncio.to_thread(crop_piece, img_obj, box)
+    print(f"\n{'='*50}\n=== AUTO ANALYZE === country={cc}")
 
-        # Step 2: Upload crop + Shopping in parallel (NO rembg in auto — causes timeout)
-        async def do_upload():
-            return await upload_img(cropped_bytes) if cropped_bytes else None
-        async def do_shop():
+    try:
+        # Step 1: Claude detect + Upload full image → PARALLEL
+        detect_task = claude_detect(b64, cc)
+        upload_task = upload_img(optimized)
+        pieces, img_url = await asyncio.gather(detect_task, upload_task)
+
+        if not pieces:
+            return {"success": True, "pieces": [], "country": cc}
+        print(f"Claude: {len(pieces)} pieces detected")
+
+        # Step 2: Full image Lens + all Shopping queries → PARALLEL
+        async def do_lens():
+            if img_url:
+                async with API_SEM:
+                    return await asyncio.to_thread(_lens, img_url, cc)
+            return []
+
+        async def do_shop(q):
             if q:
                 async with API_SEM:
                     return await asyncio.to_thread(_shop, q, cc)
             return []
 
-        url, shop_res = await asyncio.gather(do_upload(), do_shop())
+        shop_tasks = [do_shop(p.get("search_query", "")) for p in pieces[:5]]
+        all_results = await asyncio.gather(do_lens(), *shop_tasks)
 
-        # Step 3: Lens on cropped image
-        lens_res = []
-        if url:
-            try:
-                async with API_SEM:
-                    lens_res = await asyncio.to_thread(_lens, url, cc)
-                print(f"  [{cat}] Lens: {len(lens_res)}")
-            except Exception as e:
-                print(f"  [{cat}] Lens err: {e}")
+        lens_all = all_results[0]
+        shop_per_piece = list(all_results[1:])
+        print(f"Full Lens: {len(lens_all)} | Shop queries: {len(shop_per_piece)}")
 
-        # Step 4: Brand filter
-        if brand and brand != "?":
-            lens_res = filter_rival_brands(lens_res, brand)
-            shop_res = filter_rival_brands(shop_res, brand)
+        # Step 3: Match Lens → pieces by keyword + brand
+        piece_lens = match_lens_to_pieces(lens_all, pieces[:5])
 
-        # Step 5: Combine — Lens first, Shopping second
-        seen, combined = set(), []
-        for x in lens_res + shop_res:
-            if x["link"] not in seen:
-                seen.add(x["link"]); combined.append(x)
+        # Step 4: Build results per piece
+        results = []
+        for i, p in enumerate(pieces[:5]):
+            brand = p.get("brand", "")
+            matched_lens = piece_lens.get(i, [])
+            shop = shop_per_piece[i] if i < len(shop_per_piece) else []
 
-        return {
-            "category": cat,
-            "short_title": p.get("short_title", cat.title()),
-            "color": color,
-            "brand": brand if brand != "?" else "",
-            "visible_text": p.get("visible_text", ""),
-            "products": combined[:8],
-            "lens_count": len(lens_res),
-            "has_crop": cropped_bytes is not None,
-        }
+            # Brand filter
+            if brand and brand != "?":
+                matched_lens = filter_rival_brands(matched_lens, brand)
+                shop = filter_rival_brands(shop, brand)
+
+            # Combine: Shopping first (text-accurate), Lens second (visual)
+            seen, combined = set(), []
+            for x in shop + matched_lens:
+                if x["link"] not in seen:
+                    seen.add(x["link"])
+                    combined.append(x)
+
+            results.append({
+                "category": p.get("category", ""),
+                "short_title": p.get("short_title", p.get("category", "").title()),
+                "color": p.get("color", ""),
+                "brand": brand if brand != "?" else "",
+                "visible_text": p.get("visible_text", ""),
+                "products": combined[:8],
+                "lens_count": len(matched_lens),
+            })
+
+        return {"success": True, "pieces": results, "country": cc}
     except Exception as e:
-        print(f"  [{cat}] FAILED: {e}")
-        return {
-            "category": cat, "short_title": p.get("short_title", cat.title()),
-            "color": color, "brand": brand if brand != "?" else "",
-            "visible_text": p.get("visible_text", ""),
-            "products": [], "lens_count": 0, "has_crop": False,
-        }
+        print(f"AUTO ANALYZE FAILED: {e}")
+        return {"success": False, "message": str(e), "pieces": []}
+
 
 # ─── Claude identify crop (Manual mode) ───
 async def claude_identify_crop(img_bytes, cc="tr"):
@@ -530,43 +610,6 @@ async def claude_identify_crop(img_bytes, cc="tr"):
             return resp.json().get("content", [{}])[0].get("text", "").strip()
         except Exception: pass
     return ""
-
-# ─── API ENDPOINTS ───
-
-@app.post("/api/full-analyze")
-async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
-    if not SERPAPI_KEY: raise HTTPException(500, "No API key")
-    cc = country.lower()
-    contents = await file.read()
-
-    try:
-        img = Image.open(io.BytesIO(contents)).convert("RGB")
-        img = ImageOps.exif_transpose(img)
-        img_obj = img.copy()
-        img_obj.thumbnail((2000, 2000))  # High-res for cropping
-        img.thumbnail((800, 800))  # Low-res for Claude detection
-        buf = io.BytesIO(); img.save(buf, format="JPEG", quality=85)
-        b64 = base64.b64encode(buf.getvalue()).decode()
-    except Exception:
-        img_obj = Image.open(io.BytesIO(contents)).convert("RGB")
-        b64 = base64.b64encode(contents).decode()
-
-    print(f"\n{'='*50}\n=== AUTO ANALYZE === country={cc}")
-
-    try:
-        pieces = await claude_detect(b64, cc)
-        if not pieces:
-            return {"success": True, "pieces": [], "country": cc}
-        print(f"Claude: {len(pieces)} pieces detected")
-
-        # Process up to 4 pieces in parallel (no rerank = stays under 30s)
-        tasks = [process_auto_piece(p, img_obj, cc) for p in pieces[:4]]
-        results = list(await asyncio.gather(*tasks))
-
-        return {"success": True, "pieces": results, "country": cc}
-    except Exception as e:
-        print(f"AUTO ANALYZE FAILED: {e}")
-        return {"success": False, "message": str(e), "pieces": []}
 
 
 @app.post("/api/manual-search")
