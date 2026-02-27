@@ -318,11 +318,8 @@ async def full_analyze(file: UploadFile = File(...)):
     results = list(await asyncio.gather(*tasks))
 
     # Merge: Lens first, then Shopping, deduplicated
-    # Put unmatched Lens into first piece (usually the main garment)
     for i, r in enumerate(results):
         lens_for_piece = piece_lens.get(i, [])
-        if i == 0:
-            lens_for_piece = lens_for_piece + unmatched  # first piece gets unmatched too
         shop_products = r["products"]
         seen = set()
         combined = []
