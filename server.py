@@ -136,29 +136,29 @@ async def claude_detect(img_b64):
                     "messages":[{"role":"user","content":[
                         {"type":"image","source":{"type":"base64","media_type":"image/jpeg","data":img_b64}},
                         {"type":"text","text":"""Analyze every clothing item and accessory this person is wearing.
-Read ALL visible text, logos, brand names, patches on each item.
 
-For each item:
+CRITICAL RULES:
+1. ONLY list items that are CLEARLY VISIBLE as SEPARATE garments
+2. A collar, lining, or edge peeking under a jacket is NOT a separate piece
+3. If you can see less than 30% of an item, do NOT list it
+4. Do NOT guess hidden items - only what you can actually see
+5. Read ALL visible text, logos, brand names, patches on each item
+
+For each CLEARLY VISIBLE item:
 - category: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
-- short_title_tr: 2-4 word Turkish name. Be EXACT about item type:
-  * bere ≠ şapka (beanie ≠ cap)
-  * bomber ceket ≠ blazer ceket
-  * jogger pantolon ≠ kumaş pantolon
-  * bot ≠ sneaker ≠ loafer
-  * Examples: "Siyah Örgü Bere", "Kahverengi Deri Bomber", "Gri Jogger Pantolon"
+- short_title_tr: 2-4 word Turkish name. Be EXACT:
+  * bere ≠ şapka, bomber ≠ blazer, jogger ≠ kumaş pantolon, bot ≠ sneaker
+  * Include style: "Bordo Nakışlı Şapka", "Yeşil Varsity Ceket"
 - color_tr: Turkish color
-- brand: ONLY if readable, else "?"
-- visible_text: All readable text/logos
-- search_query_tr: ULTRA SPECIFIC Turkish query 4-6 words. The search query MUST match the exact item type in short_title_tr.
-  * If short_title_tr says "bere" then query MUST contain "bere" NOT "şapka"
-  * If short_title_tr says "bomber ceket" then query MUST contain "bomber ceket"
-  * Include brand if visible, include color
+- brand: ONLY if you can READ it on the item, else "?"
+- visible_text: ALL readable text/logos/patches (e.g. "Timeless", "Rebel", "R")
+- search_query_tr: 4-6 word ULTRA SPECIFIC Turkish query
+  * MUST match exact item type from short_title_tr
+  * Include brand if readable, include ALL visible text/patches
   * Examples:
-    "siyah örgü bere erkek" (NOT "siyah şapka")
-    "bershka yeşil varsity ceket timeless"
-    "gri oversize kapüşonlu sweatshirt erkek"
-    "mavi yırtık baggy jean pantolon"
-    "nike air force 1 beyaz ayakkabı"
+    "bershka yeşil timeless rebel varsity ceket"
+    "bordo R harfli nakışlı beyzbol şapkası"
+    "gri wide leg kumaş pantolon erkek"
 
 Return ONLY valid JSON array, no markdown no backticks:
 [{"category":"","short_title_tr":"","color_tr":"","brand":"","visible_text":"","search_query_tr":""}]"""}
@@ -196,17 +196,17 @@ def _lens(url):
 
 # ─── Match Lens results to piece categories ───
 PIECE_KEYWORDS = {
-    "hat": ["sapka","şapka","cap","hat","bere","beanie","kasket","fes","kepi"],
-    "sunglasses": ["gozluk","gözlük","sunglasses","güneş"],
-    "scarf": ["atki","atkı","sal","şal","fular","scarf"],
-    "jacket": ["ceket","mont","kaban","blazer","bomber","jacket","coat","varsity","parka","trench","palto","kase","kaşe"],
-    "top": ["tisort","tişört","gomlek","gömlek","sweatshirt","hoodie","kazak","bluz","top","shirt","polo","triko"],
-    "bottom": ["pantolon","jean","denim","jogger","chino","pants","trousers","sort","şort","etek"],
-    "dress": ["elbise","dress","tulum"],
-    "shoes": ["ayakkabi","ayakkabı","sneaker","bot","boot","shoe","terlik","loafer","sandalet","spor ayak"],
-    "bag": ["canta","çanta","bag","clutch","sirt","sırt"],
-    "watch": ["saat","watch","kol saati"],
-    "accessory": ["kolye","bileklik","yuzuk","yüzük","kupe","küpe","aksesuar","kemer","belt"],
+    "hat": ["sapka","şapka","cap","hat","bere","beanie","kasket","fes","kepi","baseball","snapback","bucket","fedora","berretto"],
+    "sunglasses": ["gozluk","gözlük","sunglasses","güneş","eyewear"],
+    "scarf": ["atki","atkı","sal","şal","fular","scarf","bandana"],
+    "jacket": ["ceket","mont","kaban","blazer","bomber","jacket","coat","varsity","parka","trench","palto","kase","kaşe","denim jacket","overcoat","cardigan","hırka","yelek","vest","windbreaker","anorak","puffer","embroidered cloth"],
+    "top": ["tisort","tişört","gomlek","gömlek","sweatshirt","hoodie","kazak","bluz","top","shirt","polo","triko","t-shirt","tee","crop","tank","henley"],
+    "bottom": ["pantolon","jean","denim","jogger","chino","pants","trousers","sort","şort","etek","skirt","cargo","wide leg","slim fit","straight","baggy","tapered"],
+    "dress": ["elbise","dress","tulum","jumpsuit","romper"],
+    "shoes": ["ayakkabi","ayakkabı","sneaker","bot","boot","shoe","terlik","loafer","sandalet","spor ayak","trainer","runner","chelsea","oxford","moccasin","slip-on"],
+    "bag": ["canta","çanta","bag","clutch","sirt","sırt","backpack","tote","crossbody","messenger"],
+    "watch": ["saat","watch","kol saati","timepiece"],
+    "accessory": ["kolye","bileklik","yuzuk","yüzük","kupe","küpe","aksesuar","kemer","belt","necklace","bracelet","ring","earring","chain"],
 }
 
 def match_lens_to_pieces(lens_results, pieces):
