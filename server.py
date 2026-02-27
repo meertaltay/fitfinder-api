@@ -315,8 +315,11 @@ async def full_analyze(file: UploadFile = File(...)):
     results = list(await asyncio.gather(*tasks))
 
     # Merge: Lens first, then Shopping, deduplicated
+    # Put unmatched Lens into first piece (usually the main garment)
     for i, r in enumerate(results):
         lens_for_piece = piece_lens.get(i, [])
+        if i == 0:
+            lens_for_piece = lens_for_piece + unmatched  # first piece gets unmatched too
         shop_products = r["products"]
         seen = set()
         combined = []
@@ -327,7 +330,7 @@ async def full_analyze(file: UploadFile = File(...)):
         r["products"] = combined[:8]
         r["lens_count"] = len(lens_for_piece)
 
-    return {"success":True,"pieces":results,"lens_unmatched":unmatched[:5]}
+    return {"success":True,"pieces":results}
 
 
 # ─── MANUAL SEARCH (cropped by user) ───
@@ -599,24 +602,11 @@ function showErr(m){var e=document.getElementById('err');e.style.display='block'
 // ─── RENDER AUTO ───
 function renderAuto(d){
   document.getElementById('prev').style.maxHeight='160px';
-  var pieces=d.pieces||[],unm=d.lens_unmatched||[];
+  var pieces=d.pieces||[];
   var ra=document.getElementById('res');ra.style.display='block';
   var h='';
 
-  // ─── Unmatched Lens at top ───
-  if(unm.length>0){
-    h+='<div style="margin-bottom:20px">';
-    h+='<div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:10px">&#x1F3AF; Gorsel Eslesme</div>';
-    h+=heroHTML(unm[0],true);
-    if(unm.length>1)h+=altsHTML(unm.slice(1));
-    h+='</div>';
-  }
-
-  // ─── PIECES ───
-  if(pieces.length>0){
-    h+='<div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px">&#x1F455; Parca Bazli Sonuclar</div>';
-  }
-
+  // ─── PIECES only ───
   for(var i=0;i<pieces.length;i++){
     var p=pieces[i],pr=p.products||[],lc=p.lens_count||0;
     var hero=pr[0],alts=pr.slice(1);
@@ -638,7 +628,7 @@ function renderAuto(d){
     h+='</div>';
   }
 
-  if(!pieces.length&&!unm.length){
+  if(!pieces.length){
     h='<div style="text-align:center;padding:40px;color:var(--dim)">Sonuc bulunamadi. "Kendim Seceyim" ile dene!</div>';
   }
   ra.innerHTML=h;
