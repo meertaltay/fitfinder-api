@@ -195,31 +195,23 @@ def _shop(q, limit=6):
 async def process_piece(p, img_bytes):
     cat = p.get("category","")
     q = p.get("search_query_tr","") or p.get("short_title_tr","")
-    print(f"[{cat}] q='{q}'")
+    print(f"[{cat}] Shopping query: '{q}'")
 
-    lens_res = []
-    cr = zone_crop(img_bytes, cat)
-    if cr:
-        url = await upload_img(cr)
-        if url:
-            lens_res = await asyncio.to_thread(_lens, url)
-            print(f"[{cat}] Lens: {len(lens_res)}")
-
-    shop_res = []
+    # Text search only — zone crop/Lens unreliable for auto mode
+    products = []
     if q:
-        shop_res = await asyncio.to_thread(_shop, q)
-        print(f"[{cat}] Shop: {len(shop_res)}")
-
-    seen = set(); combined = []
-    for x in lens_res + shop_res:
-        if x["link"] not in seen: seen.add(x["link"]); combined.append(x)
+        products = await asyncio.to_thread(_shop, q)
+        print(f"[{cat}] Found: {len(products)}")
 
     return {
-        "category": cat, "short_title_tr": p.get("short_title_tr",cat.title()),
-        "color_tr": p.get("color_tr",""), "brand": p.get("brand",""),
+        "category": cat,
+        "short_title_tr": p.get("short_title_tr", cat.title()),
+        "color_tr": p.get("color_tr",""),
+        "brand": p.get("brand",""),
         "visible_text": p.get("visible_text",""),
-        "crop_preview": thumb_b64(img_bytes, cat),
-        "products": combined[:8], "lens_count": len(lens_res),
+        "crop_preview": None,
+        "products": products[:6],
+        "lens_count": 0,
     }
 
 
