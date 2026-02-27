@@ -429,21 +429,21 @@ async def claude_rerank(original_b64, results, cc="tr"):
         return results
 
     cfg = get_country_config(cc)
-    content.append({"type": "text", "text": f"""You are an expert fashion stylist. Compare the ORIGINAL item (Image 0) with the numbered results.
+    content.append({"type": "text", "text": f"""You are an ULTRA-STRICT AI fashion authentication expert. Your ONLY job is to find the EXACT SAME item.
+Compare the ORIGINAL cropped item (Image 0) with the numbered results.
 
-Score each result 1-10 based on how EXACTLY it matches the original in:
-- Same garment TYPE (jacket vs coat vs vest etc.)
-- Same COLOR and PATTERN
-- Same STYLE and CUT (collar, length, fit)
-- Same MATERIAL look (leather, denim, knit etc.)
+Scoring Rules:
+10/10: EXACT MATCH - Same brand, exact same design, cut, pockets, zipper, pattern, color.
+8-9/10: HIGHLY IDENTICAL DUPE - Almost indistinguishable visually.
+0-7/10: SIMILAR BUT DIFFERENT - e.g. both black leather jackets but collar/zipper differs. REJECT THESE.
 
-Return ONLY a JSON array of objects sorted by best match first:
-[{{"idx":1,"score":9}},{{"idx":3,"score":7}}]
+Return ONLY a valid JSON array sorted by highest score first:
+[{{"idx":1,"score":10}},{{"idx":3,"score":8}}]
 
-Rules:
-- Only include results scoring 5 or above
-- Be STRICT: a black bomber jacket is NOT the same as a black blazer
-- If nothing matches well, return empty array []"""})
+CRITICAL RULES:
+- ONLY include results scoring 8 or higher
+- Be ruthless: if just "similar style", exclude completely
+- If NO item is an exact match, return empty array []"""})
 
     try:
         async with httpx.AsyncClient(timeout=45) as c:
@@ -476,7 +476,7 @@ Rules:
                 for rank in rankings:
                     idx = rank.get("idx", 0) - 1  # 1-indexed to 0-indexed
                     score = rank.get("score", 0)
-                    if 0 <= idx < len(candidates) and idx not in used and score >= 5:
+                    if 0 <= idx < len(candidates) and idx not in used and score >= 8:
                         item = candidates[idx].copy()
                         item["match_score"] = score
                         item["ai_verified"] = score >= 8
@@ -832,21 +832,22 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     search_q = query if query else smart_query
     print(f"  Search query: '{search_q}'")
 
-    # Step 3: Parallel — Lens (clean image) + Shopping
+    # Step 3: LENS FIRST — Shopping only as fallback
     async def do_lens():
         if url:
             async with API_SEM:
                 return await asyncio.to_thread(_lens, url, cc)
         return []
 
-    async def do_shop():
-        if search_q:
-            async with API_SEM:
-                return await asyncio.to_thread(_shop, search_q, cc, 6)
-        return []
+    lens_res = await do_lens()
+    print(f"  Manual Lens: {len(lens_res)}")
 
-    lens_res, shop_res = await asyncio.gather(do_lens(), do_shop())
-    print(f"  Manual Lens: {len(lens_res)}, Shop: {len(shop_res)}")
+    # Fallback: Shopping only if Lens found < 3 results
+    shop_res = []
+    if len(lens_res) < 3 and search_q:
+        async with API_SEM:
+            shop_res = await asyncio.to_thread(_shop, search_q, cc, 6)
+        print(f"  Manual Shop (fallback): {len(shop_res)}")
 
     # Combine: Lens first (visual match), then Shopping
     seen = set()
@@ -860,7 +861,7 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     # Resize to 300px for AI (saves ~5x tokens vs 1024px)
     try:
         img_ai = Image.open(io.BytesIO(clean_bytes)).convert("RGB")
-        img_ai.thumbnail((300, 300))
+        img_ai.thumbnail((512, 512))
         buf_ai = io.BytesIO()
         img_ai.save(buf_ai, format="JPEG", quality=80)
         original_b64 = base64.b64encode(buf_ai.getvalue()).decode()
@@ -1323,11 +1324,17 @@ function altsHTML(list){
   var h='<div style="font-size:11px;color:var(--dim);margin:6px 0">'+t('alts')+'</div><div class="scroll">';
   for(var i=0;i<list.length;i++){var a=list[i];var img=a.thumbnail||a.image||'';
     var vBorder=a.ai_verified?'border-color:#22c55e':'';
-    h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' local':'')+'" style="'+vBorder+'">';
+    var isFav=(localStorage.getItem('fitfinder_favs')||'').indexOf(a.link)>-1;
+    var safeT=(a.title||'').replace(/'/g,"\\'");
+    var safeP=(a.price||'').replace(/'/g,"\\'");
+    var safeB=(a.brand||a.source||'').replace(/'/g,"\\'");
+    h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' local':'')+'" style="'+vBorder+';position:relative">';
     if(img)h+='<img src="'+img+'" onerror="this.hidden=true">';
     h+='<div class="ci">';
     if(a.ai_verified)h+='<div style="font-size:8px;color:#22c55e;font-weight:700;margin-bottom:2px">\u2705 '+t('aiMatch')+'</div>';
-    h+='<div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div></a>'}
+    h+='<div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div>';
+    h+='<div onclick="toggleFav(event,\''+a.link+'\',\''+img+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\')" style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.6);color:#fff;padding:4px;border-radius:50%;cursor:pointer;font-size:10px;z-index:10;line-height:1">'+(isFav?'\u2764\uFE0F':'\u{1F90D}')+'</div>';
+    h+='</a>'}
   return h+'</div>';
 }
 function toggleFav(e,link,img,title,price,brand){
