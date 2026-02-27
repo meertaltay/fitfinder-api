@@ -185,6 +185,8 @@ BLOCKED = [
     "shutterstock.", "gettyimages.", "alamy.", "dreamstime.",
     "vecteezy.", "freepik.", "unsplash.", "pexels.",
     "shein.", "temu.", "cider.", "romwe.", "patpat.",
+    "rightmove.", "zillow.", "realtor.", "selency.", "1stdibs.",
+    "pamono.", "chairish.", "wayfair.", "ikea.",
 ]
 
 FASHION_DOMAINS = [
@@ -743,19 +745,23 @@ def crop_piece(img_bytes, box):
 
 
 # ─── Process Single Auto-Crop Piece ───
+# Small items where bounding box crop is unreliable → Shopping only
+SHOP_ONLY_CATS = {"sunglasses", "watch", "accessory", "scarf", "hat"}
+
 async def process_auto_piece(p, img_bytes, cc="tr"):
-    """Pipeline for one auto piece: crop → upload → lens + shop (parallel). No rembg for speed."""
+    """Pipeline for one auto piece: crop → upload → lens + shop (parallel)."""
     cat = p.get("category", "")
     box = p.get("box", None)
     q = p.get("search_query", "")
     brand = p.get("brand", "")
+    use_lens = cat not in SHOP_ONLY_CATS  # Small items → skip Lens
 
     try:
-        print(f"  [{cat}] box={box} q='{q}'")
+        print(f"  [{cat}] box={box} q='{q}' lens={'yes' if use_lens else 'SKIP(small)'}")
 
-        # Step 1: Crop piece from image (fast, <50ms)
+        # Step 1: Crop piece (only for large garments where crop is reliable)
         cropped = None
-        if box and isinstance(box, list) and len(box) == 4:
+        if use_lens and box and isinstance(box, list) and len(box) == 4:
             try:
                 cropped = await asyncio.to_thread(crop_piece, img_bytes, box)
             except Exception as e:
@@ -775,9 +781,9 @@ async def process_auto_piece(p, img_bytes, cc="tr"):
 
         url, shop_res = await asyncio.gather(do_upload(), do_shop())
 
-        # Step 3: Lens on cropped image
+        # Step 3: Lens on cropped image (only for large items)
         lens_res = []
-        if url:
+        if url and use_lens:
             try:
                 async with API_SEM:
                     lens_res = await asyncio.to_thread(_lens, url, cc)
@@ -790,10 +796,11 @@ async def process_auto_piece(p, img_bytes, cc="tr"):
             lens_res = filter_rival_brands(lens_res, brand)
             shop_res = filter_rival_brands(shop_res, brand)
 
-        # Step 5: Combine — Lens first, Shop fallback
+        # Step 5: Combine — for large items Lens first; for small items Shop only
         seen = set()
         combined = []
-        for x in lens_res + shop_res:
+        order = lens_res + shop_res if use_lens else shop_res
+        for x in order:
             if x["link"] not in seen:
                 seen.add(x["link"])
                 combined.append(x)
