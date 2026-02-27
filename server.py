@@ -14,9 +14,13 @@ from serpapi import GoogleSearch
 
 try:
     from rembg import remove as rembg_remove, new_session
-    rembg_session = new_session("u2net")  # Load model ONCE globally
+    try:
+        rembg_session = new_session("u2net_cloth_seg")  # Clothing-specific model
+        print("✅ rembg loaded (u2net_cloth_seg)")
+    except Exception:
+        rembg_session = new_session("u2net")  # Fallback to general model
+        print("✅ rembg loaded (u2net fallback)")
     HAS_REMBG = True
-    print("✅ rembg loaded (session ready)")
 except ImportError:
     rembg_session = None
     HAS_REMBG = False
@@ -27,6 +31,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 # Rate limit: max 3 concurrent SerpAPI calls
 API_SEM = asyncio.Semaphore(3)
+REMBG_LOCK = asyncio.Lock()  # ONNX not thread-safe
 
 # Simple in-memory cache (query -> results, expires after 1h)
 _CACHE = {}
@@ -42,12 +47,16 @@ def cache_get(key):
 
 def cache_set(key, val):
     _CACHE[key] = (val, time.time())
-    # Cleanup old entries if cache grows too big
     if len(_CACHE) > 500:
         now = time.time()
         expired = [k for k, (_, ts) in _CACHE.items() if now - ts > CACHE_TTL]
         for k in expired:
             del _CACHE[k]
+        # FIFO eviction: if still over limit, drop oldest 50
+        if len(_CACHE) > 500:
+            oldest = sorted(_CACHE.keys(), key=lambda k: _CACHE[k][1])[:50]
+            for k in oldest:
+                del _CACHE[k]
 
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -129,8 +138,12 @@ def make_affiliate(url):
     """Wrap product URL with affiliate tracking. Returns original URL if no partner ID."""
     url_lower = url.lower()
     if TRENDYOL_PARTNER_ID and "trendyol.com" in url_lower:
-        sep = "&" if "?" in url else "?"
-        return f"{url}{sep}boutiqueId={TRENDYOL_PARTNER_ID}&merchantId={TRENDYOL_PARTNER_ID}"
+        parsed = urllib.parse.urlparse(url)
+        query = dict(urllib.parse.parse_qsl(parsed.query))
+        query["boutiqueId"] = TRENDYOL_PARTNER_ID
+        query["merchantId"] = TRENDYOL_PARTNER_ID
+        new_query = urllib.parse.urlencode(query)
+        return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
     if SKIMLINKS_ID:
         encoded = urllib.parse.quote(url, safe='')
         return f"https://go.skimresources.com/?id={SKIMLINKS_ID}&url={encoded}"
@@ -364,7 +377,8 @@ async def claude_rerank(original_b64, results, cc="tr"):
                 if url.startswith("data:image"):
                     raw = url.split(",", 1)[1] if "," in url else ""
                     if len(raw) > 100:
-                        # Decode, resize, re-encode
+                        # Fix missing padding (critical for SerpAPI data URIs)
+                        raw += "=" * ((4 - len(raw) % 4) % 4)
                         img_data = base64.b64decode(raw)
                         img = Image.open(io.BytesIO(img_data)).convert("RGB")
                         img.thumbnail((256, 256))
@@ -641,7 +655,19 @@ def match_lens_to_pieces(lens_results, pieces):
         for i, p in enumerate(pieces):
             cat = p.get("category", "")
             keywords = PIECE_KEYWORDS.get(cat, [])
-            if any(kw in title_lower for kw in keywords):
+            matched = False
+            for kw in keywords:
+                # Short keywords (hat, top, cap) need word boundary to avoid
+                # "chateau" matching "hat", "laptop" matching "top"
+                if len(kw) <= 4:
+                    if re.search(rf'\b{re.escape(kw)}\b', title_lower):
+                        matched = True
+                        break
+                else:
+                    if kw in title_lower:
+                        matched = True
+                        break
+            if matched:
                 piece_lens[i].append(lr)
                 break
     return piece_lens
@@ -774,8 +800,19 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     contents = await file.read()
     print(f"\n=== MANUAL SEARCH === country={cc} user_query='{query}'")
 
-    # Step 1: Remove background (sync, ~1-2s)
-    clean_bytes = await asyncio.to_thread(remove_bg, contents)
+    # Step 0: Resize for rembg (prevent CPU lock on 15MB phone photos)
+    try:
+        img = Image.open(io.BytesIO(contents)).convert("RGB")
+        img.thumbnail((1024, 1024))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        optimized = buf.getvalue()
+    except Exception:
+        optimized = contents
+
+    # Step 1: Remove background (with lock — ONNX not thread-safe)
+    async with REMBG_LOCK:
+        clean_bytes = await asyncio.to_thread(remove_bg, optimized)
 
     # Step 2: Parallel — upload clean image + Claude identify
     upload_task = upload_img(clean_bytes)
@@ -918,8 +955,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
         <div style="position:absolute;inset:0;background:linear-gradient(transparent 50%,var(--bg));pointer-events:none"></div>
       </div>
       <div id="actionBtns" style="display:flex;flex-direction:column;gap:10px">
-        <button class="btn-main btn-gold" onclick="autoScan()" id="btnAuto"></button>
-        <button class="btn-main btn-outline" onclick="startManual()" id="btnManual"></button>
+        <button class="btn-main btn-gold" onclick="startManual()" id="btnManual"></button>
+        <button class="btn-main btn-outline" onclick="autoScan()" id="btnAuto"></button>
       </div>
       <div id="cropMode" style="display:none">
         <p id="cropHint" style="font-size:13px;color:var(--accent);font-weight:600;margin-bottom:8px;text-align:center"></p>
