@@ -538,7 +538,7 @@ async def home():
 
 
 HTML_PAGE = r"""<!DOCTYPE html>
-<html lang="tr">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -574,7 +574,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .p-brand{font-size:9px;font-weight:700;color:var(--bg);background:var(--accent);padding:2px 7px;border-radius:4px;margin-left:6px}
 .scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
 .card{flex-shrink:0;width:135px;background:var(--card);border-radius:10px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text)}
-.card.tr{border-color:var(--accent)}
+.card.local{border-color:var(--accent)}
 .card img{width:135px;height:110px;object-fit:cover;display:block}
 .card .ci{padding:8px}
 .card .cn{font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -588,36 +588,24 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
   <div id="home" style="padding:0 20px">
     <div style="padding-top:56px;padding-bottom:28px">
       <p style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-bottom:10px">FitFinder</p>
-      <h1 style="font-size:32px;font-weight:700;line-height:1.15">Gorseldeki outfiti<br><span style="color:var(--accent)">birebir</span> bul.</h1>
-      <p style="font-size:14px;color:var(--muted);margin-top:12px;line-height:1.5">Fotograf yukle, AI parcalari tespit etsin<br>veya kendin sec, Google Lens bulsun.</p>
+      <h1 id="heroTitle" style="font-size:32px;font-weight:700;line-height:1.15"></h1>
+      <p id="heroSub" style="font-size:14px;color:var(--muted);margin-top:12px;line-height:1.5"></p>
     </div>
     <div onclick="document.getElementById('fi').click()" style="background:var(--accent);border-radius:14px;padding:18px 24px;display:flex;align-items:center;gap:14px;cursor:pointer;margin-bottom:16px">
       <div style="font-size:24px">&#x1F4F7;</div>
-      <div><div style="font-size:16px;font-weight:700;color:var(--bg)">Fotograf Yukle</div><div style="font-size:12px;color:rgba(0,0,0,.45)">Galeri veya screenshot</div></div>
+      <div><div id="uploadTitle" style="font-size:16px;font-weight:700;color:var(--bg)"></div><div id="uploadSub" style="font-size:12px;color:rgba(0,0,0,.45)"></div></div>
     </div>
     <input type="file" id="fi" accept="image/*" style="display:none">
     <div style="margin-top:32px;display:flex;flex-direction:column;gap:14px;padding-bottom:100px">
-      <div style="background:var(--card);border-radius:12px;padding:14px;border:1px solid var(--border)">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">&#x1F30D; Ulke (magazalar buna gore gelir)</div>
-        <select id="ccSel" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:14px 'DM Sans',sans-serif">
-          <option value="tr">&#x1F1F9;&#x1F1F7; Turkiye</option>
-          <option value="us">&#x1F1FA;&#x1F1F8; United States</option>
-          <option value="gb">&#x1F1EC;&#x1F1E7; United Kingdom</option>
-          <option value="de">&#x1F1E9;&#x1F1EA; Deutschland</option>
-          <option value="fr">&#x1F1EB;&#x1F1F7; France</option>
-          <option value="nl">&#x1F1F3;&#x1F1F1; Netherlands</option>
-          <option value="sa">&#x1F1F8;&#x1F1E6; Saudi Arabia</option>
-          <option value="ae">&#x1F1E6;&#x1F1EA; UAE</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:12px;align-items:center"><span style="font-size:20px">&#x1F916;</span><div><div style="font-size:13px;font-weight:600">Otomatik Tara</div><div style="font-size:11px;color:var(--muted)">AI tum parcalari tespit edip arar</div></div></div>
-      <div style="display:flex;gap:12px;align-items:center"><span style="font-size:20px">&#x2702;&#xFE0F;</span><div><div style="font-size:13px;font-weight:600">Kendim Seceyim</div><div style="font-size:11px;color:var(--muted)">Parmaginla parcayi sec, birebir bul</div></div></div>
+      <div style="display:flex;gap:12px;align-items:center"><span style="font-size:20px">&#x1F916;</span><div><div id="feat1" style="font-size:13px;font-weight:600"></div><div id="feat1d" style="font-size:11px;color:var(--muted)"></div></div></div>
+      <div style="display:flex;gap:12px;align-items:center"><span style="font-size:20px">&#x2702;&#xFE0F;</span><div><div id="feat2" style="font-size:13px;font-weight:600"></div><div id="feat2d" style="font-size:11px;color:var(--muted)"></div></div></div>
+      <div style="display:flex;gap:12px;align-items:center"><span style="font-size:20px" id="flagIcon"></span><div><div id="feat3" style="font-size:13px;font-weight:600"></div><div id="feat3d" style="font-size:11px;color:var(--muted)"></div></div></div>
     </div>
   </div>
 
   <div id="rScreen" style="display:none">
     <div style="position:sticky;top:0;z-index:40;background:rgba(10,10,12,.9);backdrop-filter:blur(20px);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
-      <div onclick="goHome()" style="cursor:pointer;color:var(--muted);font-size:13px">&#x2190; Geri</div>
+      <div onclick="goHome()" style="cursor:pointer;color:var(--muted);font-size:13px" id="backBtn"></div>
       <div style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:2.5px">FITFINDER</div>
       <div style="width:40px"></div>
     </div>
@@ -627,15 +615,15 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
         <div style="position:absolute;inset:0;background:linear-gradient(transparent 50%,var(--bg));pointer-events:none"></div>
       </div>
       <div id="actionBtns" style="display:flex;flex-direction:column;gap:10px">
-        <button class="btn-main btn-gold" onclick="autoScan()">&#x1F916; Otomatik Tara</button>
-        <button class="btn-main btn-outline" onclick="startManual()">&#x2702;&#xFE0F; Kendim Seceyim</button>
+        <button class="btn-main btn-gold" onclick="autoScan()" id="btnAuto"></button>
+        <button class="btn-main btn-outline" onclick="startManual()" id="btnManual"></button>
       </div>
       <div id="cropMode" style="display:none">
-        <p style="font-size:13px;color:var(--accent);font-weight:600;margin-bottom:8px;text-align:center">&#x1F447; Aramak istedigin parcayi cercevele</p>
+        <p id="cropHint" style="font-size:13px;color:var(--accent);font-weight:600;margin-bottom:8px;text-align:center"></p>
         <div class="crop-container"><img id="cropImg" src=""></div>
-        <input id="manualQ" placeholder="Opsiyonel: ne aradigini yaz (ornek: siyah deri ceket)" style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font:14px 'DM Sans',sans-serif;margin:10px 0">
-        <button class="btn-main btn-green" onclick="cropAndSearch()">&#x1F50D; Bu Parcayi Bul</button>
-        <button class="btn-main btn-outline" onclick="cancelManual()" style="margin-top:8px;font-size:13px">&#x2190; Vazgec</button>
+        <input id="manualQ" style="width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font:14px 'DM Sans',sans-serif;margin:10px 0">
+        <button class="btn-main btn-green" onclick="cropAndSearch()" id="btnFind"></button>
+        <button class="btn-main btn-outline" onclick="cancelManual()" style="margin-top:8px;font-size:13px" id="btnCancel"></button>
       </div>
       <div id="ld" style="display:none"></div>
       <div id="err" style="display:none"></div>
@@ -644,34 +632,200 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
   </div>
 
   <div class="bnav">
-    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer" onclick="goHome()"><div style="font-size:20px;color:var(--accent)">&#x2B21;</div><div style="font-size:10px;font-weight:600;color:var(--accent)">Kesfet</div></div>
-    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer"><div style="font-size:20px;color:var(--dim)">&#x2661;</div><div style="font-size:10px;font-weight:600;color:var(--dim)">Favoriler</div></div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer" onclick="goHome()"><div style="font-size:20px;color:var(--accent)">&#x2B21;</div><div id="navHome" style="font-size:10px;font-weight:600;color:var(--accent)"></div></div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer"><div style="font-size:20px;color:var(--dim)">&#x2661;</div><div id="navFav" style="font-size:10px;font-weight:600;color:var(--dim)"></div></div>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 <script>
 var IC={hat:"\u{1F9E2}",sunglasses:"\u{1F576}",top:"\u{1F455}",jacket:"\u{1F9E5}",bag:"\u{1F45C}",accessory:"\u{1F48D}",watch:"\u{231A}",bottom:"\u{1F456}",dress:"\u{1F457}",shoes:"\u{1F45F}",scarf:"\u{1F9E3}"};
-var cF=null,cPrev=null,cropper=null;
+var cF=null,cPrev=null,cropper=null,CC='us';
 
-// Auto-detect country from browser
-(function(){
-  var tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'';
-  var lang=navigator.language||'';
-  var cc='us';
-  if(tz.indexOf('Istanbul')>-1||lang.startsWith('tr'))cc='tr';
-  else if(tz.indexOf('London')>-1||tz.indexOf('Europe/London')>-1)cc='gb';
-  else if(tz.indexOf('Berlin')>-1||tz.indexOf('Europe/Berlin')>-1||lang.startsWith('de'))cc='de';
-  else if(tz.indexOf('Paris')>-1||tz.indexOf('Europe/Paris')>-1||lang.startsWith('fr'))cc='fr';
-  else if(tz.indexOf('Amsterdam')>-1||lang.startsWith('nl'))cc='nl';
-  else if(tz.indexOf('Riyadh')>-1||lang.startsWith('ar'))cc='sa';
-  else if(tz.indexOf('Dubai')>-1)cc='ae';
-  else if(tz.indexOf('America')>-1)cc='us';
-  var sel=document.getElementById('ccSel');
-  if(sel)sel.value=cc;
-})();
+// ─── i18n ───
+var L={
+  tr:{
+    flag:"\u{1F1F9}\u{1F1F7}",heroTitle:'Gorseldeki outfiti<br><span style="color:var(--accent)">birebir</span> bul.',
+    heroSub:'Fotograf yukle, AI parcalari tespit etsin<br>veya kendin sec, Google Lens bulsun.',
+    upload:'Fotograf Yukle',uploadSub:'Galeri veya screenshot',
+    auto:'\u{1F916} Otomatik Tara',manual:'\u{2702}\u{FE0F} Kendim Seceyim',
+    feat1:'Otomatik Tara',feat1d:'AI tum parcalari tespit edip arar',
+    feat2:'Kendim Seceyim',feat2d:'Parmaginla parcayi sec, birebir bul',
+    feat3:'Yerel Magazalar',feat3d:'Trendyol, Zara TR, Bershka TR, H&M TR',
+    back:'\u2190 Geri',cropHint:'\u{1F447} Aramak istedigin parcayi cercevele',
+    manualPh:'Opsiyonel: ne aradigini yaz (ornek: siyah deri ceket)',
+    find:'\u{1F50D} Bu Parcayi Bul',cancel:'\u2190 Vazgec',
+    loading:'Parcalar tespit ediliyor...',loadingManual:'Sectigin parca araniyor...',
+    noResult:'Sonuc bulunamadi',noProd:'Urun bulunamadi',
+    retry:'\u{2702}\u{FE0F} Kendim Seceyim ile Tekrar Dene',another:'\u{2702}\u{FE0F} Baska Parca Sec',
+    selected:'Sectigin Parca',lensMatch:'Lens eslesmesi',
+    recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} Lens Eslesmesi',
+    goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',
+    alts:'\u{1F4B8} Alternatifler \u{1F449}',
+    navHome:'Kesfet',navFav:'Favoriler'
+  },
+  en:{
+    flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',
+    heroSub:'Upload a photo, AI detects each piece<br>or select manually, Google Lens finds it.',
+    upload:'Upload Photo',uploadSub:'Gallery or screenshot',
+    auto:'\u{1F916} Auto Scan',manual:'\u{2702}\u{FE0F} Select Myself',
+    feat1:'Auto Scan',feat1d:'AI detects all pieces and searches',
+    feat2:'Select Myself',feat2d:'Select the piece with your finger, find exact match',
+    feat3:'Local Stores',feat3d:'',
+    back:'\u2190 Back',cropHint:'\u{1F447} Frame the piece you want to find',
+    manualPh:'Optional: describe what you\'re looking for (e.g. black leather jacket)',
+    find:'\u{1F50D} Find This Piece',cancel:'\u2190 Cancel',
+    loading:'Detecting pieces...',loadingManual:'Searching for your selection...',
+    noResult:'No results found',noProd:'No products found',
+    retry:'\u{2702}\u{FE0F} Try Select Myself',another:'\u{2702}\u{FE0F} Select Another Piece',
+    selected:'Your Selection',lensMatch:'Lens match',
+    recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} Lens Match',
+    goStore:'Go to Store \u2197',noPrice:'Click for price',
+    alts:'\u{1F4B8} Alternatives \u{1F449}',
+    navHome:'Explore',navFav:'Favorites'
+  },
+  de:{
+    flag:"\u{1F1E9}\u{1F1EA}",heroTitle:'Finde das Outfit<br>im Foto, <span style="color:var(--accent)">genau so</span>.',
+    heroSub:'Lade ein Foto hoch, KI erkennt jedes Teil<br>oder wahle selbst, Google Lens findet es.',
+    upload:'Foto hochladen',uploadSub:'Galerie oder Screenshot',
+    auto:'\u{1F916} Automatisch scannen',manual:'\u{2702}\u{FE0F} Selbst wahlen',
+    feat1:'Automatisch scannen',feat1d:'KI erkennt alle Teile und sucht',
+    feat2:'Selbst wahlen',feat2d:'Wahle das Teil mit dem Finger',
+    feat3:'Lokale Shops',feat3d:'Zalando, About You, Otto',
+    back:'\u2190 Zuruck',cropHint:'\u{1F447} Rahme das Teil ein, das du finden willst',
+    manualPh:'Optional: beschreibe was du suchst (z.B. schwarze Lederjacke)',
+    find:'\u{1F50D} Dieses Teil finden',cancel:'\u2190 Abbrechen',
+    loading:'Teile werden erkannt...',loadingManual:'Deine Auswahl wird gesucht...',
+    noResult:'Keine Ergebnisse',noProd:'Keine Produkte gefunden',
+    retry:'\u{2702}\u{FE0F} Selbst wahlen',another:'\u{2702}\u{FE0F} Anderes Teil wahlen',
+    selected:'Deine Auswahl',lensMatch:'Lens Treffer',
+    recommended:'\u{2728} Empfohlen',lensLabel:'\u{1F3AF} Lens Treffer',
+    goStore:'Zum Shop \u2197',noPrice:'Preis ansehen',
+    alts:'\u{1F4B8} Alternativen \u{1F449}',
+    navHome:'Entdecken',navFav:'Favoriten'
+  },
+  fr:{
+    flag:"\u{1F1EB}\u{1F1F7}",heroTitle:'Trouvez la tenue<br>sur la photo, <span style="color:var(--accent)">exactement</span>.',
+    heroSub:'Telechargez une photo, l\'IA detecte chaque piece<br>ou selectionnez manuellement.',
+    upload:'Telecharger photo',uploadSub:'Galerie ou capture',
+    auto:'\u{1F916} Scan auto',manual:'\u{2702}\u{FE0F} Choisir moi-meme',
+    feat1:'Scan auto',feat1d:'L\'IA detecte toutes les pieces',
+    feat2:'Choisir moi-meme',feat2d:'Selectionnez la piece avec votre doigt',
+    feat3:'Boutiques locales',feat3d:'Galeries Lafayette, La Redoute',
+    back:'\u2190 Retour',cropHint:'\u{1F447} Cadrez la piece que vous cherchez',
+    manualPh:'Optionnel: decrivez ce que vous cherchez',
+    find:'\u{1F50D} Trouver cette piece',cancel:'\u2190 Annuler',
+    loading:'Detection en cours...',loadingManual:'Recherche en cours...',
+    noResult:'Aucun resultat',noProd:'Aucun produit trouve',
+    retry:'\u{2702}\u{FE0F} Reessayer manuellement',another:'\u{2702}\u{FE0F} Autre piece',
+    selected:'Votre selection',lensMatch:'Correspondance Lens',
+    recommended:'\u{2728} Recommande',lensLabel:'\u{1F3AF} Correspondance Lens',
+    goStore:'Voir boutique \u2197',noPrice:'Voir le prix',
+    alts:'\u{1F4B8} Alternatives \u{1F449}',
+    navHome:'Explorer',navFav:'Favoris'
+  },
+  ar:{
+    flag:"\u{1F1F8}\u{1F1E6}",heroTitle:'اعثر على الإطلالة<br>في الصورة <span style="color:var(--accent)">بالضبط</span>.',
+    heroSub:'ارفع صورة، الذكاء الاصطناعي يكتشف كل قطعة<br>أو اختر بنفسك.',
+    upload:'ارفع صورة',uploadSub:'المعرض أو لقطة شاشة',
+    auto:'\u{1F916} مسح تلقائي',manual:'\u{2702}\u{FE0F} أختار بنفسي',
+    feat1:'مسح تلقائي',feat1d:'الذكاء الاصطناعي يكتشف كل القطع',
+    feat2:'أختار بنفسي',feat2d:'اختر القطعة بإصبعك',
+    feat3:'متاجر محلية',feat3d:'نمشي، أوناس، سيفي',
+    back:'رجوع \u2190',cropHint:'\u{1F447} حدد القطعة التي تبحث عنها',
+    manualPh:'اختياري: صف ما تبحث عنه',
+    find:'\u{1F50D} ابحث عن هذه القطعة',cancel:'إلغاء \u2190',
+    loading:'جاري اكتشاف القطع...',loadingManual:'جاري البحث...',
+    noResult:'لا توجد نتائج',noProd:'لم يتم العثور على منتجات',
+    retry:'\u{2702}\u{FE0F} حاول الاختيار يدوياً',another:'\u{2702}\u{FE0F} اختر قطعة أخرى',
+    selected:'اختيارك',lensMatch:'تطابق Lens',
+    recommended:'\u{2728} مُوصى به',lensLabel:'\u{1F3AF} تطابق Lens',
+    goStore:'زيارة المتجر \u2197',noPrice:'انقر للسعر',
+    alts:'\u{1F4B8} بدائل \u{1F449}',
+    navHome:'استكشف',navFav:'المفضلة'
+  },
+  nl:{
+    flag:"\u{1F1F3}\u{1F1F1}",heroTitle:'Vind de outfit<br>op de foto, <span style="color:var(--accent)">precies zo</span>.',
+    heroSub:'Upload een foto, AI herkent elk kledingstuk<br>of selecteer zelf.',
+    upload:'Foto uploaden',uploadSub:'Galerij of screenshot',
+    auto:'\u{1F916} Automatisch scannen',manual:'\u{2702}\u{FE0F} Zelf selecteren',
+    feat1:'Automatisch scannen',feat1d:'AI herkent alle items en zoekt',
+    feat2:'Zelf selecteren',feat2d:'Selecteer het item met je vinger',
+    feat3:'Lokale winkels',feat3d:'Zalando, De Bijenkorf, Wehkamp',
+    back:'\u2190 Terug',cropHint:'\u{1F447} Kader het item dat je wilt vinden',
+    manualPh:'Optioneel: beschrijf wat je zoekt',
+    find:'\u{1F50D} Dit item vinden',cancel:'\u2190 Annuleren',
+    loading:'Items worden herkend...',loadingManual:'Je selectie wordt gezocht...',
+    noResult:'Geen resultaten',noProd:'Geen producten gevonden',
+    retry:'\u{2702}\u{FE0F} Zelf selecteren',another:'\u{2702}\u{FE0F} Ander item selecteren',
+    selected:'Je selectie',lensMatch:'Lens match',
+    recommended:'\u{2728} Aanbevolen',lensLabel:'\u{1F3AF} Lens Match',
+    goStore:'Naar winkel \u2197',noPrice:'Klik voor prijs',
+    alts:'\u{1F4B8} Alternatieven \u{1F449}',
+    navHome:'Ontdek',navFav:'Favorieten'
+  }
+};
 
-function getCC(){return document.getElementById('ccSel').value||'tr'}
+var STORE_NAMES={
+  tr:'Trendyol, Zara TR, Bershka TR, H&M TR',
+  us:'Nordstrom, Macy\'s, ASOS, Urban Outfitters',
+  gb:'ASOS, Selfridges, Harrods, John Lewis',
+  de:'Zalando, About You, Otto',
+  fr:'Galeries Lafayette, La Redoute',
+  sa:'Namshi, Ounass, Sivvi',
+  ae:'Namshi, 6th Street, Ounass',
+  nl:'Zalando, De Bijenkorf, Wehkamp'
+};
+
+var FLAGS={tr:"\u{1F1F9}\u{1F1F7}",us:"\u{1F1FA}\u{1F1F8}",gb:"\u{1F1EC}\u{1F1E7}",de:"\u{1F1E9}\u{1F1EA}",fr:"\u{1F1EB}\u{1F1F7}",sa:"\u{1F1F8}\u{1F1E6}",ae:"\u{1F1E6}\u{1F1EA}",nl:"\u{1F1F3}\u{1F1F1}"};
+var CC_LANG={tr:'tr',us:'en',gb:'en',de:'de',fr:'fr',sa:'ar',ae:'en',nl:'nl'};
+
+function detectCountry(){
+  var tz=(Intl.DateTimeFormat().resolvedOptions().timeZone||'').toLowerCase();
+  var lang=(navigator.language||'').toLowerCase();
+  if(tz.indexOf('istanbul')>-1||lang.startsWith('tr'))return'tr';
+  if(tz.indexOf('riyadh')>-1||tz.indexOf('asia/riyadh')>-1)return'sa';
+  if(tz.indexOf('dubai')>-1||tz.indexOf('asia/dubai')>-1)return'ae';
+  if(tz.indexOf('amsterdam')>-1||lang.startsWith('nl'))return'nl';
+  if(tz.indexOf('berlin')>-1||tz.indexOf('europe/berlin')>-1||tz.indexOf('europe/vienna')>-1||tz.indexOf('europe/zurich')>-1&&lang.startsWith('de'))return'de';
+  if(tz.indexOf('paris')>-1||tz.indexOf('europe/paris')>-1||lang.startsWith('fr'))return'fr';
+  if(tz.indexOf('london')>-1||tz.indexOf('europe/london')>-1)return'gb';
+  if(tz.indexOf('america')>-1||lang.startsWith('en-us'))return'us';
+  if(lang.startsWith('en-gb'))return'gb';
+  if(lang.startsWith('ar'))return'sa';
+  return'us';
+}
+
+CC=detectCountry();
+
+function t(key){var lg=CC_LANG[CC]||'en';return(L[lg]||L.en)[key]||(L.en)[key]||key}
+
+function applyLang(){
+  document.getElementById('heroTitle').innerHTML=t('heroTitle');
+  document.getElementById('heroSub').innerHTML=t('heroSub');
+  document.getElementById('uploadTitle').textContent=t('upload');
+  document.getElementById('uploadSub').textContent=t('uploadSub');
+  document.getElementById('feat1').textContent=t('feat1');
+  document.getElementById('feat1d').textContent=t('feat1d');
+  document.getElementById('feat2').textContent=t('feat2');
+  document.getElementById('feat2d').textContent=t('feat2d');
+  document.getElementById('feat3').textContent=t('feat3');
+  document.getElementById('feat3d').textContent=STORE_NAMES[CC]||'';
+  document.getElementById('flagIcon').textContent=FLAGS[CC]||'';
+  document.getElementById('btnAuto').innerHTML=t('auto');
+  document.getElementById('btnManual').innerHTML=t('manual');
+  document.getElementById('backBtn').textContent=t('back');
+  document.getElementById('cropHint').textContent=t('cropHint');
+  document.getElementById('manualQ').placeholder=t('manualPh');
+  document.getElementById('btnFind').innerHTML=t('find');
+  document.getElementById('btnCancel').innerHTML=t('cancel');
+  document.getElementById('navHome').textContent=t('navHome');
+  document.getElementById('navFav').textContent=t('navFav');
+  if(CC_LANG[CC]==='ar')document.documentElement.setAttribute('dir','rtl');
+}
+applyLang();
+
+function getCC(){return CC}
 
 document.getElementById('fi').addEventListener('change',function(e){if(e.target.files[0])loadF(e.target.files[0])});
 
@@ -694,11 +848,11 @@ function goHome(){document.getElementById('home').style.display='block';document
 
 function autoScan(){
   document.getElementById('actionBtns').style.display='none';
-  showLoading('Parcalar tespit ediliyor...');
+  showLoading(t('loading'));
   var fd=new FormData();fd.append('file',cF);fd.append('country',getCC());
   fetch('/api/full-analyze',{method:'POST',body:fd})
     .then(function(r){return r.json()})
-    .then(function(d){hideLoading();if(!d.success)return showErr(d.message||'Hata');renderAuto(d)})
+    .then(function(d){hideLoading();if(!d.success)return showErr(d.message||'Error');renderAuto(d)})
     .catch(function(e){hideLoading();showErr(e.message)});
 }
 
@@ -721,19 +875,19 @@ function cropAndSearch(){
   if(!canvas)return;
   document.getElementById('cropMode').style.display='none';
   document.getElementById('prev').style.display='block';
-  showLoading('Sectigin parca araniyor...');
+  showLoading(t('loadingManual'));
   canvas.toBlob(function(blob){
     var q=document.getElementById('manualQ').value.trim();
     var fd=new FormData();fd.append('file',blob,'crop.jpg');fd.append('query',q);fd.append('country',getCC());
     fetch('/api/manual-search',{method:'POST',body:fd})
       .then(function(r){return r.json()})
-      .then(function(d){hideLoading();if(!d.success)return showErr('Hata');renderManual(d,canvas.toDataURL('image/jpeg',0.7))})
+      .then(function(d){hideLoading();if(!d.success)return showErr('Error');renderManual(d,canvas.toDataURL('image/jpeg',0.7))})
       .catch(function(e){hideLoading();showErr(e.message)});
   },'image/jpeg',0.85);
   if(cropper){cropper.destroy();cropper=null}
 }
 
-function showLoading(t){var l=document.getElementById('ld');l.style.display='block';l.innerHTML='<div style="display:flex;align-items:center;gap:12px;background:var(--card);border-radius:12px;padding:16px;border:1px solid var(--border);margin:14px 0"><div style="width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div><div style="font-size:13px;font-weight:600">'+t+'</div></div>'}
+function showLoading(txt){var l=document.getElementById('ld');l.style.display='block';l.innerHTML='<div style="display:flex;align-items:center;gap:12px;background:var(--card);border-radius:12px;padding:16px;border:1px solid var(--border);margin:14px 0"><div style="width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div><div style="font-size:13px;font-weight:600">'+txt+'</div></div>'}
 function hideLoading(){document.getElementById('ld').style.display='none'}
 function showErr(m){var e=document.getElementById('err');e.style.display='block';e.innerHTML='<div style="background:rgba(232,93,93,.06);border:1px solid rgba(232,93,93,.15);border-radius:12px;padding:12px;margin:12px 0;font-size:13px;color:var(--red)">'+m+'</div>'}
 
@@ -752,44 +906,44 @@ function renderAuto(d){
     if(p.brand&&p.brand!=='?')h+='<span class="p-brand">'+p.brand+'</span>';
     var vt=p.visible_text||'';
     if(vt&&vt.toLowerCase()!=='none')h+='<div style="font-size:10px;color:var(--accent);font-style:italic;margin-top:2px">"'+vt+'"</div>';
-    if(lc>0)h+='<div style="font-size:9px;color:var(--green);margin-top:1px">&#x1F3AF; '+lc+' Lens eslesmesi</div>';
+    if(lc>0)h+='<div style="font-size:9px;color:var(--green);margin-top:1px">\u{1F3AF} '+lc+' '+t('lensMatch')+'</div>';
     h+='</div></div>';
-    if(!hero){h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">Urun bulunamadi</div></div>';continue}
+    if(!hero){h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">'+t('noProd')+'</div></div>';continue}
     h+=heroHTML(hero,lc>0);
     if(alts.length>0)h+=altsHTML(alts);
     h+='</div>';
   }
-  if(!pieces.length)h='<div style="text-align:center;padding:40px;color:var(--dim)">Sonuc bulunamadi</div>';
-  ra.innerHTML=h+'<button class="btn-main btn-outline" onclick="showScreen()" style="margin-top:20px">&#x2702;&#xFE0F; Kendim Seceyim ile Tekrar Dene</button>';
+  if(!pieces.length)h='<div style="text-align:center;padding:40px;color:var(--dim)">'+t('noResult')+'</div>';
+  ra.innerHTML=h+'<button class="btn-main btn-outline" onclick="showScreen()" style="margin-top:20px">'+t('retry')+'</button>';
 }
 
 function renderManual(d,cropSrc){
   document.getElementById('prev').style.maxHeight='160px';
   var pr=d.products||[];
   var ra=document.getElementById('res');ra.style.display='block';
-  var h='<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><img src="'+cropSrc+'" style="width:52px;height:52px;border-radius:10px;object-fit:cover;border:2px solid var(--accent)"><div><span class="p-title">Sectigin Parca</span>';
-  if(d.query_used)h+='<div style="font-size:10px;color:var(--accent);margin-top:2px">&#x1F50D; "'+d.query_used+'"</div>';
-  if(d.lens_count>0)h+='<div style="font-size:9px;color:var(--green);margin-top:1px">&#x1F3AF; '+d.lens_count+' Lens eslesmesi</div>';
+  var h='<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><img src="'+cropSrc+'" style="width:52px;height:52px;border-radius:10px;object-fit:cover;border:2px solid var(--accent)"><div><span class="p-title">'+t('selected')+'</span>';
+  if(d.query_used)h+='<div style="font-size:10px;color:var(--accent);margin-top:2px">\u{1F50D} "'+d.query_used+'"</div>';
+  if(d.lens_count>0)h+='<div style="font-size:9px;color:var(--green);margin-top:1px">\u{1F3AF} '+d.lens_count+' '+t('lensMatch')+'</div>';
   h+='</div></div>';
   if(pr.length>0){h+=heroHTML(pr[0],d.lens_count>0);if(pr.length>1)h+=altsHTML(pr.slice(1))}
-  else h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">Urun bulunamadi</div>';
-  ra.innerHTML=h+'<button class="btn-main btn-outline" onclick="showScreen()" style="margin-top:20px">&#x2702;&#xFE0F; Baska Parca Sec</button>';
+  else h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">'+t('noProd')+'</div>';
+  ra.innerHTML=h+'<button class="btn-main btn-outline" onclick="showScreen()" style="margin-top:20px">'+t('another')+'</button>';
 }
 
 function heroHTML(p,isLens){
   var img=p.image||p.thumbnail||'';
   var h='<a href="'+p.link+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text)"><div class="hero">';
   if(img)h+='<img src="'+img+'" onerror="if(this.src!==\''+p.thumbnail+'\')this.src=\''+p.thumbnail+'\'">';
-  h+='<div class="badge">'+(isLens?'&#x1F3AF; Lens Eslesmesi':'&#x2728; Onerilen')+'</div>';
+  h+='<div class="badge">'+(isLens?t('lensLabel'):t('recommended'))+'</div>';
   h+='<div class="info"><div class="t">'+p.title+'</div><div class="s">'+(p.brand||p.source||'')+'</div>';
-  h+='<div class="row"><span class="price">'+(p.price||'Fiyat icin tikla')+'</span>';
-  h+='<button class="btn">Magazaya Git &#x2197;</button></div></div></div></a>';
+  h+='<div class="row"><span class="price">'+(p.price||t('noPrice'))+'</span>';
+  h+='<button class="btn">'+t('goStore')+'</button></div></div></div></a>';
   return h;
 }
 function altsHTML(list){
-  var h='<div style="font-size:11px;color:var(--dim);margin:6px 0">&#x1F4B8; Alternatifler &#x1F449;</div><div class="scroll">';
+  var h='<div style="font-size:11px;color:var(--dim);margin:6px 0">'+t('alts')+'</div><div class="scroll">';
   for(var i=0;i<list.length;i++){var a=list[i];var img=a.thumbnail||a.image||'';
-    h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' tr':'')+'">';
+    h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' local':'')+'">';
     if(img)h+='<img src="'+img+'" onerror="this.hidden=true">';
     h+='<div class="ci"><div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div></a>'}
   return h+'</div>';
