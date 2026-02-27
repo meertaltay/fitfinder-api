@@ -17,7 +17,7 @@ except ImportError:
     print("⚠️ pillow-heif not installed, HEIC files may fail")
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from serpapi import GoogleSearch
 
 try:
@@ -744,81 +744,93 @@ def crop_piece(img_bytes, box):
 
 # ─── Process Single Auto-Crop Piece ───
 async def process_auto_piece(p, img_bytes, cc="tr"):
-    """Full pipeline for one auto-detected piece: crop → rembg → upload → lens + shop → rerank."""
+    """Full pipeline for one auto-detected piece: crop → rembg → upload → lens + shop."""
     cat = p.get("category", "")
     box = p.get("box", None)
     q = p.get("search_query", "")
     brand = p.get("brand", "")
-    print(f"  [{cat}] box={box} query='{q}'")
 
-    # Step 1: Crop the piece from original image
-    cropped = None
-    if box and isinstance(box, list) and len(box) == 4:
-        cropped = await asyncio.to_thread(crop_piece, img_bytes, box)
+    try:
+        print(f"  [{cat}] box={box} query='{q}'")
 
-    # Step 2: rembg on cropped piece (if we have a crop)
-    clean_bytes = None
-    if cropped:
-        async with REMBG_LOCK:
-            clean_bytes = await asyncio.to_thread(remove_bg, cropped)
-        print(f"  [{cat}] Cropped + rembg done")
+        # Step 1: Crop the piece from original image
+        cropped = None
+        if box and isinstance(box, list) and len(box) == 4:
+            try:
+                cropped = await asyncio.to_thread(crop_piece, img_bytes, box)
+            except Exception as e:
+                print(f"  [{cat}] Crop failed: {e}")
 
-    # Step 3: Upload clean image + Shopping in parallel
-    async def do_upload():
-        if clean_bytes:
-            return await upload_img(clean_bytes)
-        return None
+        # Step 2: rembg on cropped piece
+        clean_bytes = None
+        if cropped:
+            try:
+                async with REMBG_LOCK:
+                    clean_bytes = await asyncio.to_thread(remove_bg, cropped)
+                print(f"  [{cat}] Cropped + rembg done")
+            except Exception as e:
+                print(f"  [{cat}] rembg failed: {e}")
+                clean_bytes = cropped  # Use raw crop as fallback
 
-    async def do_shop():
-        if q:
-            async with API_SEM:
-                return await asyncio.to_thread(_shop, q, cc)
-        return []
+        # Step 3: Upload clean image + Shopping in parallel
+        async def do_upload():
+            if clean_bytes:
+                return await upload_img(clean_bytes)
+            return None
 
-    url, shop_res = await asyncio.gather(do_upload(), do_shop())
+        async def do_shop():
+            if q:
+                async with API_SEM:
+                    return await asyncio.to_thread(_shop, q, cc)
+            return []
 
-    # Step 4: Lens search on clean cropped image
-    lens_res = []
-    if url:
-        async with API_SEM:
-            lens_res = await asyncio.to_thread(_lens, url, cc)
-        print(f"  [{cat}] Crop Lens: {len(lens_res)}")
+        url, shop_res = await asyncio.gather(do_upload(), do_shop())
 
-    # Step 5: Brand filter — remove rival brands from Lens results
-    if brand and brand != "?":
-        lens_res = filter_rival_brands(lens_res, brand)
-        shop_res = filter_rival_brands(shop_res, brand)
+        # Step 4: Lens search on clean cropped image
+        lens_res = []
+        if url:
+            try:
+                async with API_SEM:
+                    lens_res = await asyncio.to_thread(_lens, url, cc)
+                print(f"  [{cat}] Crop Lens: {len(lens_res)}")
+            except Exception as e:
+                print(f"  [{cat}] Lens failed: {e}")
 
-    # Step 6: Combine — Lens first (visual match on clean crop), Shopping fallback
-    seen = set()
-    combined = []
-    for x in lens_res + shop_res:
-        if x["link"] not in seen:
-            seen.add(x["link"])
-            combined.append(x)
+        # Step 5: Brand filter
+        if brand and brand != "?":
+            lens_res = filter_rival_brands(lens_res, brand)
+            shop_res = filter_rival_brands(shop_res, brand)
 
-    # Step 7: Rerank with Claude if we have a clean crop
-    if clean_bytes and len(combined) >= 3:
-        try:
-            img_ai = Image.open(io.BytesIO(clean_bytes)).convert("RGB")
-            img_ai.thumbnail((512, 512))
-            buf_ai = io.BytesIO()
-            img_ai.save(buf_ai, format="JPEG", quality=80)
-            orig_b64 = base64.b64encode(buf_ai.getvalue()).decode()
-        except Exception:
-            orig_b64 = base64.b64encode(clean_bytes).decode()
-        combined = await claude_rerank(orig_b64, combined, cc)
+        # Step 6: Combine — Lens first, Shopping fallback
+        seen = set()
+        combined = []
+        for x in lens_res + shop_res:
+            if x["link"] not in seen:
+                seen.add(x["link"])
+                combined.append(x)
 
-    return {
-        "category": cat,
-        "short_title": p.get("short_title", cat.title()),
-        "color": p.get("color", ""),
-        "brand": brand,
-        "visible_text": p.get("visible_text", ""),
-        "products": combined[:8],
-        "lens_count": len(lens_res),
-        "has_crop": cropped is not None,
-    }
+        return {
+            "category": cat,
+            "short_title": p.get("short_title", cat.title()),
+            "color": p.get("color", ""),
+            "brand": brand,
+            "visible_text": p.get("visible_text", ""),
+            "products": combined[:8],
+            "lens_count": len(lens_res),
+            "has_crop": cropped is not None,
+        }
+    except Exception as e:
+        print(f"  [{cat}] PIECE FAILED: {e}")
+        return {
+            "category": cat,
+            "short_title": p.get("short_title", cat.title()),
+            "color": p.get("color", ""),
+            "brand": brand,
+            "visible_text": p.get("visible_text", ""),
+            "products": [],
+            "lens_count": 0,
+            "has_crop": False,
+        }
 
 
 # ─── AUTO ANALYZE ───
@@ -847,19 +859,25 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
     print(f"\n{'='*50}")
     print(f"=== AUTO ANALYZE (Auto-Crop) === country={cc} ({cfg['name']})")
 
-    # Claude detects pieces WITH bounding boxes
-    pieces = await claude_detect(b64, cc)
+    try:
+        # Claude detects pieces WITH bounding boxes
+        pieces = await claude_detect(b64, cc)
 
-    if not pieces:
-        return {"success": True, "pieces": [], "country": cc}
+        if not pieces:
+            return {"success": True, "pieces": [], "country": cc}
 
-    print(f"Claude: {len(pieces)} pieces detected")
+        print(f"Claude: {len(pieces)} pieces detected")
 
-    # Process each piece: crop → rembg → lens → rerank
-    tasks = [process_auto_piece(p, optimized_bytes, cc) for p in pieces]
-    results = list(await asyncio.gather(*tasks))
+        # Process pieces sequentially to avoid rembg lock contention + timeout
+        results = []
+        for p in pieces[:5]:  # Max 5 pieces to prevent timeout
+            r = await process_auto_piece(p, optimized_bytes, cc)
+            results.append(r)
 
-    return {"success": True, "pieces": results, "country": cc}
+        return {"success": True, "pieces": results, "country": cc}
+    except Exception as e:
+        print(f"AUTO ANALYZE FAILED: {e}")
+        return {"success": False, "message": str(e), "pieces": []}
 
 
 # ─── Claude identify crop ───
@@ -990,6 +1008,10 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY)}
+
+@app.get("/favicon.ico")
+async def favicon():
+    return Response(content=b"", media_type="image/x-icon")
 
 
 @app.get("/api/countries")
@@ -1414,7 +1436,7 @@ function heroHTML(p,isLens){
   var score=p.match_score||0;
   var badgeText=verified?'\u2705 '+t('aiMatch'):(isLens?t('lensLabel'):t('recommended'));
   var borderColor=verified?'#6fcf7c':(isLens?'var(--green)':'var(--green)');
-  var isFav=(localStorage.getItem('fitfinder_favs')||'').indexOf(p.link)>-1;
+  var isFav=_hasFav(p.link);
   var safeT=(p.title||'').replace(/'/g,"\\'");
   var safeP=(p.price||'').replace(/'/g,"\\'");
   var safeB=(p.brand||'').replace(/'/g,"\\'");
@@ -1433,7 +1455,7 @@ function altsHTML(list){
   var h='<div style="font-size:11px;color:var(--dim);margin:6px 0">'+t('alts')+'</div><div class="scroll">';
   for(var i=0;i<list.length;i++){var a=list[i];var img=a.thumbnail||a.image||'';
     var vBorder=a.ai_verified?'border-color:#22c55e':'';
-    var isFav=(localStorage.getItem('fitfinder_favs')||'').indexOf(a.link)>-1;
+    var isFav=_hasFav(a.link);
     var safeT=(a.title||'').replace(/'/g,"\\'");
     var safeP=(a.price||'').replace(/'/g,"\\'");
     var safeB=(a.brand||a.source||'').replace(/'/g,"\\'");
@@ -1446,23 +1468,27 @@ function altsHTML(list){
     h+='</a>'}
   return h+'</div>';
 }
+// Safe localStorage wrapper for Safari/Edge tracking prevention
+function _getFavs(){try{return JSON.parse(localStorage.getItem('fitfinder_favs')||'[]')}catch(e){return[]}}
+function _setFavs(f){try{localStorage.setItem('fitfinder_favs',JSON.stringify(f))}catch(e){}}
+function _hasFav(link){try{return(localStorage.getItem('fitfinder_favs')||'').indexOf(link)>-1}catch(e){return false}}
 function toggleFav(e,link,img,title,price,brand){
   e.preventDefault();e.stopPropagation();
-  var favs=JSON.parse(localStorage.getItem('fitfinder_favs')||'[]');
+  var favs=_getFavs();
   var idx=favs.findIndex(function(f){return f.link===link});
   if(idx>-1){favs.splice(idx,1);e.target.innerHTML='\u{1F90D}';}
   else{favs.push({link:link,img:img,title:title,price:price,brand:brand});e.target.innerHTML='\u2764\uFE0F';}
-  localStorage.setItem('fitfinder_favs',JSON.stringify(favs));
+  _setFavs(favs);
 }
 function showFavs(){
-  if(_busy)return; // Don't navigate while AI is working
+  if(_busy)return;
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='block';
   var ab=document.getElementById('actionBtns');if(ab)ab.style.display='none';
   var cm=document.getElementById('cropMode');if(cm)cm.style.display='none';
   var pv=document.getElementById('prev');if(pv)pv.style.display='none';
   var ra=document.getElementById('res');
-  var favs=JSON.parse(localStorage.getItem('fitfinder_favs')||'[]');
+  var favs=_getFavs();
   ra.style.display='block';
   if(favs.length===0){
     var empty=CC_LANG[CC]==='tr'?'Henuz kaydedilmis urun yok \u{1F90D}':'No saved items yet \u{1F90D}';
