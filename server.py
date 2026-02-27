@@ -152,57 +152,49 @@ def search_shopping(query, limit=6):
     products = []
     seen = set()
 
-    # Turkce query olustur
     tr_query = to_turkish(query)
 
-    queries_to_try = []
-    if tr_query != query.lower():
-        queries_to_try.append(("tr", tr_query))
-    queries_to_try.append(("tr", query))
-    queries_to_try.append(("us", query))
+    try:
+        search = GoogleSearch({
+            "engine": "google_shopping",
+            "q": tr_query,
+            "gl": "tr",
+            "hl": "tr",
+            "api_key": SERPAPI_KEY,
+        })
+        data = search.get_dict()
 
-    for gl, q in queries_to_try:
-        if len(products) >= limit:
-            break
-        try:
-            params = {
-                "engine": "google_shopping",
-                "q": q,
-                "gl": gl if gl != "us" else "us",
-                "hl": "tr" if gl == "tr" else "en",
-                "api_key": SERPAPI_KEY,
-            }
-            print(f"  SerpAPI call: q='{q}' gl={params['gl']} hl={params['hl']}")
-            search = GoogleSearch(params)
-            data = search.get_dict()
+        if "error" in data:
+            print(f"  SerpAPI ERROR: {data['error']}")
+            return []
 
-            # Log what we got back
-            if "error" in data:
-                print(f"  SerpAPI ERROR: {data['error']}")
-                continue
+        shopping = data.get("shopping_results", [])
+        print(f"  SerpAPI: '{tr_query}' -> {len(shopping)} results")
 
-            shopping = data.get("shopping_results", [])
-            print(f"  SerpAPI returned {len(shopping)} shopping results")
-            if len(shopping) > 0 and len(products) == 0:
-                print(f"  First item keys: {list(shopping[0].keys())}")
-                print(f"  First item: {json.dumps(shopping[0], ensure_ascii=False)[:300]}")
+        if len(shopping) > 0:
+            keys = list(shopping[0].keys())
+            print(f"  Item keys: {keys}")
 
-            for item in shopping:
-                link = item.get("product_link") or item.get("link") or ""
-                title = item.get("title", "")
-                if not link or link in seen or not title: continue
-                if is_blocked(link): continue
-                seen.add(link)
-                source = item.get("source", "")
-                products.append({
-                    "title": title, "brand": detect_brand(link, source),
-                    "source": source, "link": link,
-                    "price": item.get("price", ""), "thumbnail": item.get("thumbnail", ""),
-                    "is_tr": is_tr_store(link, source),
-                })
-                if len(products) >= limit: break
-        except Exception as e:
-            print(f"  Shopping search EXCEPTION for '{q}': {type(e).__name__}: {e}")
+        for item in shopping:
+            link = item.get("product_link") or item.get("link") or item.get("url") or ""
+            title = item.get("title", "")
+            if not link or link in seen or not title: continue
+            if is_blocked(link): continue
+            seen.add(link)
+            source = item.get("source", "")
+            products.append({
+                "title": title, "brand": detect_brand(link, source),
+                "source": source, "link": link,
+                "price": item.get("price", item.get("extracted_price", "")),
+                "thumbnail": item.get("thumbnail", ""),
+                "is_tr": is_tr_store(link, source),
+            })
+            if len(products) >= limit: break
+    except Exception as e:
+        print(f"  Search error: {type(e).__name__}: {e}")
+
+    print(f"  Final: {len(products)} products")
+    return sort_products(products)
 
     return sort_products(products)[:limit]
 
