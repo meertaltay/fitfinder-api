@@ -179,15 +179,18 @@ def _lens(url):
     res = []; seen = set()
     try:
         d = GoogleSearch({"engine":"google_lens","url":url,"api_key":SERPAPI_KEY,"hl":"tr","country":"tr"}).get_dict()
-        for m in d.get("visual_matches",[]):
+        all_matches = d.get("visual_matches",[])
+        print(f"  Lens raw: {len(all_matches)} visual_matches")
+        for m in all_matches:
             lnk,ttl,src = m.get("link",""),m.get("title",""),m.get("source","")
-            if not lnk or not ttl or lnk in seen or blocked(lnk): continue
-            if not fashion(lnk,ttl,src): continue
+            if not lnk or not ttl or lnk in seen: continue
+            if blocked(lnk): continue
             seen.add(lnk)
             pr = m.get("price",{}); pr = pr.get("value","") if isinstance(pr,dict) else str(pr)
             res.append({"title":ttl,"brand":brand(lnk,src),"source":src,"link":lnk,"price":pr,"thumbnail":m.get("thumbnail",""),"is_tr":istr(lnk,src)})
-            if len(res)>=20: break  # Get more results to distribute across pieces
+            if len(res)>=20: break
     except Exception as e: print(f"Lens err: {e}")
+    print(f"  Lens after filter: {len(res)} results")
     return res
 
 
