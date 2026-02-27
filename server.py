@@ -152,12 +152,14 @@ def search_shopping(query, limit=6):
     products = []
     seen = set()
 
-    tr_query = to_turkish(query)
+    # Turkce karakter varsa zaten Turkce, cevirme
+    has_turkish = any(c in query for c in "çğıöşüÇĞİÖŞÜ")
+    search_query = query if has_turkish else to_turkish(query)
 
     try:
         search = GoogleSearch({
             "engine": "google_shopping",
-            "q": tr_query,
+            "q": search_query,
             "gl": "tr",
             "hl": "tr",
             "api_key": SERPAPI_KEY,
@@ -169,11 +171,7 @@ def search_shopping(query, limit=6):
             return []
 
         shopping = data.get("shopping_results", [])
-        print(f"  SerpAPI: '{tr_query}' -> {len(shopping)} results")
-
-        if len(shopping) > 0:
-            keys = list(shopping[0].keys())
-            print(f"  Item keys: {keys}")
+        print(f"  SerpAPI: '{search_query}' -> {len(shopping)} results")
 
         for item in shopping:
             link = item.get("product_link") or item.get("link") or item.get("url") or ""
@@ -212,25 +210,34 @@ def detect_pieces_with_claude(image_b64):
             },
             json={
                 "model": "claude-sonnet-4-20250514",
-                "max_tokens": 1000,
+                "max_tokens": 2000,
                 "messages": [{
                     "role": "user",
                     "content": [
                         {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_b64}},
-                        {"type": "text", "text": """Bu fotograftaki kisinin uzerindeki HER kiyafet ve aksesuar parcasini tespit et.
+                        {"type": "text", "text": """You are a fashion expert. Analyze EVERY clothing item and accessory this person is wearing.
 
-Her parca icin:
+CRITICAL: READ ALL TEXT on clothes! Logos, brand names, patches, embroidery, prints - these are KEY to finding the exact product. For example if a jacket has a "Timeless" patch and "Rebel" embroidery, include those words.
+
+For EACH piece:
 - category: jacket|top|bottom|dress|shoes|bag|hat|sunglasses|watch|accessory|scarf
-- description: Kisa urun aciklamasi (Ingilizce, alisveris aramasi icin)
-- color: Renk (Ingilizce)
-- brand: Logo/yazi gorunuyorsa marka, yoksa "?"
+- description: VERY detailed. Include:
+  * Exact garment type (e.g. "oversized wool varsity bomber jacket" not just "jacket")
+  * ALL visible text, logos, patches, embroidery on the item
+  * Material (leather, wool, denim, cotton, suede, fleece, etc.)
+  * Fit (oversized, slim, relaxed, cropped)
+  * Style details (zip-up, snap buttons, ribbed hem, striped trim)
+- color: Specific (e.g. "forest green" not just "green")
+- brand: READ any visible brand name/logo. If you can read text but not sure if it's the brand, still write it. If truly nothing visible, write "?"
+- visible_text: List ALL text/words you can read on this item (patches, embroidery, labels, prints)
+- search_query: Write the BEST Turkish search query for Trendyol/Google Shopping. INCLUDE any visible text/brand. Example: "bershka yeşil timeless rebel varsity ceket" is much better than "yeşil ceket"
 
-SADECE JSON array dondur:
-[{"category":"...","description":"...","color":"...","brand":"..."}]"""},
+RESPOND ONLY with JSON array:
+[{"category":"...","description":"...","color":"...","brand":"...","visible_text":"...","search_query":"..."}]"""},
                     ],
                 }],
             },
-            timeout=30,
+            timeout=60,
         )
         data = r.json()
         text = data.get("content", [{}])[0].get("text", "")
@@ -316,15 +323,23 @@ async def full_analyze(file: UploadFile = File(...)):
         desc = piece.get("description", "")
         color = piece.get("color", "")
         brand = piece.get("brand", "")
+        search_q = piece.get("search_query", "")
 
-        # Query olustur
-        parts = []
-        if brand and brand != "?":
-            parts.append(brand)
-        parts.append(desc)
-        if color:
-            parts.append(color)
-        query = " ".join(parts).strip()
+        # Claude'un Turkce search query'sini kullan, yoksa kendin olustur
+        if search_q:
+            query = search_q
+        else:
+            parts = []
+            if brand and brand != "?" and "style" not in brand:
+                parts.append(brand)
+            parts.append(desc)
+            if color:
+                parts.append(color)
+            # Visible text varsa ekle
+            visible = piece.get("visible_text", "")
+            if visible and visible != "none" and visible != "":
+                parts.append(visible)
+            query = " ".join(parts).strip()
 
         print(f"Searching for piece: {piece.get('category')} -> query: '{query}'")
         products = search_shopping(query) if query else []
@@ -334,7 +349,8 @@ async def full_analyze(file: UploadFile = File(...)):
             "category": piece.get("category", ""),
             "description": desc,
             "color": color,
-            "brand": piece.get("brand", ""),
+            "brand": brand,
+            "visible_text": piece.get("visible_text", ""),
             "products": products,
         })
 
@@ -682,6 +698,10 @@ function renderResults(data) {
       html += '<span class="piece-icon">' + icon + '</span>';
       html += '<div style="flex:1"><div style="display:flex;align-items:center"><span class="piece-cat">' + p.category + '</span>' + brandHtml + '</div>';
       html += '<div class="piece-desc">' + p.description + '</div>';
+      var vtext = p.visible_text || '';
+      if (vtext && vtext !== 'none' && vtext !== '') {
+        html += '<div style="font-size:10px;color:var(--accent);margin-top:3px;font-style:italic">&#x1F50E; "' + vtext + '"</div>';
+      }
       html += '<div class="piece-color">' + p.color + '</div></div>';
       html += '<div class="piece-right">';
       if (p.products && p.products.length > 0) {
