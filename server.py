@@ -137,6 +137,8 @@ async def claude_detect(img_b64):
                         {"type":"image","source":{"type":"base64","media_type":"image/jpeg","data":img_b64}},
                         {"type":"text","text":"""Analyze every clothing item and accessory this person is wearing.
 
+FIRST: Determine the person's gender: "erkek" (male) or "kadın" (female)
+
 CRITICAL RULES:
 1. ONLY list items that are CLEARLY VISIBLE as SEPARATE garments
 2. A collar, lining, or edge peeking under a jacket is NOT a separate piece
@@ -148,17 +150,18 @@ For each CLEARLY VISIBLE item:
 - category: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
 - short_title_tr: 2-4 word Turkish name. Be EXACT:
   * bere ≠ şapka, bomber ≠ blazer, jogger ≠ kumaş pantolon, bot ≠ sneaker
-  * Include style: "Bordo Nakışlı Şapka", "Yeşil Varsity Ceket"
 - color_tr: Turkish color
 - brand: ONLY if you can READ it on the item, else "?"
-- visible_text: ALL readable text/logos/patches (e.g. "Timeless", "Rebel", "R")
+- visible_text: ALL readable text/logos/patches
 - search_query_tr: 4-6 word ULTRA SPECIFIC Turkish query
+  * MUST include "erkek" or "kadın" based on the person's gender
   * MUST match exact item type from short_title_tr
-  * Include brand if readable, include ALL visible text/patches
+  * Include brand if readable, include visible text/patches
   * Examples:
-    "bershka yeşil timeless rebel varsity ceket"
-    "bordo R harfli nakışlı beyzbol şapkası"
-    "gri wide leg kumaş pantolon erkek"
+    "bershka yeşil varsity ceket erkek"
+    "bordo nakışlı beyzbol şapkası erkek"
+    "siyah deri mini etek kadın"
+    "nike air force 1 beyaz erkek"
 
 Return ONLY valid JSON array, no markdown no backticks:
 [{"category":"","short_title_tr":"","color_tr":"","brand":"","visible_text":"","search_query_tr":""}]"""}
