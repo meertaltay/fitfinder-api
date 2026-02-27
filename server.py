@@ -17,6 +17,71 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
+# ─── Country Configurations ───
+COUNTRIES = {
+    "tr": {
+        "name": "Türkiye", "gl": "tr", "hl": "tr", "lang": "Turkish",
+        "currency": "₺",
+        "local_stores": ["trendyol.", "hepsiburada.", "boyner.", "beymen.", "defacto.",
+                         "lcwaikiki.", "koton.", "flo.", "n11.", "mavi.", "superstep."],
+        "gender": {"male": "erkek", "female": "kadın"},
+    },
+    "us": {
+        "name": "United States", "gl": "us", "hl": "en", "lang": "English",
+        "currency": "$",
+        "local_stores": ["nordstrom.", "macys.", "bloomingdales.", "target.com",
+                         "walmart.com", "urbanoutfitters.", "freepeople.", "anthropologie.",
+                         "revolve.com", "shopbop.", "ssense.", "farfetch."],
+        "gender": {"male": "men", "female": "women"},
+    },
+    "gb": {
+        "name": "United Kingdom", "gl": "gb", "hl": "en", "lang": "English",
+        "currency": "£",
+        "local_stores": ["asos.com", "selfridges.", "harrods.", "johnlewis.",
+                         "next.co.uk", "boohoo.", "prettylittlething.", "missguided."],
+        "gender": {"male": "men", "female": "women"},
+    },
+    "de": {
+        "name": "Deutschland", "gl": "de", "hl": "de", "lang": "German",
+        "currency": "€",
+        "local_stores": ["zalando.", "aboutyou.", "otto.", "breuninger.",
+                         "peek-cloppenburg.", "bonprix."],
+        "gender": {"male": "herren", "female": "damen"},
+    },
+    "fr": {
+        "name": "France", "gl": "fr", "hl": "fr", "lang": "French",
+        "currency": "€",
+        "local_stores": ["galerieslafayette.", "laredoute.", "veepee.",
+                         "printemps.", "sarenza."],
+        "gender": {"male": "homme", "female": "femme"},
+    },
+    "sa": {
+        "name": "Saudi Arabia", "gl": "sa", "hl": "ar", "lang": "Arabic",
+        "currency": "SAR",
+        "local_stores": ["namshi.", "ounass.", "sivvi.", "nisnass.",
+                         "styli.", "vogacloset."],
+        "gender": {"male": "men", "female": "women"},
+    },
+    "ae": {
+        "name": "UAE", "gl": "ae", "hl": "en", "lang": "English",
+        "currency": "AED",
+        "local_stores": ["namshi.", "ounass.", "sivvi.", "nisnass.",
+                         "6thstreet.", "bloomingdales.ae"],
+        "gender": {"male": "men", "female": "women"},
+    },
+    "nl": {
+        "name": "Netherlands", "gl": "nl", "hl": "nl", "lang": "Dutch",
+        "currency": "€",
+        "local_stores": ["zalando.", "debijenkorf.", "wehkamp.", "aboutyou."],
+        "gender": {"male": "heren", "female": "dames"},
+    },
+}
+
+DEFAULT_COUNTRY = "us"
+
+def get_country_config(cc):
+    return COUNTRIES.get(cc.lower(), COUNTRIES[DEFAULT_COUNTRY])
+
 BRAND_MAP = {
     "trendyol.com": "Trendyol", "hepsiburada.com": "Hepsiburada",
     "boyner.com.tr": "Boyner", "defacto.com": "DeFacto",
@@ -90,10 +155,8 @@ def get_brand(link, src):
     return src if src else ""
 
 
-def is_tr(link, src):
-    tr = ["trendyol.", "hepsiburada.", "boyner.", "beymen.", "defacto.",
-          "lcwaikiki.", "koton.", "flo.", "n11.", "mavi.", "superstep."]
-    return any(d in (link + " " + src).lower() for d in tr)
+def is_local(link, src, country_config):
+    return any(d in (link + " " + src).lower() for d in country_config.get("local_stores", []))
 
 
 def is_blocked(link):
@@ -136,9 +199,13 @@ async def upload_img(img_bytes):
 
 
 # ─── Claude Vision ───
-async def claude_detect(img_b64):
+async def claude_detect(img_b64, cc="tr"):
     if not ANTHROPIC_API_KEY:
         return None
+    cfg = get_country_config(cc)
+    lang = cfg["lang"]
+    g_male = cfg["gender"]["male"]
+    g_female = cfg["gender"]["female"]
     async with httpx.AsyncClient(timeout=60) as c:
         try:
             r = await c.post(
@@ -155,9 +222,9 @@ async def claude_detect(img_b64):
                         "role": "user",
                         "content": [
                             {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
-                            {"type": "text", "text": """Analyze every clothing item and accessory this person is wearing.
+                            {"type": "text", "text": f"""Analyze every clothing item and accessory this person is wearing.
 
-FIRST: Determine the person's gender: "erkek" (male) or "kadın" (female)
+FIRST: Determine the person's gender: "{g_male}" (male) or "{g_female}" (female)
 
 CRITICAL RULES:
 1. ONLY list items that are CLEARLY VISIBLE as SEPARATE garments
@@ -168,22 +235,17 @@ CRITICAL RULES:
 
 For each CLEARLY VISIBLE item:
 - category: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
-- short_title_tr: 2-4 word Turkish name. Be EXACT:
-  * bere ≠ şapka, bomber ≠ blazer, jogger ≠ kumaş pantolon, bot ≠ sneaker
-- color_tr: Turkish color
+- short_title: 2-4 word {lang} name. Be EXACT about item type.
+- color: color name in {lang}
 - brand: ONLY if you can READ it on the item, else "?"
 - visible_text: ALL readable text/logos/patches
-- search_query_tr: 4-6 word ULTRA SPECIFIC Turkish query
-  * MUST include "erkek" or "kadın" based on the person's gender
-  * MUST match exact item type from short_title_tr
+- search_query: 4-6 word ULTRA SPECIFIC {lang} shopping query
+  * MUST include "{g_male}" or "{g_female}" based on gender
+  * MUST match exact item type
   * Include brand if readable, include visible text/patches
-  * Examples:
-    "bershka yeşil varsity ceket erkek"
-    "bordo nakışlı beyzbol şapkası erkek"
-    "siyah deri mini etek kadın"
 
 Return ONLY valid JSON array, no markdown no backticks:
-[{"category":"","short_title_tr":"","color_tr":"","brand":"","visible_text":"","search_query_tr":""}]"""},
+[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","search_query":""}}]"""},
                         ],
                     }],
                 },
@@ -208,13 +270,14 @@ Return ONLY valid JSON array, no markdown no backticks:
 
 
 # ─── Google Lens ───
-def _lens(url):
+def _lens(url, cc="tr"):
+    cfg = get_country_config(cc)
     res = []
     seen = set()
     try:
         d = GoogleSearch({
             "engine": "google_lens", "url": url,
-            "api_key": SERPAPI_KEY, "hl": "tr", "country": "tr",
+            "api_key": SERPAPI_KEY, "hl": cfg["hl"], "country": cfg["gl"],
         }).get_dict()
         all_matches = d.get("visual_matches", [])
         print(f"  Lens raw: {len(all_matches)} visual_matches")
@@ -236,18 +299,17 @@ def _lens(url):
                 "link": lnk, "price": pr,
                 "thumbnail": m.get("thumbnail", ""),
                 "image": m.get("image", ""),
-                "is_tr": is_tr(lnk, src),
+                "is_local": is_local(lnk, src, cfg),
             })
             if len(res) >= 20:
                 break
     except Exception as e:
         print(f"Lens err: {e}")
-    # Sort: price > TR store > fashion domain > rest
     def score(r):
         s = 0
         if r["price"]:
             s += 10
-        if r["is_tr"]:
+        if r["is_local"]:
             s += 5
         c = (r["link"] + " " + r["source"]).lower()
         if any(d in c for d in FASHION_DOMAINS):
@@ -259,13 +321,14 @@ def _lens(url):
 
 
 # ─── Google Shopping ───
-def _shop(q, limit=6):
+def _shop(q, cc="tr", limit=6):
+    cfg = get_country_config(cc)
     res = []
     seen = set()
     try:
         d = GoogleSearch({
             "engine": "google_shopping", "q": q,
-            "gl": "tr", "hl": "tr", "api_key": SERPAPI_KEY,
+            "gl": cfg["gl"], "hl": cfg["hl"], "api_key": SERPAPI_KEY,
         }).get_dict()
         for item in d.get("shopping_results", []):
             lnk = item.get("product_link") or item.get("link", "")
@@ -280,7 +343,7 @@ def _shop(q, limit=6):
                 "price": item.get("price", str(item.get("extracted_price", ""))),
                 "thumbnail": item.get("thumbnail", ""),
                 "image": "",
-                "is_tr": is_tr(lnk, src),
+                "is_local": is_local(lnk, src, cfg),
             })
             if len(res) >= limit:
                 break
@@ -304,16 +367,16 @@ def match_lens_to_pieces(lens_results, pieces):
 
 
 # ─── Process Piece (Shopping only) ───
-async def process_piece(p):
+async def process_piece(p, cc="tr"):
     cat = p.get("category", "")
-    q = p.get("search_query_tr", "") or p.get("short_title_tr", "")
+    q = p.get("search_query", "") or p.get("search_query_tr", "") or p.get("short_title", "") or p.get("short_title_tr", "")
     print(f"[{cat}] Shopping: '{q}'")
-    products = await asyncio.to_thread(_shop, q) if q else []
+    products = await asyncio.to_thread(_shop, q, cc) if q else []
     print(f"[{cat}] Found: {len(products)}")
     return {
         "category": cat,
-        "short_title_tr": p.get("short_title_tr", cat.title()),
-        "color_tr": p.get("color_tr", ""),
+        "short_title": p.get("short_title", "") or p.get("short_title_tr", cat.title()),
+        "color": p.get("color", "") or p.get("color_tr", ""),
         "brand": p.get("brand", ""),
         "visible_text": p.get("visible_text", ""),
         "products": products,
@@ -323,13 +386,14 @@ async def process_piece(p):
 
 # ─── AUTO ANALYZE ───
 @app.post("/api/full-analyze")
-async def full_analyze(file: UploadFile = File(...)):
+async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
     if not SERPAPI_KEY:
         raise HTTPException(500, "No API key")
 
+    cc = country.lower()
+    cfg = get_country_config(cc)
     contents = await file.read()
 
-    # Resize for Claude
     try:
         img = Image.open(io.BytesIO(contents)).convert("RGB")
         img.thumbnail((800, 800))
@@ -339,37 +403,27 @@ async def full_analyze(file: UploadFile = File(...)):
     except Exception:
         b64 = base64.b64encode(contents).decode()
 
-    print("\n" + "=" * 50)
-    print("=== AUTO ANALYZE ===")
+    print(f"\n{'='*50}")
+    print(f"=== AUTO ANALYZE === country={cc} ({cfg['name']})")
 
-    # Claude + Upload in parallel
-    detect_task = claude_detect(b64)
+    detect_task = claude_detect(b64, cc)
     upload_task = upload_img(contents)
     pieces, url = await asyncio.gather(detect_task, upload_task)
 
-    # Full image Lens
     lens_results = []
     if url:
-        lens_results = await asyncio.to_thread(_lens, url)
+        lens_results = await asyncio.to_thread(_lens, url, cc)
         print(f"Full image Lens: {len(lens_results)}")
 
     if not pieces:
-        return {"success": True, "pieces": [], "lens_results": lens_results}
+        return {"success": True, "pieces": [], "country": cc}
 
     print(f"Claude: {len(pieces)} pieces")
-    for p in pieces:
-        print(f"  {p.get('category')}: {p.get('short_title_tr')} | q={p.get('search_query_tr')}")
-
-    # Distribute Lens to pieces
     piece_lens = match_lens_to_pieces(lens_results, pieces)
-    for i, p in enumerate(pieces):
-        print(f"  [{p.get('category')}] {len(piece_lens[i])} Lens matches")
 
-    # Shopping per piece in parallel
-    tasks = [process_piece(p) for p in pieces]
+    tasks = [process_piece(p, cc) for p in pieces]
     results = list(await asyncio.gather(*tasks))
 
-    # Merge Lens + Shopping per piece
     for i, r in enumerate(results):
         lens_for_piece = piece_lens.get(i, [])
         shop_products = r["products"]
@@ -382,13 +436,14 @@ async def full_analyze(file: UploadFile = File(...)):
         r["products"] = combined[:8]
         r["lens_count"] = len(lens_for_piece)
 
-    return {"success": True, "pieces": results}
+    return {"success": True, "pieces": results, "country": cc}
 
 
 # ─── Claude identify crop ───
-async def claude_identify_crop(img_bytes):
+async def claude_identify_crop(img_bytes, cc="tr"):
     if not ANTHROPIC_API_KEY:
         return ""
+    cfg = get_country_config(cc)
     try:
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
         img.thumbnail((400, 400))
@@ -414,7 +469,7 @@ async def claude_identify_crop(img_bytes):
                         "role": "user",
                         "content": [
                             {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
-                            {"type": "text", "text": "This is a cropped clothing item. Write a 4-6 word Turkish shopping search query for this EXACT item. Be ultra specific about type, color, pattern, length. Examples: 'gri pileli mini etek kadın', 'siyah deri bomber ceket erkek'. Reply with ONLY the query, nothing else."},
+                            {"type": "text", "text": f"This is a cropped clothing item. Write a 4-6 word {cfg['lang']} shopping search query for this EXACT item. Be ultra specific about type, color, pattern, length. Reply with ONLY the query, nothing else."},
                         ],
                     }],
                 },
@@ -428,40 +483,35 @@ async def claude_identify_crop(img_bytes):
     return ""
 
 
-# ─── MANUAL SEARCH ───
 @app.post("/api/manual-search")
-async def manual_search(file: UploadFile = File(...), query: str = Form("")):
+async def manual_search(file: UploadFile = File(...), query: str = Form(""), country: str = Form("tr")):
     if not SERPAPI_KEY:
         raise HTTPException(500, "No API key")
 
+    cc = country.lower()
     contents = await file.read()
-    print(f"\n=== MANUAL SEARCH === user_query='{query}'")
+    print(f"\n=== MANUAL SEARCH === country={cc} user_query='{query}'")
 
-    # 3 things in parallel: Upload + Lens, Claude identify, user query Shopping
     upload_task = upload_img(contents)
-    claude_task = claude_identify_crop(contents)
-
+    claude_task = claude_identify_crop(contents, cc)
     url, smart_query = await asyncio.gather(upload_task, claude_task)
 
-    # Use user query if provided, otherwise Claude's query
     search_q = query if query else smart_query
     print(f"  Search query: '{search_q}'")
 
-    # Lens + Shopping in parallel
     async def do_lens():
         if url:
-            return await asyncio.to_thread(_lens, url)
+            return await asyncio.to_thread(_lens, url, cc)
         return []
 
     async def do_shop():
         if search_q:
-            return await asyncio.to_thread(_shop, search_q, 6)
+            return await asyncio.to_thread(_shop, search_q, cc, 6)
         return []
 
     lens_res, shop_res = await asyncio.gather(do_lens(), do_shop())
     print(f"  Manual Lens: {len(lens_res)}, Shop: {len(shop_res)}")
 
-    # Combine: Shopping first (more specific), then Lens
     seen = set()
     combined = []
     for x in shop_res + lens_res:
@@ -469,12 +519,17 @@ async def manual_search(file: UploadFile = File(...), query: str = Form("")):
             seen.add(x["link"])
             combined.append(x)
 
-    return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q}
+    return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q, "country": cc}
 
 
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY)}
+
+
+@app.get("/api/countries")
+async def countries():
+    return {cc: {"name": cfg["name"], "currency": cfg["currency"]} for cc, cfg in COUNTRIES.items()}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -542,9 +597,21 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
     </div>
     <input type="file" id="fi" accept="image/*" style="display:none">
     <div style="margin-top:32px;display:flex;flex-direction:column;gap:14px;padding-bottom:100px">
+      <div style="background:var(--card);border-radius:12px;padding:14px;border:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">&#x1F30D; Ulke (magazalar buna gore gelir)</div>
+        <select id="ccSel" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font:14px 'DM Sans',sans-serif">
+          <option value="tr">&#x1F1F9;&#x1F1F7; Turkiye</option>
+          <option value="us">&#x1F1FA;&#x1F1F8; United States</option>
+          <option value="gb">&#x1F1EC;&#x1F1E7; United Kingdom</option>
+          <option value="de">&#x1F1E9;&#x1F1EA; Deutschland</option>
+          <option value="fr">&#x1F1EB;&#x1F1F7; France</option>
+          <option value="nl">&#x1F1F3;&#x1F1F1; Netherlands</option>
+          <option value="sa">&#x1F1F8;&#x1F1E6; Saudi Arabia</option>
+          <option value="ae">&#x1F1E6;&#x1F1EA; UAE</option>
+        </select>
+      </div>
       <div style="display:flex;gap:12px;align-items:center"><span style="font-size:20px">&#x1F916;</span><div><div style="font-size:13px;font-weight:600">Otomatik Tara</div><div style="font-size:11px;color:var(--muted)">AI tum parcalari tespit edip arar</div></div></div>
       <div style="display:flex;gap:12px;align-items:center"><span style="font-size:20px">&#x2702;&#xFE0F;</span><div><div style="font-size:13px;font-weight:600">Kendim Seceyim</div><div style="font-size:11px;color:var(--muted)">Parmaginla parcayi sec, birebir bul</div></div></div>
-      <div style="display:flex;gap:12px;align-items:center"><span style="font-size:20px">&#x1F1F9;&#x1F1F7;</span><div><div style="font-size:13px;font-weight:600">Turk Magazalar</div><div style="font-size:11px;color:var(--muted)">Trendyol, Zara TR, Bershka TR, H&amp;M TR</div></div></div>
     </div>
   </div>
 
@@ -587,6 +654,25 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 var IC={hat:"\u{1F9E2}",sunglasses:"\u{1F576}",top:"\u{1F455}",jacket:"\u{1F9E5}",bag:"\u{1F45C}",accessory:"\u{1F48D}",watch:"\u{231A}",bottom:"\u{1F456}",dress:"\u{1F457}",shoes:"\u{1F45F}",scarf:"\u{1F9E3}"};
 var cF=null,cPrev=null,cropper=null;
 
+// Auto-detect country from browser
+(function(){
+  var tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'';
+  var lang=navigator.language||'';
+  var cc='us';
+  if(tz.indexOf('Istanbul')>-1||lang.startsWith('tr'))cc='tr';
+  else if(tz.indexOf('London')>-1||tz.indexOf('Europe/London')>-1)cc='gb';
+  else if(tz.indexOf('Berlin')>-1||tz.indexOf('Europe/Berlin')>-1||lang.startsWith('de'))cc='de';
+  else if(tz.indexOf('Paris')>-1||tz.indexOf('Europe/Paris')>-1||lang.startsWith('fr'))cc='fr';
+  else if(tz.indexOf('Amsterdam')>-1||lang.startsWith('nl'))cc='nl';
+  else if(tz.indexOf('Riyadh')>-1||lang.startsWith('ar'))cc='sa';
+  else if(tz.indexOf('Dubai')>-1)cc='ae';
+  else if(tz.indexOf('America')>-1)cc='us';
+  var sel=document.getElementById('ccSel');
+  if(sel)sel.value=cc;
+})();
+
+function getCC(){return document.getElementById('ccSel').value||'tr'}
+
 document.getElementById('fi').addEventListener('change',function(e){if(e.target.files[0])loadF(e.target.files[0])});
 
 function loadF(f){if(!f.type.startsWith('image/'))return;cF=f;var r=new FileReader();r.onload=function(e){cPrev=e.target.result;showScreen()};r.readAsDataURL(f)}
@@ -609,7 +695,7 @@ function goHome(){document.getElementById('home').style.display='block';document
 function autoScan(){
   document.getElementById('actionBtns').style.display='none';
   showLoading('Parcalar tespit ediliyor...');
-  var fd=new FormData();fd.append('file',cF);
+  var fd=new FormData();fd.append('file',cF);fd.append('country',getCC());
   fetch('/api/full-analyze',{method:'POST',body:fd})
     .then(function(r){return r.json()})
     .then(function(d){hideLoading();if(!d.success)return showErr(d.message||'Hata');renderAuto(d)})
@@ -638,7 +724,7 @@ function cropAndSearch(){
   showLoading('Sectigin parca araniyor...');
   canvas.toBlob(function(blob){
     var q=document.getElementById('manualQ').value.trim();
-    var fd=new FormData();fd.append('file',blob,'crop.jpg');fd.append('query',q);
+    var fd=new FormData();fd.append('file',blob,'crop.jpg');fd.append('query',q);fd.append('country',getCC());
     fetch('/api/manual-search',{method:'POST',body:fd})
       .then(function(r){return r.json()})
       .then(function(d){hideLoading();if(!d.success)return showErr('Hata');renderManual(d,canvas.toDataURL('image/jpeg',0.7))})
@@ -662,7 +748,7 @@ function renderAuto(d){
     h+='<div class="piece" style="animation-delay:'+(i*.1)+'s">';
     h+='<div class="p-hdr">';
     h+='<div style="width:52px;height:52px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid '+(lc>0?'var(--green)':'var(--border)')+'">'+(IC[p.category]||'')+'</div>';
-    h+='<div><span class="p-title">'+(p.short_title_tr||p.category)+'</span>';
+    h+='<div><span class="p-title">'+(p.short_title||p.category)+'</span>';
     if(p.brand&&p.brand!=='?')h+='<span class="p-brand">'+p.brand+'</span>';
     var vt=p.visible_text||'';
     if(vt&&vt.toLowerCase()!=='none')h+='<div style="font-size:10px;color:var(--accent);font-style:italic;margin-top:2px">"'+vt+'"</div>';
@@ -703,7 +789,7 @@ function heroHTML(p,isLens){
 function altsHTML(list){
   var h='<div style="font-size:11px;color:var(--dim);margin:6px 0">&#x1F4B8; Alternatifler &#x1F449;</div><div class="scroll">';
   for(var i=0;i<list.length;i++){var a=list[i];var img=a.thumbnail||a.image||'';
-    h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_tr?' tr':'')+'">';
+    h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' tr':'')+'">';
     if(img)h+='<img src="'+img+'" onerror="this.hidden=true">';
     h+='<div class="ci"><div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div></a>'}
   return h+'</div>';
