@@ -319,8 +319,25 @@ def is_fashion(link, title, src):
 
 
 # ─── Image Upload ───
+IMGUR_CLIENT_ID = os.environ.get("IMGUR_CLIENT_ID", "")
+
 async def upload_img(img_bytes):
     async with httpx.AsyncClient(timeout=30) as c:
+        # 1. Imgur (professional, no ban risk)
+        if IMGUR_CLIENT_ID:
+            try:
+                r = await c.post(
+                    "https://api.imgur.com/3/image",
+                    headers={"Authorization": f"Client-ID {IMGUR_CLIENT_ID}"},
+                    files={"image": ("i.jpg", img_bytes, "image/jpeg")},
+                )
+                if r.status_code == 200:
+                    link = r.json().get("data", {}).get("link", "")
+                    if link:
+                        return link
+            except Exception as e:
+                print(f"Imgur err: {e}")
+        # 2. Catbox (dev fallback)
         try:
             r = await c.post(
                 "https://litterbox.catbox.moe/resources/internals/api.php",
@@ -331,6 +348,7 @@ async def upload_img(img_bytes):
                 return r.text.strip()
         except Exception as e:
             print(f"Upload err: {e}")
+        # 3. Tmpfiles (last resort)
         try:
             r = await c.post(
                 "https://tmpfiles.org/api/v1/upload",
@@ -489,18 +507,18 @@ Rules:
                     if 0 <= idx < len(candidates) and idx not in used and score >= 8:
                         item = candidates[idx].copy()
                         item["match_score"] = score
-                        item["ai_verified"] = score >= 8
+                        item["ai_verified"] = True
                         reranked.append(item)
                         used.add(idx)
 
-                # Add remaining results that weren't scored
-                for i, r in enumerate(candidates):
-                    if i not in used:
-                        reranked.append(r)
-
-                # Add back any results beyond the 8 we evaluated
-                reranked.extend(results[12:])
-                return reranked
+                # If reranker found matches, return ONLY verified ones
+                # If nothing passed the strict filter, return original results
+                if reranked:
+                    print(f"  Reranker: {len(reranked)} AI-verified matches")
+                    return reranked
+                else:
+                    print(f"  Reranker: no exact matches found, returning originals")
+                    return results
     except Exception as e:
         print(f"  Reranker err: {e}")
 
@@ -547,13 +565,14 @@ For each CLEARLY VISIBLE item:
 - color: color name in {lang}
 - brand: If readable, write it. If design/silhouette strongly resembles a famous brand (Nike swoosh, Adidas stripes, Converse sole, Zara cut), GUESS the brand. Else "?"
 - visible_text: ALL readable text/logos/patches
+- box: [top_percent, left_percent, bottom_percent, right_percent] approximate bounding box as percentage of image dimensions (0-100). Example: a jacket in upper body might be [15, 10, 55, 90]
 - search_query: 4-6 word ULTRA SPECIFIC {lang} shopping query
   * MUST include "{g_male}" or "{g_female}" based on gender
   * MUST include brand AND model name if identified or guessed
   * Describe material, fit, and iconic details
 
 Return ONLY valid JSON array, no markdown no backticks:
-[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","search_query":""}}]"""},
+[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","box":[0,0,100,100],"search_query":""}}]"""},
                         ],
                     }],
                 },
@@ -674,13 +693,12 @@ def match_lens_to_pieces(lens_results, pieces):
     piece_lens = {i: [] for i in range(len(pieces))}
     for lr in lens_results:
         title_lower = lr["title"].lower()
+        source_lower = (lr.get("source", "") + " " + lr.get("link", "")).lower()
         for i, p in enumerate(pieces):
             cat = p.get("category", "")
             keywords = PIECE_KEYWORDS.get(cat, [])
             matched = False
             for kw in keywords:
-                # Short keywords (hat, top, cap) need word boundary to avoid
-                # "chateau" matching "hat", "laptop" matching "top"
                 if len(kw) <= 4:
                     if re.search(rf'\b{re.escape(kw)}\b', title_lower):
                         matched = True
@@ -689,28 +707,125 @@ def match_lens_to_pieces(lens_results, pieces):
                     if kw in title_lower:
                         matched = True
                         break
+            if not matched:
+                continue
+            # Brand filter: if Claude detected a brand, reject Lens results
+            # that clearly belong to a DIFFERENT brand
+            piece_brand = p.get("brand", "?").lower().strip()
+            if piece_brand and piece_brand != "?" and len(piece_brand) > 2:
+                combined = title_lower + " " + source_lower
+                # Check if a different known brand appears in the Lens result
+                rival_brands = ["nike", "adidas", "puma", "zara", "hm", "bershka",
+                    "mango", "gucci", "prada", "balenciaga", "converse", "vans",
+                    "new balance", "reebok", "asics", "fila", "skechers", "kinetix",
+                    "defacto", "koton", "lcw", "mavi", "colins", "levi", "tommy",
+                    "polo", "lacoste", "calvin klein", "hugo boss", "massimo dutti",
+                    "pull&bear", "stradivarius", "uniqlo", "gap", "h&m"]
+                for rb in rival_brands:
+                    if rb in combined and rb not in piece_brand and piece_brand not in rb:
+                        matched = False
+                        break
             if matched:
                 piece_lens[i].append(lr)
                 break
     return piece_lens
 
 
-# ─── Process Piece (Shopping only) ───
-async def process_piece(p, cc="tr"):
+# ─── Auto-Crop Helper ───
+def crop_piece(img_bytes, box):
+    """Crop a piece from the original image using bounding box percentages [top, left, bottom, right]."""
+    try:
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        w, h = img.size
+        top, left, bottom, right = box
+        # Convert percentages to pixels with 5% padding
+        pad = 5
+        x1 = max(0, int(w * (left - pad) / 100))
+        y1 = max(0, int(h * (top - pad) / 100))
+        x2 = min(w, int(w * (right + pad) / 100))
+        y2 = min(h, int(h * (bottom + pad) / 100))
+        if x2 - x1 < 30 or y2 - y1 < 30:
+            return None
+        cropped = img.crop((x1, y1, x2, y2))
+        buf = io.BytesIO()
+        cropped.save(buf, format="JPEG", quality=90)
+        return buf.getvalue()
+    except Exception as e:
+        print(f"  Crop err: {e}")
+        return None
+
+
+# ─── Process Single Auto-Crop Piece ───
+async def process_auto_piece(p, img_bytes, cc="tr"):
+    """Full pipeline for one auto-detected piece: crop → rembg → upload → lens + shop → rerank."""
     cat = p.get("category", "")
-    q = p.get("search_query", "") or p.get("search_query_tr", "") or p.get("short_title", "") or p.get("short_title_tr", "")
-    print(f"[{cat}] Shopping: '{q}'")
-    async with API_SEM:
-        products = await asyncio.to_thread(_shop, q, cc) if q else []
-    print(f"[{cat}] Found: {len(products)}")
+    box = p.get("box", None)
+    q = p.get("search_query", "")
+    brand = p.get("brand", "")
+    print(f"  [{cat}] box={box} query='{q}'")
+
+    # Step 1: Crop the piece from original image
+    cropped = None
+    if box and isinstance(box, list) and len(box) == 4:
+        cropped = await asyncio.to_thread(crop_piece, img_bytes, box)
+
+    # Step 2: rembg on cropped piece (if we have a crop)
+    clean_bytes = None
+    if cropped:
+        async with REMBG_LOCK:
+            clean_bytes = await asyncio.to_thread(remove_bg, cropped)
+        print(f"  [{cat}] Cropped + rembg done")
+
+    # Step 3: Upload clean image + Shopping in parallel
+    async def do_upload():
+        if clean_bytes:
+            return await upload_img(clean_bytes)
+        return None
+
+    async def do_shop():
+        if q:
+            async with API_SEM:
+                return await asyncio.to_thread(_shop, q, cc)
+        return []
+
+    url, shop_res = await asyncio.gather(do_upload(), do_shop())
+
+    # Step 4: Lens search on clean cropped image
+    lens_res = []
+    if url:
+        async with API_SEM:
+            lens_res = await asyncio.to_thread(_lens, url, cc)
+        print(f"  [{cat}] Crop Lens: {len(lens_res)}")
+
+    # Step 5: Combine — Lens first (visual match on clean crop), Shopping fallback
+    seen = set()
+    combined = []
+    for x in lens_res + shop_res:
+        if x["link"] not in seen:
+            seen.add(x["link"])
+            combined.append(x)
+
+    # Step 6: Rerank with Claude if we have a clean crop
+    if clean_bytes and len(combined) >= 3:
+        try:
+            img_ai = Image.open(io.BytesIO(clean_bytes)).convert("RGB")
+            img_ai.thumbnail((512, 512))
+            buf_ai = io.BytesIO()
+            img_ai.save(buf_ai, format="JPEG", quality=80)
+            orig_b64 = base64.b64encode(buf_ai.getvalue()).decode()
+        except Exception:
+            orig_b64 = base64.b64encode(clean_bytes).decode()
+        combined = await claude_rerank(orig_b64, combined, cc)
+
     return {
         "category": cat,
-        "short_title": p.get("short_title", "") or p.get("short_title_tr", cat.title()),
-        "color": p.get("color", "") or p.get("color_tr", ""),
-        "brand": p.get("brand", ""),
+        "short_title": p.get("short_title", cat.title()),
+        "color": p.get("color", ""),
+        "brand": brand,
         "visible_text": p.get("visible_text", ""),
-        "products": products,
-        "lens_count": 0,
+        "products": combined[:8],
+        "lens_count": len(lens_res),
+        "has_crop": cropped is not None,
     }
 
 
@@ -724,6 +839,7 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
     cfg = get_country_config(cc)
     contents = await file.read()
 
+    # Optimize image for Claude detection
     try:
         img = Image.open(io.BytesIO(contents)).convert("RGB")
         img.thumbnail((800, 800))
@@ -736,37 +852,19 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
         b64 = base64.b64encode(contents).decode()
 
     print(f"\n{'='*50}")
-    print(f"=== AUTO ANALYZE === country={cc} ({cfg['name']})")
+    print(f"=== AUTO ANALYZE (Auto-Crop) === country={cc} ({cfg['name']})")
 
-    detect_task = claude_detect(b64, cc)
-    upload_task = upload_img(optimized_bytes)
-    pieces, url = await asyncio.gather(detect_task, upload_task)
-
-    lens_results = []
-    if url:
-        lens_results = await asyncio.to_thread(_lens, url, cc)
-        print(f"Full image Lens: {len(lens_results)}")
+    # Claude detects pieces WITH bounding boxes
+    pieces = await claude_detect(b64, cc)
 
     if not pieces:
         return {"success": True, "pieces": [], "country": cc}
 
-    print(f"Claude: {len(pieces)} pieces")
-    piece_lens = match_lens_to_pieces(lens_results, pieces)
+    print(f"Claude: {len(pieces)} pieces detected")
 
-    tasks = [process_piece(p, cc) for p in pieces]
+    # Process each piece: crop → rembg → lens → rerank
+    tasks = [process_auto_piece(p, optimized_bytes, cc) for p in pieces]
     results = list(await asyncio.gather(*tasks))
-
-    for i, r in enumerate(results):
-        lens_for_piece = piece_lens.get(i, [])
-        shop_products = r["products"]
-        seen = set()
-        combined = []
-        for x in lens_for_piece + shop_products:
-            if x["link"] not in seen:
-                seen.add(x["link"])
-                combined.append(x)
-        r["products"] = combined[:8]
-        r["lens_count"] = len(lens_for_piece)
 
     return {"success": True, "pieces": results, "country": cc}
 
@@ -1222,7 +1320,7 @@ function goHome(){if(_busy)return;document.getElementById('home').style.display=
 function autoScan(){
   if(_busy)return;
   document.getElementById('actionBtns').style.display='none';
-  showLoading(t('loading'),[t('step_detect'),t('step_lens'),t('step_match'),t('step_done')]);
+  showLoading(t('loading'),[t('step_detect'),t('step_bg'),t('step_lens'),t('step_ai'),t('step_verify'),t('step_done')]);
   var fd=new FormData();fd.append('file',cF);fd.append('country',getCC());
   fetch('/api/full-analyze',{method:'POST',body:fd})
     .then(function(r){return r.json()})
