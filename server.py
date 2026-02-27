@@ -1212,9 +1212,10 @@ function showScreen(){
   document.getElementById('res').style.display='none';
   if(cropper){cropper.destroy();cropper=null}
 }
-function goHome(){document.getElementById('home').style.display='block';document.getElementById('rScreen').style.display='none';if(cropper){cropper.destroy();cropper=null}cF=null;cPrev=null}
+function goHome(){if(_busy)return;document.getElementById('home').style.display='block';document.getElementById('rScreen').style.display='none';if(cropper){cropper.destroy();cropper=null}cF=null;cPrev=null}
 
 function autoScan(){
+  if(_busy)return;
   document.getElementById('actionBtns').style.display='none';
   showLoading(t('loading'),[t('step_detect'),t('step_lens'),t('step_match'),t('step_done')]);
   var fd=new FormData();fd.append('file',cF);fd.append('country',getCC());
@@ -1256,7 +1257,9 @@ function cropAndSearch(){
 }
 
 var _ldTimer=null;
+var _busy=false;
 function showLoading(txt,steps){
+  _busy=true;
   var l=document.getElementById('ld');l.style.display='block';
   var msgs=steps||[txt];
   var idx=0;
@@ -1266,7 +1269,7 @@ function showLoading(txt,steps){
   render();
   if(msgs.length>1){if(_ldTimer)clearInterval(_ldTimer);_ldTimer=setInterval(function(){idx=(idx+1)%msgs.length;render()},3500);}
 }
-function hideLoading(){if(_ldTimer){clearInterval(_ldTimer);_ldTimer=null}document.getElementById('ld').style.display='none'}
+function hideLoading(){_busy=false;if(_ldTimer){clearInterval(_ldTimer);_ldTimer=null}document.getElementById('ld').style.display='none'}
 function showErr(m){var e=document.getElementById('err');e.style.display='block';e.innerHTML='<div style="background:rgba(232,93,93,.06);border:1px solid rgba(232,93,93,.15);border-radius:12px;padding:12px;margin:12px 0;font-size:13px;color:var(--red)">'+m+'</div>'}
 
 function renderAuto(d){
@@ -1355,6 +1358,7 @@ function toggleFav(e,link,img,title,price,brand){
   localStorage.setItem('fitfinder_favs',JSON.stringify(favs));
 }
 function showFavs(){
+  if(_busy)return; // Don't navigate while AI is working
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='block';
   var ab=document.getElementById('actionBtns');if(ab)ab.style.display='none';
