@@ -744,38 +744,27 @@ def crop_piece(img_bytes, box):
 
 # ─── Process Single Auto-Crop Piece ───
 async def process_auto_piece(p, img_bytes, cc="tr"):
-    """Full pipeline for one auto-detected piece: crop → rembg → upload → lens + shop."""
+    """Pipeline for one auto piece: crop → upload → lens + shop (parallel). No rembg for speed."""
     cat = p.get("category", "")
     box = p.get("box", None)
     q = p.get("search_query", "")
     brand = p.get("brand", "")
 
     try:
-        print(f"  [{cat}] box={box} query='{q}'")
+        print(f"  [{cat}] box={box} q='{q}'")
 
-        # Step 1: Crop the piece from original image
+        # Step 1: Crop piece from image (fast, <50ms)
         cropped = None
         if box and isinstance(box, list) and len(box) == 4:
             try:
                 cropped = await asyncio.to_thread(crop_piece, img_bytes, box)
             except Exception as e:
-                print(f"  [{cat}] Crop failed: {e}")
+                print(f"  [{cat}] Crop err: {e}")
 
-        # Step 2: rembg on cropped piece
-        clean_bytes = None
-        if cropped:
-            try:
-                async with REMBG_LOCK:
-                    clean_bytes = await asyncio.to_thread(remove_bg, cropped)
-                print(f"  [{cat}] Cropped + rembg done")
-            except Exception as e:
-                print(f"  [{cat}] rembg failed: {e}")
-                clean_bytes = cropped  # Use raw crop as fallback
-
-        # Step 3: Upload clean image + Shopping in parallel
+        # Step 2: Upload crop + Shopping in parallel
         async def do_upload():
-            if clean_bytes:
-                return await upload_img(clean_bytes)
+            if cropped:
+                return await upload_img(cropped)
             return None
 
         async def do_shop():
@@ -786,22 +775,22 @@ async def process_auto_piece(p, img_bytes, cc="tr"):
 
         url, shop_res = await asyncio.gather(do_upload(), do_shop())
 
-        # Step 4: Lens search on clean cropped image
+        # Step 3: Lens on cropped image
         lens_res = []
         if url:
             try:
                 async with API_SEM:
                     lens_res = await asyncio.to_thread(_lens, url, cc)
-                print(f"  [{cat}] Crop Lens: {len(lens_res)}")
+                print(f"  [{cat}] Lens: {len(lens_res)}")
             except Exception as e:
-                print(f"  [{cat}] Lens failed: {e}")
+                print(f"  [{cat}] Lens err: {e}")
 
-        # Step 5: Brand filter
+        # Step 4: Brand filter
         if brand and brand != "?":
             lens_res = filter_rival_brands(lens_res, brand)
             shop_res = filter_rival_brands(shop_res, brand)
 
-        # Step 6: Combine — Lens first, Shopping fallback
+        # Step 5: Combine — Lens first, Shop fallback
         seen = set()
         combined = []
         for x in lens_res + shop_res:
@@ -820,7 +809,7 @@ async def process_auto_piece(p, img_bytes, cc="tr"):
             "has_crop": cropped is not None,
         }
     except Exception as e:
-        print(f"  [{cat}] PIECE FAILED: {e}")
+        print(f"  [{cat}] FAILED: {e}")
         return {
             "category": cat,
             "short_title": p.get("short_title", cat.title()),
@@ -843,10 +832,9 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
     cfg = get_country_config(cc)
     contents = await file.read()
 
-    # Optimize image for Claude detection
     try:
         img = Image.open(io.BytesIO(contents)).convert("RGB")
-        img = ImageOps.exif_transpose(img)  # Fix iPhone rotation
+        img = ImageOps.exif_transpose(img)
         img.thumbnail((800, 800))
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
@@ -857,22 +845,18 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
         b64 = base64.b64encode(contents).decode()
 
     print(f"\n{'='*50}")
-    print(f"=== AUTO ANALYZE (Auto-Crop) === country={cc} ({cfg['name']})")
+    print(f"=== AUTO ANALYZE === country={cc} ({cfg['name']})")
 
     try:
-        # Claude detects pieces WITH bounding boxes
         pieces = await claude_detect(b64, cc)
-
         if not pieces:
             return {"success": True, "pieces": [], "country": cc}
 
-        print(f"Claude: {len(pieces)} pieces detected")
+        print(f"Claude: {len(pieces)} pieces")
 
-        # Process pieces sequentially to avoid rembg lock contention + timeout
-        results = []
-        for p in pieces[:5]:  # Max 5 pieces to prevent timeout
-            r = await process_auto_piece(p, optimized_bytes, cc)
-            results.append(r)
+        # Process up to 4 pieces in parallel (no rembg = safe to parallelize)
+        tasks = [process_auto_piece(p, optimized_bytes, cc) for p in pieces[:4]]
+        results = list(await asyncio.gather(*tasks))
 
         return {"success": True, "pieces": results, "country": cc}
     except Exception as e:
