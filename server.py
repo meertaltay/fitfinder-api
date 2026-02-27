@@ -183,15 +183,12 @@ def search_shopping(query, limit=6):
 
             shopping = data.get("shopping_results", [])
             print(f"  SerpAPI returned {len(shopping)} shopping results")
-            if len(shopping) == 0:
-                # Check other keys
-                keys = [k for k in data.keys() if k not in ('search_metadata', 'search_parameters', 'search_information')]
-                print(f"  Available keys: {keys}")
-                if 'search_information' in data:
-                    print(f"  Search info: {data['search_information']}")
+            if len(shopping) > 0 and len(products) == 0:
+                print(f"  First item keys: {list(shopping[0].keys())}")
+                print(f"  First item: {json.dumps(shopping[0], ensure_ascii=False)[:300]}")
 
             for item in shopping:
-                link = item.get("link", "")
+                link = item.get("product_link") or item.get("link") or ""
                 title = item.get("title", "")
                 if not link or link in seen or not title: continue
                 if is_blocked(link): continue
