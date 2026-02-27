@@ -190,7 +190,7 @@ def _lens(url):
             if blocked(lnk): continue
             seen.add(lnk)
             pr = m.get("price",{}); pr = pr.get("value","") if isinstance(pr,dict) else str(pr)
-            res.append({"title":ttl,"brand":brand(lnk,src),"source":src,"link":lnk,"price":pr,"thumbnail":m.get("thumbnail",""),"is_tr":istr(lnk,src)})
+            res.append({"title":ttl,"brand":brand(lnk,src),"source":src,"link":lnk,"price":pr,"thumbnail":m.get("thumbnail",""),"image":m.get("image",""),"is_tr":istr(lnk,src)})
             if len(res)>=20: break
     except Exception as e: print(f"Lens err: {e}")
     print(f"  Lens after filter: {len(res)} results")
@@ -661,8 +661,9 @@ function renderManual(d,cropSrc){
 
 // ─── SHARED HTML BUILDERS ───
 function heroHTML(p,isLens){
+  var img=p.image||p.thumbnail||'';
   var h='<a href="'+p.link+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text)"><div class="hero">';
-  if(p.thumbnail)h+='<img src="'+p.thumbnail+'" onerror="this.hidden=true">';
+  if(img)h+='<img src="'+img+'" onerror="this.src=\''+p.thumbnail+'\';this.onerror=null">';
   h+='<div class="badge">'+(isLens?'&#x1F3AF; Lens Eslesmesi':'&#x2728; Onerilen')+'</div>';
   h+='<div class="info"><div class="t">'+p.title+'</div><div class="s">'+(p.brand||p.source||'')+'</div>';
   h+='<div class="row"><span class="price">'+(p.price||'Fiyat icin tikla')+'</span>';
