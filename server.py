@@ -184,13 +184,14 @@ BLOCKED = [
     "forlady", "chicisimo.", "bantoa.", "wear.jp",
     "shutterstock.", "gettyimages.", "alamy.", "dreamstime.",
     "vecteezy.", "freepik.", "unsplash.", "pexels.",
+    "shein.", "temu.", "cider.", "romwe.", "patpat.",
 ]
 
 FASHION_DOMAINS = [
     "trendyol.", "hepsiburada.", "boyner.", "beymen.", "defacto.",
     "lcwaikiki.", "koton.", "flo.", "n11.", "mavi.", "superstep.",
     "zara.com", "bershka.com", "pullandbear.com", "hm.com",
-    "mango.com", "asos.com", "shein.com", "stradivarius.com",
+    "mango.com", "asos.com", "stradivarius.com",
     "massimodutti.com", "nike.com", "adidas.", "puma.com",
     "newbalance.", "converse.", "morhipo.", "lidyana.", "modanisa.",
 ]
@@ -544,12 +545,12 @@ For each CLEARLY VISIBLE item:
 - category: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
 - short_title: 2-4 word {lang} name. Be EXACT about item type.
 - color: color name in {lang}
-- brand: ONLY if you can READ it on the item, else "?"
+- brand: If readable, write it. If design/silhouette strongly resembles a famous brand (Nike swoosh, Adidas stripes, Converse sole, Zara cut), GUESS the brand. Else "?"
 - visible_text: ALL readable text/logos/patches
 - search_query: 4-6 word ULTRA SPECIFIC {lang} shopping query
   * MUST include "{g_male}" or "{g_female}" based on gender
-  * MUST match exact item type
-  * Include brand if readable, include visible text/patches
+  * MUST include brand AND model name if identified or guessed
+  * Describe material, fit, and iconic details
 
 Return ONLY valid JSON array, no markdown no backticks:
 [{{"category":"","short_title":"","color":"","brand":"","visible_text":"","search_query":""}}]"""},
@@ -612,6 +613,7 @@ def _lens(url, cc="tr"):
                 break
     except Exception as e:
         print(f"Lens err: {e}")
+    DUPE_SITES = ["shein.", "temu.", "aliexpress.", "alibaba.", "cider.", "dhgate.", "wish.", "romwe.", "patpat."]
     def score(r):
         s = 0
         if r["price"]:
@@ -621,6 +623,9 @@ def _lens(url, cc="tr"):
         c = (r["link"] + " " + r["source"]).lower()
         if any(d in c for d in FASHION_DOMAINS):
             s += 3
+        # Anti-dupe: push knockoff sites to bottom
+        if any(d in c for d in DUPE_SITES):
+            s -= 50
         return -s
     res.sort(key=score)
     print(f"  Lens after filter: {len(res)} results")
