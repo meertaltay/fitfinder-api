@@ -351,13 +351,20 @@ def remove_bg(img_bytes):
         return img_bytes
     try:
         result = rembg_remove(img_bytes, session=rembg_session)
-        # Put on white background (Lens works better with white bg than transparent)
         img = Image.open(io.BytesIO(result)).convert("RGBA")
+        # Tight crop: remove white space, keep only the garment
+        bbox = img.getbbox()
+        if bbox:
+            img = img.crop(bbox)
         bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
         bg.paste(img, mask=img.split()[3])
+        # Add 5% breathing room (Lens dislikes edge-to-edge crops)
+        from PIL import ImageOps
+        pad = int(max(bg.size) * 0.05)
+        bg = ImageOps.expand(bg, border=pad, fill='white')
         buf = io.BytesIO()
-        bg.convert("RGB").save(buf, format="JPEG", quality=90)
-        print(f"  rembg: {len(img_bytes)//1024}KB → {buf.tell()//1024}KB (bg removed)")
+        bg.convert("RGB").save(buf, format="JPEG", quality=95)
+        print(f"  rembg: {len(img_bytes)//1024}KB → {buf.tell()//1024}KB (bg removed + tight crop)")
         return buf.getvalue()
     except Exception as e:
         print(f"  rembg err: {e}")
@@ -372,7 +379,7 @@ async def claude_rerank(original_b64, results, cc="tr"):
         return results
 
     # Download thumbnails in parallel (max 8)
-    candidates = results[:8]
+    candidates = results[:12]
     thumb_data = []
 
     async with httpx.AsyncClient(timeout=10) as client:
@@ -389,7 +396,7 @@ async def claude_rerank(original_b64, results, cc="tr"):
                         raw += "=" * ((4 - len(raw) % 4) % 4)
                         img_data = base64.b64decode(raw)
                         img = Image.open(io.BytesIO(img_data)).convert("RGB")
-                        img.thumbnail((256, 256))
+                        img.thumbnail((512, 512))
                         buf = io.BytesIO()
                         img.save(buf, format="JPEG", quality=80)
                         return base64.b64encode(buf.getvalue()).decode()
@@ -401,7 +408,7 @@ async def claude_rerank(original_b64, results, cc="tr"):
                 if resp.status_code == 200 and len(resp.content) > 500:
                     # Resize to 256px to save Claude tokens
                     img = Image.open(io.BytesIO(resp.content)).convert("RGB")
-                    img.thumbnail((256, 256))
+                    img.thumbnail((512, 512))
                     buf = io.BytesIO()
                     img.save(buf, format="JPEG", quality=80)
                     return base64.b64encode(buf.getvalue()).decode()
@@ -437,10 +444,12 @@ Scoring Rules:
 8-9/10: HIGHLY IDENTICAL DUPE - Almost indistinguishable visually.
 0-7/10: SIMILAR BUT DIFFERENT - e.g. both black leather jackets but collar/zipper differs. REJECT THESE.
 
-Return ONLY a valid JSON array sorted by highest score first:
-[{{"idx":1,"score":10}},{{"idx":3,"score":8}}]
+CRITICAL: You MUST explain your visual reasoning BEFORE giving the score. Compare collars, zippers, stitching, pockets, and logos.
 
-CRITICAL RULES:
+Return ONLY a valid JSON array sorted by highest score first:
+[{{"idx":1,"reason":"Silver asymmetrical zipper, quilted shoulders, identical lapels. Exact match.","score":10}},{{"idx":3,"reason":"Similar color but different pocket layout and stitching.","score":4}}]
+
+Rules:
 - ONLY include results scoring 8 or higher
 - Be ruthless: if just "similar style", exclude completely
 - If NO item is an exact match, return empty array []"""})
@@ -456,7 +465,7 @@ CRITICAL RULES:
                 },
                 json={
                     "model": "claude-sonnet-4-20250514",
-                    "max_tokens": 300,
+                    "max_tokens": 800,
                     "messages": [{"role": "user", "content": content}],
                 },
             )
@@ -489,7 +498,7 @@ CRITICAL RULES:
                         reranked.append(r)
 
                 # Add back any results beyond the 8 we evaluated
-                reranked.extend(results[8:])
+                reranked.extend(results[12:])
                 return reranked
     except Exception as e:
         print(f"  Reranker err: {e}")
@@ -826,7 +835,7 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
 
     # Step 2: Parallel — upload clean image + Claude identify
     upload_task = upload_img(clean_bytes)
-    claude_task = claude_identify_crop(optimized, cc)  # Use optimized, not raw contents
+    claude_task = claude_identify_crop(clean_bytes, cc)  # Use bg-removed for better query
     url, smart_query = await asyncio.gather(upload_task, claude_task)
 
     search_q = query if query else smart_query
