@@ -451,28 +451,14 @@ async def process_auto_piece(p, img_obj, cc):
     try:
         print(f"  [{cat}] box={box} q='{q}'")
 
-        # Step 1: Crop from high-res image
+        # Step 1: Crop from high-res image (instant)
         cropped_bytes = None
         if box and isinstance(box, list) and len(box) == 4:
             cropped_bytes = await asyncio.to_thread(crop_piece, img_obj, box)
 
-        # Step 2: Dynamic rembg — cloth items only (shoes/accessories get destroyed)
-        clean_bytes = cropped_bytes
-        if cropped_bytes and cat in REMBG_CATS:
-            try:
-                async with REMBG_LOCK:
-                    bg_removed = await asyncio.to_thread(remove_bg, cropped_bytes)
-                    if len(bg_removed) > 1000:
-                        clean_bytes = bg_removed
-                        print(f"  [{cat}] rembg applied")
-            except Exception as e:
-                print(f"  [{cat}] rembg err: {e}")
-        elif cropped_bytes:
-            print(f"  [{cat}] rembg SKIPPED (accessory)")
-
-        # Step 3: Upload + Shopping in parallel
+        # Step 2: Upload crop + Shopping in parallel (NO rembg in auto — causes timeout)
         async def do_upload():
-            return await upload_img(clean_bytes) if clean_bytes else None
+            return await upload_img(cropped_bytes) if cropped_bytes else None
         async def do_shop():
             if q:
                 async with API_SEM:
@@ -481,7 +467,7 @@ async def process_auto_piece(p, img_obj, cc):
 
         url, shop_res = await asyncio.gather(do_upload(), do_shop())
 
-        # Step 4: Lens on cropped/cleaned image
+        # Step 3: Lens on cropped image
         lens_res = []
         if url:
             try:
@@ -491,12 +477,12 @@ async def process_auto_piece(p, img_obj, cc):
             except Exception as e:
                 print(f"  [{cat}] Lens err: {e}")
 
-        # Step 5: Brand filter
+        # Step 4: Brand filter
         if brand and brand != "?":
             lens_res = filter_rival_brands(lens_res, brand)
             shop_res = filter_rival_brands(shop_res, brand)
 
-        # Step 6: Combine — Lens first (visual match on clean crop), Shopping second
+        # Step 5: Combine — Lens first, Shopping second
         seen, combined = set(), []
         for x in lens_res + shop_res:
             if x["link"] not in seen:
