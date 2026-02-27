@@ -13,10 +13,12 @@ from fastapi.responses import HTMLResponse
 from serpapi import GoogleSearch
 
 try:
-    from rembg import remove as rembg_remove
+    from rembg import remove as rembg_remove, new_session
+    rembg_session = new_session("u2net")  # Load model ONCE globally
     HAS_REMBG = True
-    print("✅ rembg loaded")
+    print("✅ rembg loaded (session ready)")
 except ImportError:
+    rembg_session = None
     HAS_REMBG = False
     print("⚠️ rembg not installed, background removal disabled")
 
@@ -114,6 +116,25 @@ DEFAULT_COUNTRY = "us"
 
 def get_country_config(cc):
     return COUNTRIES.get(cc.lower(), COUNTRIES[DEFAULT_COUNTRY])
+
+
+# ─── Affiliate Link Wrapper ───
+import urllib.parse
+
+# Set these env vars when you have partner IDs
+TRENDYOL_PARTNER_ID = os.environ.get("TRENDYOL_PARTNER_ID", "")
+SKIMLINKS_ID = os.environ.get("SKIMLINKS_ID", "")
+
+def make_affiliate(url):
+    """Wrap product URL with affiliate tracking. Returns original URL if no partner ID."""
+    url_lower = url.lower()
+    if TRENDYOL_PARTNER_ID and "trendyol.com" in url_lower:
+        sep = "&" if "?" in url else "?"
+        return f"{url}{sep}boutiqueId={TRENDYOL_PARTNER_ID}&merchantId={TRENDYOL_PARTNER_ID}"
+    if SKIMLINKS_ID:
+        encoded = urllib.parse.quote(url, safe='')
+        return f"https://go.skimresources.com/?id={SKIMLINKS_ID}&url={encoded}"
+    return url
 
 BRAND_MAP = {
     "trendyol.com": "Trendyol", "hepsiburada.com": "Hepsiburada",
@@ -308,7 +329,7 @@ def remove_bg(img_bytes):
     if not HAS_REMBG:
         return img_bytes
     try:
-        result = rembg_remove(img_bytes)
+        result = rembg_remove(img_bytes, session=rembg_session)
         # Put on white background (Lens works better with white bg than transparent)
         img = Image.open(io.BytesIO(result)).convert("RGBA")
         bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
@@ -339,9 +360,29 @@ async def claude_rerank(original_b64, results, cc="tr"):
             if not url:
                 return None
             try:
-                resp = await client.get(url)
+                # Handle data:image URIs (SerpAPI often returns these)
+                if url.startswith("data:image"):
+                    raw = url.split(",", 1)[1] if "," in url else ""
+                    if len(raw) > 100:
+                        # Decode, resize, re-encode
+                        img_data = base64.b64decode(raw)
+                        img = Image.open(io.BytesIO(img_data)).convert("RGB")
+                        img.thumbnail((256, 256))
+                        buf = io.BytesIO()
+                        img.save(buf, format="JPEG", quality=80)
+                        return base64.b64encode(buf.getvalue()).decode()
+                    return None
+
+                # HTTP URL — download with User-Agent
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+                resp = await client.get(url, headers=headers, follow_redirects=True)
                 if resp.status_code == 200 and len(resp.content) > 500:
-                    return base64.b64encode(resp.content).decode()
+                    # Resize to 256px to save Claude tokens
+                    img = Image.open(io.BytesIO(resp.content)).convert("RGB")
+                    img.thumbnail((256, 256))
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=80)
+                    return base64.b64encode(buf.getvalue()).decode()
             except Exception:
                 pass
             return None
@@ -531,7 +572,7 @@ def _lens(url, cc="tr"):
             pr = pr.get("value", "") if isinstance(pr, dict) else str(pr)
             res.append({
                 "title": ttl, "brand": get_brand(lnk, src), "source": src,
-                "link": lnk, "price": pr,
+                "link": make_affiliate(lnk), "price": pr,
                 "thumbnail": m.get("thumbnail", ""),
                 "image": m.get("image", ""),
                 "is_local": is_local(lnk, src, cfg),
@@ -579,7 +620,7 @@ def _shop(q, cc="tr", limit=6):
             seen.add(lnk)
             res.append({
                 "title": ttl, "brand": get_brand(lnk, src), "source": src,
-                "link": lnk,
+                "link": make_affiliate(lnk),
                 "price": item.get("price", str(item.get("extracted_price", ""))),
                 "thumbnail": item.get("thumbnail", ""),
                 "image": "",
@@ -924,7 +965,7 @@ var L={
     recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} Lens Eslesmesi',
     goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',
     alts:'\u{1F4B8} Alternatifler \u{1F449}',
-    navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme'
+    navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme',step_detect:'AI parcalari tespit ediyor...',step_lens:'Google Lens taramasi...',step_match:'Magazalar esleseniyor...',step_done:'Sonuclar hazirlaniyor...',step_bg:'Arka plan temizleniyor...',step_search:'Global magazalar taraniyor...',step_ai:'AI kumasi analiz ediyor...',step_verify:'Birebir eslesme dogrulaniyor...'
   },
   en:{
     flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',
@@ -944,7 +985,7 @@ var L={
     recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} Lens Match',
     goStore:'Go to Store \u2197',noPrice:'Click for price',
     alts:'\u{1F4B8} Alternatives \u{1F449}',
-    navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match'
+    navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match',step_detect:'AI detecting pieces...',step_lens:'Google Lens scanning...',step_match:'Matching stores...',step_done:'Preparing results...',step_bg:'Removing background...',step_search:'Scanning global stores...',step_ai:'AI analyzing fabric...',step_verify:'Verifying exact match...'
   },
   de:{
     flag:"\u{1F1E9}\u{1F1EA}",heroTitle:'Finde das Outfit<br>im Foto, <span style="color:var(--accent)">genau so</span>.',
@@ -964,7 +1005,7 @@ var L={
     recommended:'\u{2728} Empfohlen',lensLabel:'\u{1F3AF} Lens Treffer',
     goStore:'Zum Shop \u2197',noPrice:'Preis ansehen',
     alts:'\u{1F4B8} Alternativen \u{1F449}',
-    navHome:'Entdecken',navFav:'Favoriten',aiMatch:'KI-verifiziert'
+    navHome:'Entdecken',navFav:'Favoriten',aiMatch:'KI-verifiziert',step_detect:'KI erkennt Teile...',step_lens:'Google Lens Scan...',step_match:'Shops werden abgeglichen...',step_done:'Ergebnisse werden vorbereitet...',step_bg:'Hintergrund wird entfernt...',step_search:'Globale Shops werden gescannt...',step_ai:'KI analysiert Stoff...',step_verify:'Exakte Ubereinstimmung wird gepruft...'
   },
   fr:{
     flag:"\u{1F1EB}\u{1F1F7}",heroTitle:'Trouvez la tenue<br>sur la photo, <span style="color:var(--accent)">exactement</span>.',
@@ -984,7 +1025,7 @@ var L={
     recommended:'\u{2728} Recommande',lensLabel:'\u{1F3AF} Correspondance Lens',
     goStore:'Voir boutique \u2197',noPrice:'Voir le prix',
     alts:'\u{1F4B8} Alternatives \u{1F449}',
-    navHome:'Explorer',navFav:'Favoris',aiMatch:'Verifie par IA'
+    navHome:'Explorer',navFav:'Favoris',aiMatch:'Verifie par IA',step_detect:'IA detecte les pieces...',step_lens:'Scan Google Lens...',step_match:'Correspondance des boutiques...',step_done:'Preparation des resultats...',step_bg:'Suppression du fond...',step_search:'Scan des boutiques globales...',step_ai:'IA analyse le tissu...',step_verify:'Verification de correspondance exacte...'
   },
   ar:{
     flag:"\u{1F1F8}\u{1F1E6}",heroTitle:'اعثر على الإطلالة<br>في الصورة <span style="color:var(--accent)">بالضبط</span>.',
@@ -1004,7 +1045,7 @@ var L={
     recommended:'\u{2728} مُوصى به',lensLabel:'\u{1F3AF} تطابق Lens',
     goStore:'زيارة المتجر \u2197',noPrice:'انقر للسعر',
     alts:'\u{1F4B8} بدائل \u{1F449}',
-    navHome:'استكشف',navFav:'المفضلة',aiMatch:'تطابق مؤكد بالذكاء'
+    navHome:'استكشف',navFav:'المفضلة',aiMatch:'تطابق مؤكد بالذكاء',step_detect:'الذكاء الاصطناعي يكتشف القطع...',step_lens:'مسح Google Lens...',step_match:'مطابقة المتاجر...',step_done:'تحضير النتائج...',step_bg:'إزالة الخلفية...',step_search:'مسح المتاجر العالمية...',step_ai:'تحليل القماش...',step_verify:'التحقق من التطابق...'
   },
   nl:{
     flag:"\u{1F1F3}\u{1F1F1}",heroTitle:'Vind de outfit<br>op de foto, <span style="color:var(--accent)">precies zo</span>.',
@@ -1024,7 +1065,7 @@ var L={
     recommended:'\u{2728} Aanbevolen',lensLabel:'\u{1F3AF} Lens Match',
     goStore:'Naar winkel \u2197',noPrice:'Klik voor prijs',
     alts:'\u{1F4B8} Alternatieven \u{1F449}',
-    navHome:'Ontdek',navFav:'Favorieten',aiMatch:'AI Geverifieerd'
+    navHome:'Ontdek',navFav:'Favorieten',aiMatch:'AI Geverifieerd',step_detect:'AI herkent items...',step_lens:'Google Lens scan...',step_match:'Winkels worden gematcht...',step_done:'Resultaten worden voorbereid...',step_bg:'Achtergrond wordt verwijderd...',step_search:'Globale winkels worden gescand...',step_ai:'AI analyseert stof...',step_verify:'Exacte match wordt geverifieerd...'
   }
 };
 
@@ -1110,7 +1151,7 @@ function goHome(){document.getElementById('home').style.display='block';document
 
 function autoScan(){
   document.getElementById('actionBtns').style.display='none';
-  showLoading(t('loading'));
+  showLoading(t('loading'),[t('step_detect'),t('step_lens'),t('step_match'),t('step_done')]);
   var fd=new FormData();fd.append('file',cF);fd.append('country',getCC());
   fetch('/api/full-analyze',{method:'POST',body:fd})
     .then(function(r){return r.json()})
@@ -1137,7 +1178,7 @@ function cropAndSearch(){
   if(!canvas)return;
   document.getElementById('cropMode').style.display='none';
   document.getElementById('prev').style.display='block';
-  showLoading(t('loadingManual'));
+  showLoading(t('loadingManual'),[t('step_bg'),t('step_search'),t('step_ai'),t('step_verify')]);
   canvas.toBlob(function(blob){
     var q=document.getElementById('manualQ').value.trim();
     var fd=new FormData();fd.append('file',blob,'crop.jpg');fd.append('query',q);fd.append('country',getCC());
@@ -1149,8 +1190,18 @@ function cropAndSearch(){
   if(cropper){cropper.destroy();cropper=null}
 }
 
-function showLoading(txt){var l=document.getElementById('ld');l.style.display='block';l.innerHTML='<div style="display:flex;align-items:center;gap:12px;background:var(--card);border-radius:12px;padding:16px;border:1px solid var(--border);margin:14px 0"><div style="width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div><div style="font-size:13px;font-weight:600">'+txt+'</div></div>'}
-function hideLoading(){document.getElementById('ld').style.display='none'}
+var _ldTimer=null;
+function showLoading(txt,steps){
+  var l=document.getElementById('ld');l.style.display='block';
+  var msgs=steps||[txt];
+  var idx=0;
+  function render(){
+    l.innerHTML='<div style="display:flex;align-items:center;gap:12px;background:var(--card);border-radius:12px;padding:16px;border:1px solid var(--border);margin:14px 0"><div style="width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div><div><div style="font-size:13px;font-weight:600">'+msgs[idx]+'</div>'+(msgs.length>1?'<div style="font-size:10px;color:var(--dim);margin-top:3px">'+(idx+1)+'/'+msgs.length+'</div>':'')+'</div></div>';
+  }
+  render();
+  if(msgs.length>1){if(_ldTimer)clearInterval(_ldTimer);_ldTimer=setInterval(function(){idx=(idx+1)%msgs.length;render()},3500);}
+}
+function hideLoading(){if(_ldTimer){clearInterval(_ldTimer);_ldTimer=null}document.getElementById('ld').style.display='none'}
 function showErr(m){var e=document.getElementById('err');e.style.display='block';e.innerHTML='<div style="background:rgba(232,93,93,.06);border:1px solid rgba(232,93,93,.15);border-radius:12px;padding:12px;margin:12px 0;font-size:13px;color:var(--red)">'+m+'</div>'}
 
 function renderAuto(d){
