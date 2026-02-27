@@ -186,9 +186,45 @@ def _lens(url):
             seen.add(lnk)
             pr = m.get("price",{}); pr = pr.get("value","") if isinstance(pr,dict) else str(pr)
             res.append({"title":ttl,"brand":brand(lnk,src),"source":src,"link":lnk,"price":pr,"thumbnail":m.get("thumbnail",""),"is_tr":istr(lnk,src)})
-            if len(res)>=8: break
+            if len(res)>=20: break  # Get more results to distribute across pieces
     except Exception as e: print(f"Lens err: {e}")
     return res
+
+
+# ─── Match Lens results to piece categories ───
+PIECE_KEYWORDS = {
+    "hat": ["sapka","şapka","cap","hat","bere","beanie","kasket","fes","kepi"],
+    "sunglasses": ["gozluk","gözlük","sunglasses","güneş"],
+    "scarf": ["atki","atkı","sal","şal","fular","scarf"],
+    "jacket": ["ceket","mont","kaban","blazer","bomber","jacket","coat","varsity","parka","trench","palto","kase","kaşe"],
+    "top": ["tisort","tişört","gomlek","gömlek","sweatshirt","hoodie","kazak","bluz","top","shirt","polo","triko"],
+    "bottom": ["pantolon","jean","denim","jogger","chino","pants","trousers","sort","şort","etek"],
+    "dress": ["elbise","dress","tulum"],
+    "shoes": ["ayakkabi","ayakkabı","sneaker","bot","boot","shoe","terlik","loafer","sandalet","spor ayak"],
+    "bag": ["canta","çanta","bag","clutch","sirt","sırt"],
+    "watch": ["saat","watch","kol saati"],
+    "accessory": ["kolye","bileklik","yuzuk","yüzük","kupe","küpe","aksesuar","kemer","belt"],
+}
+
+def match_lens_to_pieces(lens_results, pieces):
+    """Distribute Lens results to matching piece categories"""
+    piece_lens = {i: [] for i in range(len(pieces))}
+    unmatched = []
+
+    for lr in lens_results:
+        title_lower = lr["title"].lower()
+        matched = False
+        for i, p in enumerate(pieces):
+            cat = p.get("category", "")
+            keywords = PIECE_KEYWORDS.get(cat, [])
+            if any(kw in title_lower for kw in keywords):
+                piece_lens[i].append(lr)
+                matched = True
+                break
+        if not matched:
+            unmatched.append(lr)
+
+    return piece_lens, unmatched
 
 
 def _shop(q, limit=6):
@@ -263,9 +299,32 @@ async def full_analyze(file: UploadFile = File(...)):
         return {"success":True,"pieces":[],"lens_results":lens_results}
 
     print(f"Claude: {len(pieces)} pieces")
+
+    # Match Lens results to pieces
+    piece_lens, unmatched = match_lens_to_pieces(lens_results, pieces)
+    for i, p in enumerate(pieces):
+        cat = p.get("category","")
+        print(f"  [{cat}] {len(piece_lens[i])} Lens matches")
+    print(f"  Unmatched Lens: {len(unmatched)}")
+
+    # Process all pieces in parallel (Shopping) then merge with Lens
     tasks = [process_piece(p, contents) for p in pieces]
     results = list(await asyncio.gather(*tasks))
-    return {"success":True,"pieces":results,"lens_results":lens_results}
+
+    # Merge: Lens first, then Shopping, deduplicated
+    for i, r in enumerate(results):
+        lens_for_piece = piece_lens.get(i, [])
+        shop_products = r["products"]
+        seen = set()
+        combined = []
+        for x in lens_for_piece + shop_products:
+            if x["link"] not in seen:
+                seen.add(x["link"])
+                combined.append(x)
+        r["products"] = combined[:8]
+        r["lens_count"] = len(lens_for_piece)
+
+    return {"success":True,"pieces":results,"lens_unmatched":unmatched[:5]}
 
 
 # ─── MANUAL SEARCH (cropped by user) ───
@@ -537,45 +596,46 @@ function showErr(m){var e=document.getElementById('err');e.style.display='block'
 // ─── RENDER AUTO ───
 function renderAuto(d){
   document.getElementById('prev').style.maxHeight='160px';
-  var pieces=d.pieces||[],lens=d.lens_results||[];
+  var pieces=d.pieces||[],unm=d.lens_unmatched||[];
   var ra=document.getElementById('res');ra.style.display='block';
   var h='';
 
-  // ─── LENS: Gorsel Eslesmeler (birebir urun) ───
-  if(lens.length>0){
-    var hero=lens[0],rest=lens.slice(1);
-    h+='<div style="margin-bottom:24px">';
+  // ─── Unmatched Lens at top ───
+  if(unm.length>0){
+    h+='<div style="margin-bottom:20px">';
     h+='<div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:10px">&#x1F3AF; Gorsel Eslesme</div>';
-    h+=heroHTML(hero,true);
-    if(rest.length>0)h+=altsHTML(rest);
+    h+=heroHTML(unm[0],true);
+    if(unm.length>1)h+=altsHTML(unm.slice(1));
     h+='</div>';
   }
 
-  // ─── PIECES: Parca Bazli ───
+  // ─── PIECES ───
   if(pieces.length>0){
     h+='<div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px">&#x1F455; Parca Bazli Sonuclar</div>';
   }
 
   for(var i=0;i<pieces.length;i++){
-    var p=pieces[i],pr=p.products||[],hero=pr[0],alts=pr.slice(1);
+    var p=pieces[i],pr=p.products||[],lc=p.lens_count||0;
+    var hero=pr[0],alts=pr.slice(1);
     h+='<div class="piece" style="animation-delay:'+(i*.1)+'s">';
 
     h+='<div class="p-hdr">';
-    h+='<div style="width:52px;height:52px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid var(--border)">'+(IC[p.category]||'')+'</div>';
+    h+='<div style="width:52px;height:52px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid '+(lc>0?'var(--green)':'var(--border)')+'">'+(IC[p.category]||'')+'</div>';
     h+='<div><span class="p-title">'+(p.short_title_tr||p.category)+'</span>';
     if(p.brand&&p.brand!=='?')h+='<span class="p-brand">'+p.brand+'</span>';
     var vt=p.visible_text||'';
     if(vt&&vt.toLowerCase()!=='none')h+='<div style="font-size:10px;color:var(--accent);font-style:italic;margin-top:2px">"'+vt+'"</div>';
+    if(lc>0)h+='<div style="font-size:9px;color:var(--green);margin-top:1px">&#x1F3AF; '+lc+' Lens eslesmesi</div>';
     h+='</div></div>';
 
     if(!hero){h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">Urun bulunamadi</div></div>';continue}
 
-    h+=heroHTML(hero,false);
+    h+=heroHTML(hero,lc>0);
     if(alts.length>0)h+=altsHTML(alts);
     h+='</div>';
   }
 
-  if(!pieces.length&&!lens.length){
+  if(!pieces.length&&!unm.length){
     h='<div style="text-align:center;padding:40px;color:var(--dim)">Sonuc bulunamadi. "Kendim Seceyim" ile dene!</div>';
   }
   ra.innerHTML=h;
