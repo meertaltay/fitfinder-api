@@ -385,6 +385,49 @@ async def full_analyze(file: UploadFile = File(...)):
     return {"success": True, "pieces": results}
 
 
+# ─── Claude identify crop ───
+async def claude_identify_crop(img_bytes):
+    if not ANTHROPIC_API_KEY:
+        return ""
+    try:
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        img.thumbnail((400, 400))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=80)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        b64 = base64.b64encode(img_bytes).decode()
+
+    async with httpx.AsyncClient(timeout=30) as c:
+        try:
+            r = await c.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                },
+                json={
+                    "model": "claude-sonnet-4-20250514",
+                    "max_tokens": 100,
+                    "messages": [{
+                        "role": "user",
+                        "content": [
+                            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64}},
+                            {"type": "text", "text": "This is a cropped clothing item. Write a 4-6 word Turkish shopping search query for this EXACT item. Be ultra specific about type, color, pattern, length. Examples: 'gri pileli mini etek kadın', 'siyah deri bomber ceket erkek'. Reply with ONLY the query, nothing else."},
+                        ],
+                    }],
+                },
+            )
+            data = r.json()
+            text = data.get("content", [{}])[0].get("text", "").strip()
+            print(f"  Claude crop ID: '{text}'")
+            return text
+        except Exception as e:
+            print(f"Claude crop err: {e}")
+    return ""
+
+
 # ─── MANUAL SEARCH ───
 @app.post("/api/manual-search")
 async def manual_search(file: UploadFile = File(...), query: str = Form("")):
@@ -392,27 +435,41 @@ async def manual_search(file: UploadFile = File(...), query: str = Form("")):
         raise HTTPException(500, "No API key")
 
     contents = await file.read()
-    print(f"\n=== MANUAL SEARCH === query='{query}'")
+    print(f"\n=== MANUAL SEARCH === user_query='{query}'")
 
-    url = await upload_img(contents)
-    lens_res = []
-    if url:
-        lens_res = await asyncio.to_thread(_lens, url)
-        print(f"Manual Lens: {len(lens_res)}")
+    # 3 things in parallel: Upload + Lens, Claude identify, user query Shopping
+    upload_task = upload_img(contents)
+    claude_task = claude_identify_crop(contents)
 
-    shop_res = []
-    if query:
-        shop_res = await asyncio.to_thread(_shop, query)
-        print(f"Manual Shop: {len(shop_res)}")
+    url, smart_query = await asyncio.gather(upload_task, claude_task)
 
+    # Use user query if provided, otherwise Claude's query
+    search_q = query if query else smart_query
+    print(f"  Search query: '{search_q}'")
+
+    # Lens + Shopping in parallel
+    async def do_lens():
+        if url:
+            return await asyncio.to_thread(_lens, url)
+        return []
+
+    async def do_shop():
+        if search_q:
+            return await asyncio.to_thread(_shop, search_q, 6)
+        return []
+
+    lens_res, shop_res = await asyncio.gather(do_lens(), do_shop())
+    print(f"  Manual Lens: {len(lens_res)}, Shop: {len(shop_res)}")
+
+    # Combine: Shopping first (more specific), then Lens
     seen = set()
     combined = []
-    for x in lens_res + shop_res:
+    for x in shop_res + lens_res:
         if x["link"] not in seen:
             seen.add(x["link"])
             combined.append(x)
 
-    return {"success": True, "products": combined[:10], "lens_count": len(lens_res)}
+    return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q}
 
 
 @app.get("/api/health")
@@ -625,7 +682,8 @@ function renderManual(d,cropSrc){
   var pr=d.products||[];
   var ra=document.getElementById('res');ra.style.display='block';
   var h='<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><img src="'+cropSrc+'" style="width:52px;height:52px;border-radius:10px;object-fit:cover;border:2px solid var(--accent)"><div><span class="p-title">Sectigin Parca</span>';
-  if(d.lens_count>0)h+='<div style="font-size:10px;color:var(--green);margin-top:2px">&#x1F3AF; '+d.lens_count+' Lens eslesmesi</div>';
+  if(d.query_used)h+='<div style="font-size:10px;color:var(--accent);margin-top:2px">&#x1F50D; "'+d.query_used+'"</div>';
+  if(d.lens_count>0)h+='<div style="font-size:9px;color:var(--green);margin-top:1px">&#x1F3AF; '+d.lens_count+' Lens eslesmesi</div>';
   h+='</div></div>';
   if(pr.length>0){h+=heroHTML(pr[0],d.lens_count>0);if(pr.length>1)h+=altsHTML(pr.slice(1))}
   else h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">Urun bulunamadi</div>';
