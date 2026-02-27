@@ -14,6 +14,31 @@ from serpapi import GoogleSearch
 app = FastAPI(title="FitFinder API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+# Rate limit: max 3 concurrent SerpAPI calls
+API_SEM = asyncio.Semaphore(3)
+
+# Simple in-memory cache (query -> results, expires after 1h)
+import time
+_CACHE = {}
+CACHE_TTL = 3600  # 1 hour
+
+def cache_get(key):
+    if key in _CACHE:
+        val, ts = _CACHE[key]
+        if time.time() - ts < CACHE_TTL:
+            return val
+        del _CACHE[key]
+    return None
+
+def cache_set(key, val):
+    _CACHE[key] = (val, time.time())
+    # Cleanup old entries if cache grows too big
+    if len(_CACHE) > 500:
+        now = time.time()
+        expired = [k for k, (_, ts) in _CACHE.items() if now - ts > CACHE_TTL]
+        for k in expired:
+            del _CACHE[k]
+
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
@@ -132,17 +157,88 @@ FASHION_KW = [
 ]
 
 PIECE_KEYWORDS = {
-    "hat": ["sapka", "şapka", "cap", "hat", "bere", "beanie", "kasket", "kepi", "baseball", "snapback", "bucket", "fedora"],
-    "sunglasses": ["gozluk", "gözlük", "sunglasses", "güneş", "eyewear"],
-    "scarf": ["atki", "atkı", "sal", "şal", "fular", "scarf", "bandana"],
-    "jacket": ["ceket", "mont", "kaban", "blazer", "bomber", "jacket", "coat", "varsity", "parka", "trench", "palto", "kase", "kaşe", "cardigan", "hırka", "yelek", "vest", "windbreaker", "puffer", "embroidered cloth"],
-    "top": ["tisort", "tişört", "gomlek", "gömlek", "sweatshirt", "hoodie", "kazak", "bluz", "top", "shirt", "polo", "triko", "t-shirt", "tee", "tank", "henley", "sweater"],
-    "bottom": ["pantolon", "jean", "denim", "jogger", "chino", "pants", "trousers", "sort", "şort", "etek", "skirt", "cargo", "wide leg", "slim fit", "straight", "baggy"],
-    "dress": ["elbise", "dress", "tulum", "jumpsuit", "romper"],
-    "shoes": ["ayakkabi", "ayakkabı", "sneaker", "bot", "boot", "shoe", "terlik", "loafer", "sandalet", "trainer", "runner", "chelsea", "oxford"],
-    "bag": ["canta", "çanta", "bag", "clutch", "sirt", "sırt", "backpack", "tote", "crossbody"],
-    "watch": ["saat", "watch", "kol saati", "timepiece"],
-    "accessory": ["kolye", "bileklik", "yuzuk", "yüzük", "kupe", "küpe", "aksesuar", "kemer", "belt", "necklace", "bracelet"],
+    "hat": [
+        "sapka","şapka","cap","hat","bere","beanie","kasket","kepi","baseball","snapback","bucket","fedora",
+        "mütze","hut","kappe","baseballkappe",  # DE
+        "chapeau","casquette","bonnet","béret",  # FR
+        "pet","muts","hoed",  # NL
+        "قبعة","طاقية",  # AR
+    ],
+    "sunglasses": [
+        "gozluk","gözlük","sunglasses","güneş","eyewear",
+        "sonnenbrille","brille",  # DE
+        "lunettes","soleil",  # FR
+        "zonnebril","bril",  # NL
+        "نظارة","نظارات",  # AR
+    ],
+    "scarf": [
+        "atki","atkı","sal","şal","fular","scarf","bandana",
+        "schal","tuch",  # DE
+        "écharpe","foulard",  # FR
+        "sjaal","das",  # NL
+        "وشاح","شال",  # AR
+    ],
+    "jacket": [
+        "ceket","mont","kaban","blazer","bomber","jacket","coat","varsity","parka","trench","palto",
+        "kase","kaşe","cardigan","hırka","yelek","vest","windbreaker","puffer","embroidered cloth",
+        "jacke","mantel","lederjacke","steppjacke","weste","sakko","blazer","anorak","daunenjacke",  # DE
+        "veste","manteau","blouson","doudoune","gilet","pardessus",  # FR
+        "jas","jack","vest","mantel","blazer","parka",  # NL
+        "جاكيت","معطف","سترة","بليزر","صدرية",  # AR
+    ],
+    "top": [
+        "tisort","tişört","gomlek","gömlek","sweatshirt","hoodie","kazak","bluz","top","shirt",
+        "polo","triko","t-shirt","tee","tank","henley","sweater","pullover","jumper",
+        "hemd","oberteil","pulli","kapuzenpullover","strickpullover","bluse",  # DE
+        "chemise","haut","pull","chandail","sweat","maillot",  # FR
+        "overhemd","trui","blouse","shirt",  # NL
+        "قميص","كنزة","بلوزة","سويتشيرت",  # AR
+    ],
+    "bottom": [
+        "pantolon","jean","denim","jogger","chino","pants","trousers","sort","şort","etek",
+        "skirt","cargo","wide leg","slim fit","straight","baggy",
+        "hose","jeans","rock","shorts","stoffhose","minirock",  # DE
+        "pantalon","jean","jupe","short","bermuda","minijupe",  # FR
+        "broek","rok","korte broek","spijkerbroek",  # NL
+        "بنطلون","جينز","تنورة","شورت",  # AR
+    ],
+    "dress": [
+        "elbise","dress","tulum","jumpsuit","romper",
+        "kleid","overall","jumpsuit",  # DE
+        "robe","combinaison",  # FR
+        "jurk","jumpsuit",  # NL
+        "فستان","جمبسوت",  # AR
+    ],
+    "shoes": [
+        "ayakkabi","ayakkabı","sneaker","bot","boot","shoe","terlik","loafer","sandalet",
+        "trainer","runner","chelsea","oxford",
+        "schuh","schuhe","stiefel","turnschuh","sneaker","sandale","slipper",  # DE
+        "chaussure","chaussures","botte","basket","sandale","escarpin",  # FR
+        "schoen","schoenen","laars","sneaker","sandaal",  # NL
+        "حذاء","أحذية","حذاء رياضي","صندل",  # AR
+    ],
+    "bag": [
+        "canta","çanta","bag","clutch","sirt","sırt","backpack","tote","crossbody",
+        "tasche","rucksack","handtasche","beutel",  # DE
+        "sac","pochette","sacoche",  # FR
+        "tas","rugzak","handtas",  # NL
+        "حقيبة","شنطة",  # AR
+    ],
+    "watch": [
+        "saat","watch","kol saati","timepiece",
+        "uhr","armbanduhr",  # DE
+        "montre",  # FR
+        "horloge",  # NL
+        "ساعة",  # AR
+    ],
+    "accessory": [
+        "kolye","bileklik","yuzuk","yüzük","kupe","küpe","aksesuar","kemer","belt",
+        "necklace","bracelet","ring","earring",
+        "kette","armband","ring","ohrring","gürtel","schmuck",  # DE
+        "collier","bracelet","bague","boucle","ceinture","bijoux",  # FR
+        "ketting","armband","ring","oorbel","riem","sieraden",  # NL
+        "قلادة","سوار","خاتم","حزام",  # AR
+    ],
 }
 
 
@@ -322,6 +418,11 @@ def _lens(url, cc="tr"):
 
 # ─── Google Shopping ───
 def _shop(q, cc="tr", limit=6):
+    cache_key = f"shop:{cc}:{q}"
+    cached = cache_get(cache_key)
+    if cached:
+        print(f"  Shop CACHE HIT: '{q}'")
+        return cached
     cfg = get_country_config(cc)
     res = []
     seen = set()
@@ -349,9 +450,9 @@ def _shop(q, cc="tr", limit=6):
                 break
     except Exception as e:
         print(f"Shop err: {e}")
+    if res:
+        cache_set(cache_key, res)
     return res
-
-
 # ─── Match Lens → Pieces ───
 def match_lens_to_pieces(lens_results, pieces):
     piece_lens = {i: [] for i in range(len(pieces))}
@@ -371,7 +472,8 @@ async def process_piece(p, cc="tr"):
     cat = p.get("category", "")
     q = p.get("search_query", "") or p.get("search_query_tr", "") or p.get("short_title", "") or p.get("short_title_tr", "")
     print(f"[{cat}] Shopping: '{q}'")
-    products = await asyncio.to_thread(_shop, q, cc) if q else []
+    async with API_SEM:
+        products = await asyncio.to_thread(_shop, q, cc) if q else []
     print(f"[{cat}] Found: {len(products)}")
     return {
         "category": cat,
