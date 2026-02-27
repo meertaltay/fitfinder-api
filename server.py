@@ -139,11 +139,25 @@ Read ALL visible text, logos, brand names, patches on each item.
 
 For each item:
 - category: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
-- short_title_tr: 2-4 word Turkish name (e.g. "Yeşil Varsity Ceket")
+- short_title_tr: 2-4 word Turkish name. Be EXACT about item type:
+  * bere ≠ şapka (beanie ≠ cap)
+  * bomber ceket ≠ blazer ceket
+  * jogger pantolon ≠ kumaş pantolon
+  * bot ≠ sneaker ≠ loafer
+  * Examples: "Siyah Örgü Bere", "Kahverengi Deri Bomber", "Gri Jogger Pantolon"
 - color_tr: Turkish color
 - brand: ONLY if readable, else "?"
 - visible_text: All readable text/logos
-- search_query_tr: 4-6 word specific Turkish query. Include brand+text if visible.
+- search_query_tr: ULTRA SPECIFIC Turkish query 4-6 words. The search query MUST match the exact item type in short_title_tr.
+  * If short_title_tr says "bere" then query MUST contain "bere" NOT "şapka"
+  * If short_title_tr says "bomber ceket" then query MUST contain "bomber ceket"
+  * Include brand if visible, include color
+  * Examples:
+    "siyah örgü bere erkek" (NOT "siyah şapka")
+    "bershka yeşil varsity ceket timeless"
+    "gri oversize kapüşonlu sweatshirt erkek"
+    "mavi yırtık baggy jean pantolon"
+    "nike air force 1 beyaz ayakkabı"
 
 Return ONLY valid JSON array, no markdown no backticks:
 [{"category":"","short_title_tr":"","color_tr":"","brand":"","visible_text":"","search_query_tr":""}]"""}
