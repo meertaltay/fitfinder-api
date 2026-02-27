@@ -991,7 +991,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 
   <div class="bnav">
     <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer" onclick="goHome()"><div style="font-size:20px;color:var(--accent)">&#x2B21;</div><div id="navHome" style="font-size:10px;font-weight:600;color:var(--accent)"></div></div>
-    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer"><div style="font-size:20px;color:var(--dim)">&#x2661;</div><div id="navFav" style="font-size:10px;font-weight:600;color:var(--dim)"></div></div>
+    <div onclick="showFavs()" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer"><div style="font-size:20px;color:var(--dim)">&#x2661;</div><div id="navFav" style="font-size:10px;font-weight:600;color:var(--dim)"></div></div>
   </div>
 </div>
 
@@ -1304,13 +1304,19 @@ function heroHTML(p,isLens){
   var score=p.match_score||0;
   var badgeText=verified?'\u2705 '+t('aiMatch'):(isLens?t('lensLabel'):t('recommended'));
   var borderColor=verified?'#6fcf7c':(isLens?'var(--green)':'var(--green)');
-  var h='<a href="'+p.link+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text)"><div class="hero" style="border-color:'+borderColor+'">';
+  var isFav=(localStorage.getItem('fitfinder_favs')||'').indexOf(p.link)>-1;
+  var safeT=(p.title||'').replace(/'/g,"\\'");
+  var safeP=(p.price||'').replace(/'/g,"\\'");
+  var safeB=(p.brand||'').replace(/'/g,"\\'");
+  var heartR=score>=7?'50px':'10px';
+  var h='<div style="position:relative"><a href="'+p.link+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text)"><div class="hero" style="border-color:'+borderColor+'">';
   if(img)h+='<img src="'+img+'" onerror="if(this.src!==\''+p.thumbnail+'\')this.src=\''+p.thumbnail+'\'">';
   h+='<div class="badge" style="'+(verified?'background:#22c55e':'')+'">'+badgeText+'</div>';
   if(score>=7)h+='<div style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px">'+score+'/10</div>';
   h+='<div class="info"><div class="t">'+p.title+'</div><div class="s">'+(p.brand||p.source||'')+'</div>';
   h+='<div class="row"><span class="price">'+(p.price||t('noPrice'))+'</span>';
   h+='<button class="btn">'+t('goStore')+'</button></div></div></div></a>';
+  h+='<div onclick="toggleFav(event,\''+p.link+'\',\''+img+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\')" style="position:absolute;top:10px;right:'+heartR+';background:rgba(0,0,0,.6);color:#fff;padding:6px;border-radius:50%;cursor:pointer;font-size:14px;z-index:10;line-height:1">'+(isFav?'\u2764\uFE0F':'\u{1F90D}')+'</div></div>';
   return h;
 }
 function altsHTML(list){
@@ -1323,6 +1329,42 @@ function altsHTML(list){
     if(a.ai_verified)h+='<div style="font-size:8px;color:#22c55e;font-weight:700;margin-bottom:2px">\u2705 '+t('aiMatch')+'</div>';
     h+='<div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div></a>'}
   return h+'</div>';
+}
+function toggleFav(e,link,img,title,price,brand){
+  e.preventDefault();e.stopPropagation();
+  var favs=JSON.parse(localStorage.getItem('fitfinder_favs')||'[]');
+  var idx=favs.findIndex(function(f){return f.link===link});
+  if(idx>-1){favs.splice(idx,1);e.target.innerHTML='\u{1F90D}';}
+  else{favs.push({link:link,img:img,title:title,price:price,brand:brand});e.target.innerHTML='\u2764\uFE0F';}
+  localStorage.setItem('fitfinder_favs',JSON.stringify(favs));
+}
+function showFavs(){
+  document.getElementById('home').style.display='none';
+  document.getElementById('rScreen').style.display='block';
+  var ab=document.getElementById('actionBtns');if(ab)ab.style.display='none';
+  var cm=document.getElementById('cropMode');if(cm)cm.style.display='none';
+  var pv=document.getElementById('prev');if(pv)pv.style.display='none';
+  var ra=document.getElementById('res');
+  var favs=JSON.parse(localStorage.getItem('fitfinder_favs')||'[]');
+  ra.style.display='block';
+  if(favs.length===0){
+    var empty=CC_LANG[CC]==='tr'?'Henuz kaydedilmis urun yok \u{1F90D}':'No saved items yet \u{1F90D}';
+    ra.innerHTML='<div style="text-align:center;padding:40px;color:var(--dim)">'+empty+'</div><button class="btn-main btn-outline" onclick="goHome()" style="margin-top:20px">'+t('back')+'</button>';
+    return;
+  }
+  var h='<h3 style="margin-bottom:15px;font-size:18px">'+t('navFav')+' \u2764\uFE0F</h3><div style="display:flex;flex-wrap:wrap;gap:10px">';
+  for(var i=0;i<favs.length;i++){var f=favs[i];
+    var safeT=(f.title||'').replace(/'/g,"\\'");var safeP=(f.price||'').replace(/'/g,"\\'");var safeB=(f.brand||'').replace(/'/g,"\\'");
+    h+='<div style="width:calc(50% - 5px);border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative">';
+    h+='<a href="'+f.link+'" target="_blank" style="text-decoration:none;color:var(--text)">';
+    if(f.img)h+='<img src="'+f.img+'" style="width:100%;height:140px;object-fit:cover">';
+    h+='<div style="padding:8px"><div style="font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.title+'</div>';
+    h+='<div style="font-size:9px;color:var(--dim)">'+(f.brand||'')+'</div>';
+    h+='<div style="color:var(--accent);font-weight:700;font-size:12px;margin-top:4px">'+(f.price||'')+'</div></div></a>';
+    h+='<div onclick="toggleFav(event,\''+f.link+'\',\''+(f.img||'')+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\');showFavs()" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;padding:5px;border-radius:50%;cursor:pointer;font-size:12px;line-height:1">\u2764\uFE0F</div>';
+    h+='</div>';
+  }
+  ra.innerHTML=h+'</div><button class="btn-main btn-outline" onclick="goHome()" style="margin-top:20px">'+t('back')+'</button>';
 }
 </script>
 </body>
