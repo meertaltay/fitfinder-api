@@ -34,7 +34,11 @@ BRAND_MAP = {
 BLOCKED_DOMAINS = [
     "pinterest.", "instagram.", "facebook.", "twitter.", "x.com",
     "tiktok.", "youtube.", "reddit.", "tumblr.", "blogspot.",
-    "wordpress.", "medium.com",
+    "wordpress.", "medium.com", "threads.net", "etsy.com",
+    "ebay.com", "ebay.", "amazon.com", "aliexpress.",
+    "wish.com", "dhgate.", "alibaba.",
+    "komo.", "novosti.", "naver.", "daum.net",
+    "flickr.", "weheartit.", "polyvore.", "lookbook.",
 ]
 
 
@@ -269,23 +273,37 @@ async def process_piece(piece, image_bytes):
                     products = await asyncio.to_thread(_search_lens_sync, cropped_url)
                     print(f"[{category}] Lens found {len(products)} results")
 
-    # B) FALLBACK: Google Shopping (metin arama)
+    # B) FALLBACK veya SUPPLEMENT: Google Shopping (metin arama)
+    if not search_q:
+        parts = [p for p in [piece.get("brand", ""), piece.get("color", ""), piece.get("description", "")] if p and p != "?"]
+        search_q = " ".join(parts).strip()
+
+    tr_count = sum(1 for p in products if p.get("is_tr"))
+    
     if not products:
-        if not search_q:
-            parts = [p for p in [piece.get("brand", ""), piece.get("color", ""), piece.get("description", "")] if p and p != "?"]
-            search_q = " ".join(parts).strip()
+        # Hic sonuc yok, text search yap
         if search_q:
-            print(f"[{category}] Text search fallback: '{search_q}'")
+            print(f"[{category}] No Lens results, text search: '{search_q}'")
             products = await asyncio.to_thread(_search_shopping_sync, search_q)
             print(f"[{category}] Shopping found {len(products)} results")
+    elif tr_count < 2:
+        # Lens sonucu var ama TR magaza yok/az, TR sonuclari ekle
+        if search_q:
+            print(f"[{category}] Only {tr_count} TR results, adding TR text search: '{search_q}'")
+            tr_products = await asyncio.to_thread(_search_shopping_sync, search_q)
+            # TR sonuclarini basa ekle, toplam 8'i gecmesin
+            tr_only = [p for p in tr_products if p.get("is_tr")]
+            products = tr_only[:4] + products[:4]
+            print(f"[{category}] Combined: {len(products)} results ({len(tr_only)} TR added)")
 
+    used_lens = box_2d and len(box_2d) == 4 and any(not p.get("is_tr") for p in products)
     return {
         "category": category,
         "description": piece.get("description", ""),
         "color": piece.get("color", ""),
         "brand": piece.get("brand", ""),
         "visible_text": piece.get("visible_text", ""),
-        "search_method": "lens" if (box_2d and len(box_2d) == 4 and products) else "text",
+        "search_method": "lens" if used_lens else "text",
         "products": products,
     }
 
