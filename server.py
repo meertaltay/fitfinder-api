@@ -6,7 +6,7 @@ import base64
 import asyncio
 import time
 import httpx
-from PIL import Image
+from PIL import Image, ImageOps
 
 # iPhone HEIC support (safety net for in-app browsers)
 try:
@@ -378,7 +378,6 @@ def remove_bg(img_bytes):
         bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
         bg.paste(img, mask=img.split()[3])
         # Add 5% breathing room (Lens dislikes edge-to-edge crops)
-        from PIL import ImageOps
         pad = int(max(bg.size) * 0.05)
         bg = ImageOps.expand(bg, border=pad, fill='white')
         buf = io.BytesIO()
@@ -688,47 +687,34 @@ def _shop(q, cc="tr", limit=6):
     if res:
         cache_set(cache_key, res)
     return res
-# ─── Match Lens → Pieces ───
-def match_lens_to_pieces(lens_results, pieces):
-    piece_lens = {i: [] for i in range(len(pieces))}
-    for lr in lens_results:
-        title_lower = lr["title"].lower()
-        source_lower = (lr.get("source", "") + " " + lr.get("link", "")).lower()
-        for i, p in enumerate(pieces):
-            cat = p.get("category", "")
-            keywords = PIECE_KEYWORDS.get(cat, [])
-            matched = False
-            for kw in keywords:
-                if len(kw) <= 4:
-                    if re.search(rf'\b{re.escape(kw)}\b', title_lower):
-                        matched = True
-                        break
-                else:
-                    if kw in title_lower:
-                        matched = True
-                        break
-            if not matched:
-                continue
-            # Brand filter: if Claude detected a brand, reject Lens results
-            # that clearly belong to a DIFFERENT brand
-            piece_brand = p.get("brand", "?").lower().strip()
-            if piece_brand and piece_brand != "?" and len(piece_brand) > 2:
-                combined = title_lower + " " + source_lower
-                # Check if a different known brand appears in the Lens result
-                rival_brands = ["nike", "adidas", "puma", "zara", "hm", "bershka",
-                    "mango", "gucci", "prada", "balenciaga", "converse", "vans",
-                    "new balance", "reebok", "asics", "fila", "skechers", "kinetix",
-                    "defacto", "koton", "lcw", "mavi", "colins", "levi", "tommy",
-                    "polo", "lacoste", "calvin klein", "hugo boss", "massimo dutti",
-                    "pull&bear", "stradivarius", "uniqlo", "gap", "h&m"]
-                for rb in rival_brands:
-                    if rb in combined and rb not in piece_brand and piece_brand not in rb:
-                        matched = False
-                        break
-            if matched:
-                piece_lens[i].append(lr)
+
+
+# ─── Brand Filter Helper ───
+RIVAL_BRANDS = ["nike", "adidas", "puma", "zara", "hm", "bershka",
+    "mango", "gucci", "prada", "balenciaga", "converse", "vans",
+    "new balance", "reebok", "asics", "fila", "skechers", "kinetix",
+    "defacto", "koton", "lcw", "mavi", "colins", "levi", "tommy",
+    "polo", "lacoste", "calvin klein", "hugo boss", "massimo dutti",
+    "pull&bear", "stradivarius", "uniqlo", "gap", "h&m"]
+
+def filter_rival_brands(results, piece_brand):
+    """Remove results from rival brands if Claude detected a specific brand."""
+    if not piece_brand or piece_brand == "?" or len(piece_brand) < 3:
+        return results
+    brand_lower = piece_brand.lower().strip()
+    filtered = []
+    for r in results:
+        combined = (r.get("title", "") + " " + r.get("source", "") + " " + r.get("link", "")).lower()
+        is_rival = False
+        for rb in RIVAL_BRANDS:
+            if rb in combined and rb not in brand_lower and brand_lower not in rb:
+                is_rival = True
                 break
-    return piece_lens
+        if not is_rival:
+            filtered.append(r)
+    if filtered:
+        return filtered
+    return results  # Don't return empty if everything was filtered
 
 
 # ─── Auto-Crop Helper ───
@@ -736,6 +722,7 @@ def crop_piece(img_bytes, box):
     """Crop a piece from the original image using bounding box percentages [top, left, bottom, right]."""
     try:
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        img = ImageOps.exif_transpose(img)  # Fix iPhone rotation
         w, h = img.size
         top, left, bottom, right = box
         # Convert percentages to pixels with 5% padding
@@ -797,7 +784,12 @@ async def process_auto_piece(p, img_bytes, cc="tr"):
             lens_res = await asyncio.to_thread(_lens, url, cc)
         print(f"  [{cat}] Crop Lens: {len(lens_res)}")
 
-    # Step 5: Combine — Lens first (visual match on clean crop), Shopping fallback
+    # Step 5: Brand filter — remove rival brands from Lens results
+    if brand and brand != "?":
+        lens_res = filter_rival_brands(lens_res, brand)
+        shop_res = filter_rival_brands(shop_res, brand)
+
+    # Step 6: Combine — Lens first (visual match on clean crop), Shopping fallback
     seen = set()
     combined = []
     for x in lens_res + shop_res:
@@ -805,7 +797,7 @@ async def process_auto_piece(p, img_bytes, cc="tr"):
             seen.add(x["link"])
             combined.append(x)
 
-    # Step 6: Rerank with Claude if we have a clean crop
+    # Step 7: Rerank with Claude if we have a clean crop
     if clean_bytes and len(combined) >= 3:
         try:
             img_ai = Image.open(io.BytesIO(clean_bytes)).convert("RGB")
@@ -842,6 +834,7 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
     # Optimize image for Claude detection
     try:
         img = Image.open(io.BytesIO(contents)).convert("RGB")
+        img = ImageOps.exif_transpose(img)  # Fix iPhone rotation
         img.thumbnail((800, 800))
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
@@ -925,6 +918,7 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     # Step 0: Resize for rembg (prevent CPU lock on 15MB phone photos)
     try:
         img = Image.open(io.BytesIO(contents)).convert("RGB")
+        img = ImageOps.exif_transpose(img)  # Fix iPhone rotation
         img.thumbnail((1024, 1024))
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
