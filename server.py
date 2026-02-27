@@ -141,17 +141,18 @@ async def detect_pieces(image_b64):
 
 CRITICAL RULES:
 1. READ ALL visible text, logos, patches, embroidery on each item
-2. Provide EXACT bounding box coordinates for each item
-3. Be VERY specific about style, material, and details
+2. Provide PRECISE bounding box for the VISIBLE PORTION of each item
+3. For OVERLAPPING items (e.g. jacket over hoodie): crop ONLY the part that is actually visible, NOT the estimated full item. If a hoodie collar peeks out from under a jacket, the box should be ONLY around that visible collar/hood area.
+4. Each piece's box_2d must capture DIFFERENT parts of the image - NO two pieces should have similar coordinates!
 
 For EACH piece:
 - category: jacket|top|bottom|dress|shoes|bag|hat|sunglasses|watch|accessory|scarf
 - description: Very detailed (garment type, material, fit, style details, visible text/logos)
 - color: Specific color
-- brand: ONLY write brand if you can READ it on the item. Otherwise write "?"
-- visible_text: ALL text/words you can read on this item
-- box_2d: Bounding box as [ymin, xmin, ymax, xmax] in percentages (0-100). Where ymin=top edge, xmin=left edge, ymax=bottom edge, xmax=right edge of the item in the image
-- search_query: Best Turkish search query (3-5 words max)
+- brand: ONLY write brand if you can READ it on the item. Otherwise "?"
+- visible_text: ALL readable text on this item
+- box_2d: [ymin, xmin, ymax, xmax] as percentages 0-100. MUST be the VISIBLE portion only! If item is partially hidden, box only the visible part. Two pieces must NEVER have overlapping boxes.
+- search_query: Best Turkish search query (3-5 words). Be specific: "gri oversize kapusonlu sweatshirt" not "ust giyim"
 
 RESPOND WITH ONLY A JSON ARRAY. NO OTHER TEXT:
 [{"category":"...","description":"...","color":"...","brand":"...","visible_text":"...","box_2d":[0,0,0,0],"search_query":"..."}]"""},
@@ -252,14 +253,21 @@ async def process_piece(piece, image_bytes):
 
     # A) ANA YONTEM: Kirp + Google Lens (gorsel arama)
     if box_2d and len(box_2d) == 4:
-        print(f"[{category}] Cropping... box: {box_2d}")
-        cropped = crop_image(image_bytes, box_2d)
-        if cropped:
-            cropped_url = await upload_image(cropped)
-            if cropped_url:
-                print(f"[{category}] Lens searching cropped image...")
-                products = await asyncio.to_thread(_search_lens_sync, cropped_url)
-                print(f"[{category}] Lens found {len(products)} results")
+        ymin, xmin, ymax, xmax = box_2d
+        box_area = (ymax - ymin) * (xmax - xmin)
+        
+        # Cok kucuk parcalar icin Lens yanlis sonuc verir, direkt text'e gec
+        if box_area < 300:  # ~3% of image
+            print(f"[{category}] Box too small ({box_area}), skipping Lens")
+        else:
+            print(f"[{category}] Cropping... box: {box_2d} (area: {box_area})")
+            cropped = crop_image(image_bytes, box_2d)
+            if cropped:
+                cropped_url = await upload_image(cropped)
+                if cropped_url:
+                    print(f"[{category}] Lens searching cropped image...")
+                    products = await asyncio.to_thread(_search_lens_sync, cropped_url)
+                    print(f"[{category}] Lens found {len(products)} results")
 
     # B) FALLBACK: Google Shopping (metin arama)
     if not products:
