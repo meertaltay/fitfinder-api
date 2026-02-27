@@ -4,12 +4,21 @@ import io
 import json
 import base64
 import asyncio
+import time
 import httpx
 from PIL import Image
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from serpapi import GoogleSearch
+
+try:
+    from rembg import remove as rembg_remove
+    HAS_REMBG = True
+    print("✅ rembg loaded")
+except ImportError:
+    HAS_REMBG = False
+    print("⚠️ rembg not installed, background removal disabled")
 
 app = FastAPI(title="FitFinder API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -18,7 +27,6 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 API_SEM = asyncio.Semaphore(3)
 
 # Simple in-memory cache (query -> results, expires after 1h)
-import time
 _CACHE = {}
 CACHE_TTL = 3600  # 1 hour
 
@@ -293,6 +301,137 @@ async def upload_img(img_bytes):
             print(f"Upload2 err: {e}")
     return None
 
+
+# ─── Background Removal ───
+def remove_bg(img_bytes):
+    """Remove background from clothing crop for cleaner Lens results."""
+    if not HAS_REMBG:
+        return img_bytes
+    try:
+        result = rembg_remove(img_bytes)
+        # Put on white background (Lens works better with white bg than transparent)
+        img = Image.open(io.BytesIO(result)).convert("RGBA")
+        bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
+        bg.paste(img, mask=img.split()[3])
+        buf = io.BytesIO()
+        bg.convert("RGB").save(buf, format="JPEG", quality=90)
+        print(f"  rembg: {len(img_bytes)//1024}KB → {buf.tell()//1024}KB (bg removed)")
+        return buf.getvalue()
+    except Exception as e:
+        print(f"  rembg err: {e}")
+        return img_bytes
+
+
+# ─── Claude Reranker ───
+async def claude_rerank(original_b64, results, cc="tr"):
+    """Send original crop + result thumbnails to Claude for visual comparison.
+    Returns reordered results with best matches first."""
+    if not ANTHROPIC_API_KEY or len(results) < 2:
+        return results
+
+    # Download thumbnails in parallel (max 8)
+    candidates = results[:8]
+    thumb_data = []
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        async def fetch_thumb(r):
+            url = r.get("thumbnail") or r.get("image") or ""
+            if not url:
+                return None
+            try:
+                resp = await client.get(url)
+                if resp.status_code == 200 and len(resp.content) > 500:
+                    return base64.b64encode(resp.content).decode()
+            except Exception:
+                pass
+            return None
+
+        tasks = [fetch_thumb(r) for r in candidates]
+        thumb_data = await asyncio.gather(*tasks)
+
+    # Build content array: original + numbered thumbnails
+    content = [
+        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": original_b64}},
+        {"type": "text", "text": "This is the ORIGINAL clothing item the user is looking for (Image 0)."},
+    ]
+
+    valid_indices = []
+    for i, tb64 in enumerate(thumb_data):
+        if tb64:
+            content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": tb64}})
+            content.append({"type": "text", "text": f"Result #{i+1}: {candidates[i].get('title', '')}"})
+            valid_indices.append(i)
+
+    if len(valid_indices) < 2:
+        return results
+
+    cfg = get_country_config(cc)
+    content.append({"type": "text", "text": f"""You are an expert fashion stylist. Compare the ORIGINAL item (Image 0) with the numbered results.
+
+Score each result 1-10 based on how EXACTLY it matches the original in:
+- Same garment TYPE (jacket vs coat vs vest etc.)
+- Same COLOR and PATTERN
+- Same STYLE and CUT (collar, length, fit)
+- Same MATERIAL look (leather, denim, knit etc.)
+
+Return ONLY a JSON array of objects sorted by best match first:
+[{{"idx":1,"score":9}},{{"idx":3,"score":7}}]
+
+Rules:
+- Only include results scoring 5 or above
+- Be STRICT: a black bomber jacket is NOT the same as a black blazer
+- If nothing matches well, return empty array []"""})
+
+    try:
+        async with httpx.AsyncClient(timeout=45) as c:
+            r = await c.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                },
+                json={
+                    "model": "claude-sonnet-4-20250514",
+                    "max_tokens": 300,
+                    "messages": [{"role": "user", "content": content}],
+                },
+            )
+            data = r.json()
+            text = data.get("content", [{}])[0].get("text", "").strip()
+            if text.startswith("```"):
+                text = re.sub(r'^```\w*\n?', '', text)
+                text = re.sub(r'\n?```$', '', text)
+            m = re.search(r'\[.*\]', text, re.DOTALL)
+            if m:
+                rankings = json.loads(m.group())
+                print(f"  Reranker: {len(rankings)} matches from {len(valid_indices)} candidates")
+
+                # Rebuild results: reranked first, then rest
+                reranked = []
+                used = set()
+                for rank in rankings:
+                    idx = rank.get("idx", 0) - 1  # 1-indexed to 0-indexed
+                    score = rank.get("score", 0)
+                    if 0 <= idx < len(candidates) and idx not in used and score >= 5:
+                        item = candidates[idx].copy()
+                        item["match_score"] = score
+                        item["ai_verified"] = score >= 8
+                        reranked.append(item)
+                        used.add(idx)
+
+                # Add remaining results that weren't scored
+                for i, r in enumerate(candidates):
+                    if i not in used:
+                        reranked.append(r)
+
+                # Add back any results beyond the 8 we evaluated
+                reranked.extend(results[8:])
+                return reranked
+    except Exception as e:
+        print(f"  Reranker err: {e}")
+
+    return results
 
 # ─── Claude Vision ───
 async def claude_detect(img_b64, cc="tr"):
@@ -594,34 +733,55 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     contents = await file.read()
     print(f"\n=== MANUAL SEARCH === country={cc} user_query='{query}'")
 
-    upload_task = upload_img(contents)
-    claude_task = claude_identify_crop(contents, cc)
+    # Step 1: Remove background (sync, ~1-2s)
+    clean_bytes = await asyncio.to_thread(remove_bg, contents)
+
+    # Step 2: Parallel — upload clean image + Claude identify
+    upload_task = upload_img(clean_bytes)
+    claude_task = claude_identify_crop(contents, cc)  # Use original for text ID
     url, smart_query = await asyncio.gather(upload_task, claude_task)
 
     search_q = query if query else smart_query
     print(f"  Search query: '{search_q}'")
 
+    # Step 3: Parallel — Lens (clean image) + Shopping
     async def do_lens():
         if url:
-            return await asyncio.to_thread(_lens, url, cc)
+            async with API_SEM:
+                return await asyncio.to_thread(_lens, url, cc)
         return []
 
     async def do_shop():
         if search_q:
-            return await asyncio.to_thread(_shop, search_q, cc, 6)
+            async with API_SEM:
+                return await asyncio.to_thread(_shop, search_q, cc, 6)
         return []
 
     lens_res, shop_res = await asyncio.gather(do_lens(), do_shop())
     print(f"  Manual Lens: {len(lens_res)}, Shop: {len(shop_res)}")
 
+    # Combine: Lens first (visual match), then Shopping
     seen = set()
     combined = []
-    for x in shop_res + lens_res:
+    for x in lens_res + shop_res:
         if x["link"] not in seen:
             seen.add(x["link"])
             combined.append(x)
 
-    return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q, "country": cc}
+    # Step 4: Claude Reranker — visual comparison
+    original_b64 = base64.b64encode(clean_bytes).decode()
+    if len(combined) >= 3:
+        combined = await claude_rerank(original_b64, combined, cc)
+        print(f"  After rerank: {len(combined)} results")
+
+    return {
+        "success": True,
+        "products": combined[:10],
+        "lens_count": len(lens_res),
+        "query_used": search_q,
+        "country": cc,
+        "bg_removed": HAS_REMBG,
+    }
 
 
 @app.get("/api/health")
@@ -757,14 +917,14 @@ var L={
     back:'\u2190 Geri',cropHint:'\u{1F447} Aramak istedigin parcayi cercevele',
     manualPh:'Opsiyonel: ne aradigini yaz (ornek: siyah deri ceket)',
     find:'\u{1F50D} Bu Parcayi Bul',cancel:'\u2190 Vazgec',
-    loading:'Parcalar tespit ediliyor...',loadingManual:'Sectigin parca araniyor...',
+    loading:'Parcalar tespit ediliyor...',loadingManual:'AI analiz ediyor: arka plan silme, arama, dogrulama...',
     noResult:'Sonuc bulunamadi',noProd:'Urun bulunamadi',
     retry:'\u{2702}\u{FE0F} Kendim Seceyim ile Tekrar Dene',another:'\u{2702}\u{FE0F} Baska Parca Sec',
     selected:'Sectigin Parca',lensMatch:'Lens eslesmesi',
     recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} Lens Eslesmesi',
     goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',
     alts:'\u{1F4B8} Alternatifler \u{1F449}',
-    navHome:'Kesfet',navFav:'Favoriler'
+    navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme'
   },
   en:{
     flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',
@@ -777,14 +937,14 @@ var L={
     back:'\u2190 Back',cropHint:'\u{1F447} Frame the piece you want to find',
     manualPh:'Optional: describe what you\'re looking for (e.g. black leather jacket)',
     find:'\u{1F50D} Find This Piece',cancel:'\u2190 Cancel',
-    loading:'Detecting pieces...',loadingManual:'Searching for your selection...',
+    loading:'Detecting pieces...',loadingManual:'AI analyzing: removing background, searching, verifying...',
     noResult:'No results found',noProd:'No products found',
     retry:'\u{2702}\u{FE0F} Try Select Myself',another:'\u{2702}\u{FE0F} Select Another Piece',
     selected:'Your Selection',lensMatch:'Lens match',
     recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} Lens Match',
     goStore:'Go to Store \u2197',noPrice:'Click for price',
     alts:'\u{1F4B8} Alternatives \u{1F449}',
-    navHome:'Explore',navFav:'Favorites'
+    navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match'
   },
   de:{
     flag:"\u{1F1E9}\u{1F1EA}",heroTitle:'Finde das Outfit<br>im Foto, <span style="color:var(--accent)">genau so</span>.',
@@ -797,14 +957,14 @@ var L={
     back:'\u2190 Zuruck',cropHint:'\u{1F447} Rahme das Teil ein, das du finden willst',
     manualPh:'Optional: beschreibe was du suchst (z.B. schwarze Lederjacke)',
     find:'\u{1F50D} Dieses Teil finden',cancel:'\u2190 Abbrechen',
-    loading:'Teile werden erkannt...',loadingManual:'Deine Auswahl wird gesucht...',
+    loading:'Teile werden erkannt...',loadingManual:'KI analysiert: Hintergrund entfernen, suchen, verifizieren...',
     noResult:'Keine Ergebnisse',noProd:'Keine Produkte gefunden',
     retry:'\u{2702}\u{FE0F} Selbst wahlen',another:'\u{2702}\u{FE0F} Anderes Teil wahlen',
     selected:'Deine Auswahl',lensMatch:'Lens Treffer',
     recommended:'\u{2728} Empfohlen',lensLabel:'\u{1F3AF} Lens Treffer',
     goStore:'Zum Shop \u2197',noPrice:'Preis ansehen',
     alts:'\u{1F4B8} Alternativen \u{1F449}',
-    navHome:'Entdecken',navFav:'Favoriten'
+    navHome:'Entdecken',navFav:'Favoriten',aiMatch:'KI-verifiziert'
   },
   fr:{
     flag:"\u{1F1EB}\u{1F1F7}",heroTitle:'Trouvez la tenue<br>sur la photo, <span style="color:var(--accent)">exactement</span>.',
@@ -817,14 +977,14 @@ var L={
     back:'\u2190 Retour',cropHint:'\u{1F447} Cadrez la piece que vous cherchez',
     manualPh:'Optionnel: decrivez ce que vous cherchez',
     find:'\u{1F50D} Trouver cette piece',cancel:'\u2190 Annuler',
-    loading:'Detection en cours...',loadingManual:'Recherche en cours...',
+    loading:'Detection en cours...',loadingManual:'IA en cours: suppression du fond, recherche, verification...',
     noResult:'Aucun resultat',noProd:'Aucun produit trouve',
     retry:'\u{2702}\u{FE0F} Reessayer manuellement',another:'\u{2702}\u{FE0F} Autre piece',
     selected:'Votre selection',lensMatch:'Correspondance Lens',
     recommended:'\u{2728} Recommande',lensLabel:'\u{1F3AF} Correspondance Lens',
     goStore:'Voir boutique \u2197',noPrice:'Voir le prix',
     alts:'\u{1F4B8} Alternatives \u{1F449}',
-    navHome:'Explorer',navFav:'Favoris'
+    navHome:'Explorer',navFav:'Favoris',aiMatch:'Verifie par IA'
   },
   ar:{
     flag:"\u{1F1F8}\u{1F1E6}",heroTitle:'اعثر على الإطلالة<br>في الصورة <span style="color:var(--accent)">بالضبط</span>.',
@@ -837,14 +997,14 @@ var L={
     back:'رجوع \u2190',cropHint:'\u{1F447} حدد القطعة التي تبحث عنها',
     manualPh:'اختياري: صف ما تبحث عنه',
     find:'\u{1F50D} ابحث عن هذه القطعة',cancel:'إلغاء \u2190',
-    loading:'جاري اكتشاف القطع...',loadingManual:'جاري البحث...',
+    loading:'جاري اكتشاف القطع...',loadingManual:'الذكاء الاصطناعي يحلل: إزالة الخلفية، بحث، تحقق...',
     noResult:'لا توجد نتائج',noProd:'لم يتم العثور على منتجات',
     retry:'\u{2702}\u{FE0F} حاول الاختيار يدوياً',another:'\u{2702}\u{FE0F} اختر قطعة أخرى',
     selected:'اختيارك',lensMatch:'تطابق Lens',
     recommended:'\u{2728} مُوصى به',lensLabel:'\u{1F3AF} تطابق Lens',
     goStore:'زيارة المتجر \u2197',noPrice:'انقر للسعر',
     alts:'\u{1F4B8} بدائل \u{1F449}',
-    navHome:'استكشف',navFav:'المفضلة'
+    navHome:'استكشف',navFav:'المفضلة',aiMatch:'تطابق مؤكد بالذكاء'
   },
   nl:{
     flag:"\u{1F1F3}\u{1F1F1}",heroTitle:'Vind de outfit<br>op de foto, <span style="color:var(--accent)">precies zo</span>.',
@@ -857,14 +1017,14 @@ var L={
     back:'\u2190 Terug',cropHint:'\u{1F447} Kader het item dat je wilt vinden',
     manualPh:'Optioneel: beschrijf wat je zoekt',
     find:'\u{1F50D} Dit item vinden',cancel:'\u2190 Annuleren',
-    loading:'Items worden herkend...',loadingManual:'Je selectie wordt gezocht...',
+    loading:'Items worden herkend...',loadingManual:'AI analyseert: achtergrond verwijderen, zoeken, verifieren...',
     noResult:'Geen resultaten',noProd:'Geen producten gevonden',
     retry:'\u{2702}\u{FE0F} Zelf selecteren',another:'\u{2702}\u{FE0F} Ander item selecteren',
     selected:'Je selectie',lensMatch:'Lens match',
     recommended:'\u{2728} Aanbevolen',lensLabel:'\u{1F3AF} Lens Match',
     goStore:'Naar winkel \u2197',noPrice:'Klik voor prijs',
     alts:'\u{1F4B8} Alternatieven \u{1F449}',
-    navHome:'Ontdek',navFav:'Favorieten'
+    navHome:'Ontdek',navFav:'Favorieten',aiMatch:'AI Geverifieerd'
   }
 };
 
@@ -1034,9 +1194,14 @@ function renderManual(d,cropSrc){
 
 function heroHTML(p,isLens){
   var img=p.image||p.thumbnail||'';
-  var h='<a href="'+p.link+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text)"><div class="hero">';
+  var verified=p.ai_verified;
+  var score=p.match_score||0;
+  var badgeText=verified?'\u2705 '+t('aiMatch'):(isLens?t('lensLabel'):t('recommended'));
+  var borderColor=verified?'#6fcf7c':(isLens?'var(--green)':'var(--green)');
+  var h='<a href="'+p.link+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text)"><div class="hero" style="border-color:'+borderColor+'">';
   if(img)h+='<img src="'+img+'" onerror="if(this.src!==\''+p.thumbnail+'\')this.src=\''+p.thumbnail+'\'">';
-  h+='<div class="badge">'+(isLens?t('lensLabel'):t('recommended'))+'</div>';
+  h+='<div class="badge" style="'+(verified?'background:#22c55e':'')+'">'+badgeText+'</div>';
+  if(score>=7)h+='<div style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px">'+score+'/10</div>';
   h+='<div class="info"><div class="t">'+p.title+'</div><div class="s">'+(p.brand||p.source||'')+'</div>';
   h+='<div class="row"><span class="price">'+(p.price||t('noPrice'))+'</span>';
   h+='<button class="btn">'+t('goStore')+'</button></div></div></div></a>';
@@ -1045,9 +1210,12 @@ function heroHTML(p,isLens){
 function altsHTML(list){
   var h='<div style="font-size:11px;color:var(--dim);margin:6px 0">'+t('alts')+'</div><div class="scroll">';
   for(var i=0;i<list.length;i++){var a=list[i];var img=a.thumbnail||a.image||'';
-    h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' local':'')+'">';
+    var vBorder=a.ai_verified?'border-color:#22c55e':'';
+    h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' local':'')+'" style="'+vBorder+'">';
     if(img)h+='<img src="'+img+'" onerror="this.hidden=true">';
-    h+='<div class="ci"><div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div></a>'}
+    h+='<div class="ci">';
+    if(a.ai_verified)h+='<div style="font-size:8px;color:#22c55e;font-weight:700;margin-bottom:2px">\u2705 '+t('aiMatch')+'</div>';
+    h+='<div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div></a>'}
   return h+'</div>';
 }
 </script>
