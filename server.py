@@ -7,6 +7,14 @@ import asyncio
 import time
 import httpx
 from PIL import Image
+
+# iPhone HEIC support (safety net for in-app browsers)
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+    print("✅ HEIC support enabled")
+except ImportError:
+    print("⚠️ pillow-heif not installed, HEIC files may fail")
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -707,15 +715,17 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
         img.thumbnail((800, 800))
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
-        b64 = base64.b64encode(buf.getvalue()).decode()
+        optimized_bytes = buf.getvalue()
+        b64 = base64.b64encode(optimized_bytes).decode()
     except Exception:
+        optimized_bytes = contents
         b64 = base64.b64encode(contents).decode()
 
     print(f"\n{'='*50}")
     print(f"=== AUTO ANALYZE === country={cc} ({cfg['name']})")
 
     detect_task = claude_detect(b64, cc)
-    upload_task = upload_img(contents)
+    upload_task = upload_img(optimized_bytes)
     pieces, url = await asyncio.gather(detect_task, upload_task)
 
     lens_results = []
@@ -816,7 +826,7 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
 
     # Step 2: Parallel — upload clean image + Claude identify
     upload_task = upload_img(clean_bytes)
-    claude_task = claude_identify_crop(contents, cc)  # Use original for text ID
+    claude_task = claude_identify_crop(optimized, cc)  # Use optimized, not raw contents
     url, smart_query = await asyncio.gather(upload_task, claude_task)
 
     search_q = query if query else smart_query
