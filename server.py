@@ -309,7 +309,7 @@ Return ONLY valid JSON array sorted by highest score:
         async with httpx.AsyncClient(timeout=45) as c:
             r = await c.post("https://api.anthropic.com/v1/messages",
                 headers={"Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
-                json={"model": "claude-sonnet-4-20250514", "max_tokens": 800, "messages": [{"role": "user", "content": content}]})
+                json={"model": "claude-3-7-sonnet-20250219", "max_tokens": 800, "messages": [{"role": "user", "content": content}]})
             text = r.json().get("content", [{}])[0].get("text", "").strip()
             text = re.sub(r'^```\w*\n?', '', text); text = re.sub(r'\n?```$', '', text)
             m = re.search(r'\[.*\]', text, re.DOTALL)
@@ -340,7 +340,7 @@ async def claude_detect(img_b64, cc="tr"):
         try:
             r = await c.post("https://api.anthropic.com/v1/messages",
                 headers={"Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
-                json={"model": "claude-sonnet-4-20250514", "max_tokens": 1500,
+                json={"model": "claude-3-7-sonnet-20250219", "max_tokens": 1500,
                     "messages": [{"role": "user", "content": [
                         {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
                         {"type": "text", "text": f"""Analyze every clothing item and accessory this person is wearing.
@@ -522,7 +522,7 @@ async def claude_identify_crop(img_bytes, cc="tr"):
         try:
             resp = await client.post("https://api.anthropic.com/v1/messages",
                 headers={"Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
-                json={"model": "claude-sonnet-4-20250514", "max_tokens": 100,
+                json={"model": "claude-3-7-sonnet-20250219", "max_tokens": 100,
                     "messages": [{"role": "user", "content": [
                         {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": b64_c}},
                         {"type": "text", "text": f"This is a cropped clothing item. Write a 4-6 word {cfg['lang']} shopping search query for this EXACT item. Be ultra specific. Reply with ONLY the query."},
