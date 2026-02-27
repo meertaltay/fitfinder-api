@@ -847,7 +847,15 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
             combined.append(x)
 
     # Step 4: Claude Reranker — visual comparison
-    original_b64 = base64.b64encode(clean_bytes).decode()
+    # Resize to 300px for AI (saves ~5x tokens vs 1024px)
+    try:
+        img_ai = Image.open(io.BytesIO(clean_bytes)).convert("RGB")
+        img_ai.thumbnail((300, 300))
+        buf_ai = io.BytesIO()
+        img_ai.save(buf_ai, format="JPEG", quality=80)
+        original_b64 = base64.b64encode(buf_ai.getvalue()).decode()
+    except Exception:
+        original_b64 = base64.b64encode(clean_bytes).decode()
     if len(combined) >= 3:
         combined = await claude_rerank(original_b64, combined, cc)
         print(f"  After rerank: {len(combined)} results")
@@ -935,7 +943,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
       <div style="font-size:24px">&#x1F4F7;</div>
       <div><div id="uploadTitle" style="font-size:16px;font-weight:700;color:var(--bg)"></div><div id="uploadSub" style="font-size:12px;color:rgba(0,0,0,.45)"></div></div>
     </div>
-    <input type="file" id="fi" accept="image/*" style="display:none">
+    <input type="file" id="fi" accept="image/jpeg,image/png,image/webp" style="display:none">
     <div style="margin-top:32px;display:flex;flex-direction:column;gap:14px;padding-bottom:100px">
       <div style="display:flex;gap:12px;align-items:center"><span style="font-size:20px">&#x1F916;</span><div><div id="feat1" style="font-size:13px;font-weight:600"></div><div id="feat1d" style="font-size:11px;color:var(--muted)"></div></div></div>
       <div style="display:flex;gap:12px;align-items:center"><span style="font-size:20px">&#x2702;&#xFE0F;</span><div><div id="feat2" style="font-size:13px;font-weight:600"></div><div id="feat2d" style="font-size:11px;color:var(--muted)"></div></div></div>
