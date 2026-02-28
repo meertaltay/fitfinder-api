@@ -1241,6 +1241,64 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
 
     return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q, "country": cc, "bg_removed": HAS_REMBG, "crop_image": crop_b64}
 
+# ─── TRENDING DATA (curated, update weekly) ───
+TRENDING = {
+    "tr": {
+        "brands": [
+            {"name": "Zara", "slug": "zara", "color": "#000"},
+            {"name": "Bershka", "slug": "bershka", "color": "#1a1a1a"},
+            {"name": "Mango", "slug": "mango", "color": "#c8a96e"},
+            {"name": "Nike", "slug": "nike", "color": "#111"},
+            {"name": "Adidas", "slug": "adidas", "color": "#000"},
+            {"name": "H&M", "slug": "hm", "color": "#e50010"},
+            {"name": "Koton", "slug": "koton", "color": "#1a1a1a"},
+            {"name": "Pull&Bear", "slug": "pullbear", "color": "#222"},
+        ],
+        "products": [
+            {"title": "Oversize Deri Ceket", "brand": "Zara", "img": "https://static.zara.net/assets/public/1f0f/0f3d/0e0e4d43af98/a7fdb2a79f60/05479318800-e1/05479318800-e1.jpg", "price": "₺2.999", "link": "https://www.zara.com/tr/"},
+            {"title": "Varsity Bomber Ceket", "brand": "Bershka", "img": "https://static.bershka.net/4/photos2/2024/V/0/1/p/2782/240/501/2782240501_1_1_3.jpg", "price": "₺1.799", "link": "https://www.bershka.com/tr/"},
+            {"title": "Air Force 1", "brand": "Nike", "img": "https://static.nike.com/a/images/t_PDP_936_v1/f_auto,q_auto:eco/b7d9211c-26e7-431a-ac24-b0540fb3c00f/AIR+FORCE+1+%2707.png", "price": "₺3.499", "link": "https://www.nike.com/tr/"},
+            {"title": "Samba OG", "brand": "Adidas", "img": "https://assets.adidas.com/images/h_840,f_auto,q_auto,fl_lossy,c_fill,g_auto/fbaf991a78bc4896a3e9a7e8025b396c_9366/Samba_OG_Ayakkabi_Beyaz_B75806_01_standard.jpg", "price": "₺3.199", "link": "https://www.adidas.com.tr/"},
+            {"title": "Wide Leg Jean", "brand": "Mango", "img": "https://st.mango.com/second/phones/he/67084043_01_D.jpg", "price": "₺1.299", "link": "https://shop.mango.com/tr/"},
+            {"title": "Basic Oversize Tişört", "brand": "Koton", "img": "https://img-koton.mncdn.com/mnresize/1200/1800/productimages/2sam10226hk/2sam10226hk-999-01.jpg", "price": "₺349", "link": "https://www.koton.com/"},
+        ],
+        "section_brands": "🏷️ Popüler Markalar",
+        "section_trending": "🔥 Bu Hafta Trend",
+    },
+    "en": {
+        "brands": [
+            {"name": "Zara", "slug": "zara", "color": "#000"},
+            {"name": "Nike", "slug": "nike", "color": "#111"},
+            {"name": "Adidas", "slug": "adidas", "color": "#000"},
+            {"name": "H&M", "slug": "hm", "color": "#e50010"},
+            {"name": "Mango", "slug": "mango", "color": "#c8a96e"},
+            {"name": "Uniqlo", "slug": "uniqlo", "color": "#c41200"},
+            {"name": "COS", "slug": "cos", "color": "#1a1a1a"},
+            {"name": "ASOS", "slug": "asos", "color": "#2d2d2d"},
+        ],
+        "products": [
+            {"title": "Oversize Leather Jacket", "brand": "Zara", "img": "https://static.zara.net/assets/public/1f0f/0f3d/0e0e4d43af98/a7fdb2a79f60/05479318800-e1/05479318800-e1.jpg", "price": "$129", "link": "https://www.zara.com/us/"},
+            {"title": "Air Force 1 '07", "brand": "Nike", "img": "https://static.nike.com/a/images/t_PDP_936_v1/f_auto,q_auto:eco/b7d9211c-26e7-431a-ac24-b0540fb3c00f/AIR+FORCE+1+%2707.png", "price": "$115", "link": "https://www.nike.com/"},
+            {"title": "Samba OG", "brand": "Adidas", "img": "https://assets.adidas.com/images/h_840,f_auto,q_auto,fl_lossy,c_fill,g_auto/fbaf991a78bc4896a3e9a7e8025b396c_9366/Samba_OG_Ayakkabi_Beyaz_B75806_01_standard.jpg", "price": "$100", "link": "https://www.adidas.com/"},
+            {"title": "Wide Leg Jeans", "brand": "Mango", "img": "https://st.mango.com/second/phones/he/67084043_01_D.jpg", "price": "$59", "link": "https://shop.mango.com/us/"},
+            {"title": "Relaxed Fit Tee", "brand": "Uniqlo", "img": "https://image.uniqlo.com/UQ/ST3/WesternCommon/imagesgoods/422992/item/goods_09_422992.jpg", "price": "$15", "link": "https://www.uniqlo.com/us/"},
+            {"title": "Varsity Bomber Jacket", "brand": "H&M", "img": "https://lp2.hm.com/hmgoepprod?set=format%5Bwebp%5D&source=url%5Bhttps://assets.hm.com/content/dam/global_digitalassets/2024_12/men_2a_trending-now_16_9.jpg%5D", "price": "$49", "link": "https://www2.hm.com/en_us/"},
+        ],
+        "section_brands": "🏷️ Popular Brands",
+        "section_trending": "🔥 Trending This Week",
+    },
+}
+
+CC_LANG_MAP = {"tr": "tr", "us": "en", "uk": "en", "de": "en", "fr": "en", "sa": "en", "ae": "en", "eg": "en"}
+
+@app.get("/api/trending")
+async def trending(country: str = "tr"):
+    cc = country.lower()
+    lang = CC_LANG_MAP.get(cc, "en")
+    data = TRENDING.get(lang, TRENDING["en"])
+    return {"success": True, "brands": data["brands"], "products": data["products"],
+            "section_brands": data["section_brands"], "section_trending": data["section_trending"]}
+
 @app.get("/api/health")
 async def health(): return {"status": "ok", "version": "v41-auto-stacked", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
 
@@ -1624,6 +1682,20 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .card .cs{font-size:9px;color:var(--dim);margin-top:2px}
 .card .cp{font-size:13px;font-weight:700;color:var(--accent);margin-top:3px}
 .bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;background:rgba(10,10,12,.93);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;padding:8px 0 22px;z-index:50}
+.sec-title{font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.brand-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:28px}
+.brand-chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 6px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s}
+.brand-chip:hover,.brand-chip:active{border-color:var(--accent);transform:scale(1.04)}
+.brand-chip .b-letter{width:36px;height:36px;border-radius:50%;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff}
+.brand-chip .b-name{font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trend-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:28px}
+.trend-card{flex-shrink:0;width:150px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s}
+.trend-card:hover{border-color:var(--accent)}
+.trend-card img{width:150px;height:170px;object-fit:cover;display:block;background:#1a1a1a}
+.trend-card .tc-info{padding:10px}
+.trend-card .tc-title{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trend-card .tc-brand{font-size:9px;color:var(--muted);margin-top:2px}
+.trend-card .tc-price{font-size:14px;font-weight:700;color:var(--accent);margin-top:4px}
 </style>
 </head>
 <body>
@@ -1642,16 +1714,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
       </div>
     </div>
     <input type="file" id="fi" accept="image/jpeg,image/png,image/webp" style="display:none">
-    <div style="margin-top:32px;display:flex;flex-direction:column;gap:14px;padding-bottom:100px">
-      <div style="display:flex;gap:12px;align-items:center">
-        <span style="font-size:20px">&#x1F916;</span>
-        <div><div id="feat1" style="font-size:13px;font-weight:600"></div><div id="feat1d" style="font-size:11px;color:var(--muted)"></div></div>
-      </div>
-      <div style="display:flex;gap:12px;align-items:center">
-        <span style="font-size:20px">&#x2702;&#xFE0F;</span>
-        <div><div id="feat2" style="font-size:13px;font-weight:600"></div><div id="feat2d" style="font-size:11px;color:var(--muted)"></div></div>
-      </div>
-    </div>
+    <div id="trendingSection" style="margin-top:28px;padding-bottom:100px"></div>
   </div>
   <div id="rScreen" style="display:none">
     <div style="position:sticky;top:0;z-index:40;background:rgba(10,10,12,.9);backdrop-filter:blur(20px);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
@@ -1717,10 +1780,6 @@ function applyLang(){
   document.getElementById('heroSub').innerHTML=t('heroSub');
   document.getElementById('uploadTitle').textContent=t('upload');
   document.getElementById('uploadSub').textContent=t('uploadSub');
-  document.getElementById('feat1').textContent=t('feat1');
-  document.getElementById('feat1d').textContent=t('feat1d');
-  document.getElementById('feat2').textContent=t('feat2');
-  document.getElementById('feat2d').textContent=t('feat2d');
   document.getElementById('btnAuto').innerHTML=t('auto');
   document.getElementById('btnManual').innerHTML=t('manual');
   document.getElementById('backBtn').textContent=t('back');
@@ -1730,6 +1789,31 @@ function applyLang(){
   document.getElementById('btnCancel').innerHTML=t('cancel');
   document.getElementById('navHome').textContent=t('navHome');
   document.getElementById('navFav').textContent=t('navFav');
+  loadTrending();
+}
+function loadTrending(){
+  fetch('/api/trending?country='+getCC()).then(function(r){return r.json()}).then(function(d){
+    if(!d.success)return;
+    var ts=document.getElementById('trendingSection');var h='';
+    // Brands
+    if(d.brands&&d.brands.length){
+      h+='<div class="sec-title">'+d.section_brands+'</div><div class="brand-grid">';
+      var colors=['#c0392b','#2980b9','#27ae60','#8e44ad','#d35400','#16a085','#2c3e50','#f39c12'];
+      for(var i=0;i<d.brands.length;i++){var b=d.brands[i];var bg=colors[i%colors.length];
+        h+='<div class="brand-chip"><div class="b-letter" style="background:'+bg+'">'+b.name.charAt(0)+'</div><div class="b-name">'+b.name+'</div></div>';}
+      h+='</div>';
+    }
+    // Trending products
+    if(d.products&&d.products.length){
+      h+='<div class="sec-title">'+d.section_trending+'</div><div class="trend-scroll">';
+      for(var i=0;i<d.products.length;i++){var p=d.products[i];
+        h+='<a href="'+p.link+'" target="_blank" rel="noopener" class="trend-card">';
+        h+='<img src="'+p.img+'" style="width:150px;height:170px;object-fit:cover;display:block;background:#1a1a1a" onerror="this.onerror=null;this.style.opacity=0">';
+        h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price">'+p.price+'</div></div></a>';}
+      h+='</div>';
+    }
+    ts.innerHTML=h;
+  }).catch(function(){})
 }
 applyLang();
 function getCC(){return CC}
