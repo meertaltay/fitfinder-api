@@ -40,7 +40,7 @@ app = FastAPI(title="FitFinder API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 API_SEM = asyncio.Semaphore(3)
-REMBG_LOCK = asyncio.Lock()
+REMBG_SEM = asyncio.Semaphore(2)  # Max 2 paralel rembg (RAM güvenliği)
 
 _CACHE = {}
 CACHE_TTL = 3600
@@ -539,16 +539,16 @@ def _shop(q, cc="tr", limit=6):
     return res
 
 # ─── Auto Piece Pipeline ───
-# ✅ FIX #2: NO rembg in auto mode (causes timeout due to serial REMBG_LOCK)
-# ✅ FIX #3: NO rerank in auto mode (adds 4s per piece = 16s+ extra → timeout)
-# rembg and rerank are ONLY used in manual mode where there's a single piece.
-REMBG_CATS = {"jacket", "top", "bottom", "dress"}  # Only cloth items get rembg (manual mode)
+# 🔥 rembg ARTIK AUTO MODDA DA ÇALIŞIYOR (REMBG_SEM ile paralel)
+# Neden çalışmıyordu: REMBG_LOCK seri = 4 parça × 4s = 16s timeout
+# Neden şimdi çalışıyor: REMBG_SEM(2) paralel = 4 parça / 2 = 8s max
+REMBG_CATS = {"jacket", "top", "bottom", "dress", "shoes", "bag", "scarf", "hat"}
 
 async def process_auto_piece(p, img_obj, cc):
     cat, box, q, brand = p.get("category", "").lower(), p.get("box_2d"), p.get("search_query", ""), p.get("brand", "")
     color, short_title = p.get("color", ""), p.get("short_title", cat.title())
     visible_text = p.get("visible_text", "")
-    fingerprint = p.get("fingerprint", [])  # 🕵️ Mikro-detay parmak izi
+    fingerprint = p.get("fingerprint", [])
 
     try:
         # Step 1: Crop from high-res image
@@ -556,59 +556,69 @@ async def process_auto_piece(p, img_obj, cc):
         if box and isinstance(box, list) and len(box) == 4:
             cropped_bytes = await asyncio.to_thread(crop_piece, img_obj, box)
 
-        # 🌟 Crop preview for UI
-        crop_b64 = ""
-        if cropped_bytes:
-            try:
-                t_img = Image.open(io.BytesIO(cropped_bytes)).convert("RGB")
-                t_img.thumbnail((256, 256))
-                t_buf = io.BytesIO()
-                t_img.save(t_buf, format="JPEG", quality=80)
-                crop_b64 = "data:image/jpeg;base64," + base64.b64encode(t_buf.getvalue()).decode()
-            except Exception: pass
+        if not cropped_bytes:
+            print(f"  [{cat}] SKIP: crop failed")
+            return {"category": cat, "short_title": short_title, "color": color,
+                    "brand": brand if brand != "?" else "", "visible_text": visible_text,
+                    "products": [], "lens_count": 0, "has_crop": False, "crop_image": ""}
 
-        # Step 2: Upload crop + Shopping → PARALLEL
-        # 🔍 OCR araması: SADECE gerçek marka/logo okunduysa 2. arama yap
-        # brand="?" veya visible_text="None" ise gereksiz — Semaphore'u boğar, Lens'i geciktirir
+        # Step 2: rembg + Shopping → PARALLEL
+        # rembg arka planı siler → Lens'e TEMİZ görsel gider → doğru sonuç
         has_real_ocr = (brand and brand != "?" and len(brand) > 1) or \
                        (visible_text and visible_text.lower() not in ["none", "?", "", "yok", "-"])
         ocr_q = build_ocr_query(brand, visible_text, color, cat, get_country_config(cc)) if has_real_ocr else ""
 
-        async def do_upload():
-            return await upload_img(cropped_bytes) if cropped_bytes else None
+        async def do_rembg():
+            if HAS_REMBG and cat in REMBG_CATS:
+                async with REMBG_SEM:
+                    clean = await asyncio.to_thread(remove_bg, cropped_bytes)
+                    print(f"  [{cat}] rembg OK ({len(clean)//1024}KB)")
+                    return clean
+            return cropped_bytes  # rembg yoksa veya kategori uygun değilse ham crop
+
         async def do_shop():
             if q:
                 async with API_SEM:
                     return await asyncio.to_thread(_shop, q, cc, 8)
             return []
+
         async def do_ocr_shop():
-            # SADECE gerçek OCR bilgisi varsa VE ana sorgudan farklıysa
             if ocr_q and ocr_q != q and has_real_ocr:
                 async with API_SEM:
                     return await asyncio.to_thread(_shop, ocr_q, cc, 4)
             return []
 
-        url, shop_res, ocr_shop_res = await asyncio.gather(
-            do_upload(), do_shop(), do_ocr_shop()
+        # rembg, shop, ocr_shop HEPSİ PARALEL
+        clean_bytes, shop_res, ocr_shop_res = await asyncio.gather(
+            do_rembg(), do_shop(), do_ocr_shop()
         )
 
         # OCR sonuçlarını ana shop'a ekle (dedup)
         shop_links = {r["link"] for r in shop_res}
         for r in ocr_shop_res:
             if r["link"] not in shop_links:
-                shop_res.append(r)
-                shop_links.add(r["link"])
+                shop_res.append(r); shop_links.add(r["link"])
 
-        print(f"  [{cat}] Shop:{len(shop_res)} OCR:{len(ocr_shop_res)} (ocr_q='{ocr_q}' real={has_real_ocr})")
+        # Crop preview (UI'da göster — rembg sonrası temiz görsel)
+        crop_b64 = ""
+        try:
+            t_img = Image.open(io.BytesIO(clean_bytes)).convert("RGB")
+            t_img.thumbnail((256, 256))
+            t_buf = io.BytesIO()
+            t_img.save(t_buf, format="JPEG", quality=80)
+            crop_b64 = "data:image/jpeg;base64," + base64.b64encode(t_buf.getvalue()).decode()
+        except Exception: pass
 
-        # Step 3: Lens on cropped image
+        # Step 3: Upload TEMİZ görsel → Lens
+        url = await upload_img(clean_bytes)
+        print(f"  [{cat}] Shop:{len(shop_res)} OCR:{len(ocr_shop_res)} URL:{'OK' if url else 'FAIL'}")
+
         lens_res = []
         if url:
             try:
                 async with API_SEM:
                     lens_res = await asyncio.to_thread(_lens, url, cc)
                 raw_lens = len(lens_res)
-                # 🛡️ DEMİR KUBBE (basit substring, asla hepsini öldürmez)
                 lens_res = filter_by_category(lens_res, cat)
                 print(f"  [{cat}] Lens: {raw_lens} raw → {len(lens_res)} after filter")
             except Exception as e:
@@ -619,46 +629,30 @@ async def process_auto_piece(p, img_obj, cc):
             lens_res = filter_rival_brands(lens_res, brand)
             shop_res = filter_rival_brands(shop_res, brand)
 
-        # Step 5: AKILLI BİRLEŞTİRME
-        # Tüm sonuçları tek havuza al, akıllıca puanla, en iyiyi üste koy
+        # Step 5: Akıllı birleştirme
         seen, combined = set(), []
-
-        # Lens link'lerini set'e al (Venn tespiti için)
         lens_links = {r.get("link", "") for r in lens_res}
-        shop_links = {r.get("link", "") for r in shop_res}
+        shop_links_set = {r.get("link", "") for r in shop_res}
 
-        # Tüm sonuçları birleştir (shop önce, lens sonra — dedup)
         all_results = []
         for r in shop_res:
             if r["link"] not in seen:
                 seen.add(r["link"])
-                r_copy = r.copy()
-                r_copy["_source"] = "shop"
-                all_results.append(r_copy)
+                r_copy = r.copy(); r_copy["_source"] = "shop"; all_results.append(r_copy)
         for r in lens_res:
             if r["link"] not in seen:
                 seen.add(r["link"])
-                r_copy = r.copy()
-                r_copy["_source"] = "lens"
-                all_results.append(r_copy)
+                r_copy = r.copy(); r_copy["_source"] = "lens"; all_results.append(r_copy)
 
-        # Her sonuca akıllı puan ver
         for r in all_results:
             smart_score = 0
-            title_lower = r.get("title", "").lower()
-            link_lower = (r.get("link", "") + " " + r.get("source", "")).lower()
-            combined_text = title_lower + " " + link_lower
+            combined_text = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
 
-            # 🎯 VENN BONUS: Hem Shop HEM Lens'te varsa (+20 puan — BİREBİR EŞLEŞME!)
-            if r["link"] in lens_links and r["link"] in shop_links:
-                smart_score += 20
-                r["ai_verified"] = True
+            # VENN: Hem Shop HEM Lens'te varsa (+20)
+            if r["link"] in lens_links and r["link"] in shop_links_set:
+                smart_score += 20; r["ai_verified"] = True
 
-            # Shop bonus YOK — Lens ve Shop eşit rekabet etsin!
-            # v33'te shop önce geliyordu ama bu Lens eşleşmelerini gömmüyordu
-            # çünkü sıralama yoktu. Şimdi sıralama var, eşit olmalılar.
-
-            # 🕵️ PARMAK İZİ BONUS
+            # Parmak izi bonusu
             if fingerprint:
                 for detail in fingerprint:
                     if not detail: continue
@@ -667,45 +661,31 @@ async def process_auto_piece(p, img_obj, cc):
                     if matched >= 1: smart_score += 3
                     if matched >= 2: smart_score += 2
 
-            # 🔍 OCR BONUS: visible_text eşleşmesi (+10)
+            # OCR / marka bonusu
             if visible_text and visible_text.lower() not in ["none", "?", ""]:
                 for vt in visible_text.lower().split():
-                    if len(vt) > 2 and vt in combined_text:
-                        smart_score += 10
-                        break
-
-            # Marka eşleşmesi (+8)
+                    if len(vt) > 2 and vt in combined_text: smart_score += 10; break
             if brand and brand != "?" and len(brand) > 2:
-                if brand.lower() in combined_text:
-                    smart_score += 8
-
-            # Fiyat varsa bonus (+2)
+                if brand.lower() in combined_text: smart_score += 8
             if r.get("price"): smart_score += 2
-
-            # Yerel mağaza bonusu (+3)
             if r.get("is_local"): smart_score += 3
 
             r["_smart_score"] = smart_score
 
-        # En yüksek puandan en düşüğe sırala
         all_results.sort(key=lambda x: -x.get("_smart_score", 0))
 
-        # Debug log: top 3 results
+        # Top 3 log
         for i, r in enumerate(all_results[:3]):
-            print(f"  [{cat}] #{i+1}: score={r.get('_smart_score',0)} src={r.get('_source','')} title={r.get('title','')[:50]}")
+            print(f"  [{cat}] #{i+1}: score={r.get('_smart_score',0)} src={r.get('_source','')} {r.get('title','')[:45]}")
 
-        # Cleanup: internal fields'ı kaldır
         for r in all_results:
-            r.pop("_smart_score", None)
-            r.pop("_source", None)
-
-        combined = all_results
+            r.pop("_smart_score", None); r.pop("_source", None)
 
         return {
             "category": cat, "short_title": short_title, "color": color,
             "brand": brand if brand != "?" else "", "visible_text": visible_text,
             "fingerprint": fingerprint,
-            "products": combined[:8], "lens_count": len(lens_res), "has_crop": cropped_bytes is not None,
+            "products": all_results[:8], "lens_count": len(lens_res), "has_crop": True,
             "crop_image": crop_b64
         }
     except Exception as e:
@@ -795,7 +775,7 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
         optimized = contents
 
     # Manual mode: rembg is safe here (single piece, no parallel lock contention)
-    async with REMBG_LOCK:
+    async with REMBG_SEM:
         clean_bytes = await asyncio.to_thread(remove_bg, optimized)
 
     crop_b64 = ""
