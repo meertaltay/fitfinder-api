@@ -5,9 +5,14 @@ import json
 import base64
 import asyncio
 import time
+import sys
 import httpx
 import urllib.parse
 from PIL import Image, ImageOps
+
+# 🔥 Railway'de logların görünmesi için stdout buffer'ı kapat
+os.environ["PYTHONUNBUFFERED"] = "1"
+sys.stdout.reconfigure(line_buffering=True)
 
 # iPhone HEIC support (safety net for in-app browsers)
 try:
@@ -40,7 +45,7 @@ app = FastAPI(title="FitFinder API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 API_SEM = asyncio.Semaphore(3)
-REMBG_SEM = asyncio.Semaphore(1)  # Seri rembg — RAM güvenliği (her biri ~500MB peak)
+REMBG_SEM = asyncio.Semaphore(2)  # 8GB RAM → 2 paralel rembg güvenli
 
 _CACHE = {}
 CACHE_TTL = 3600
@@ -539,9 +544,9 @@ def _shop(q, cc="tr", limit=6):
     return res
 
 # ─── Auto Piece Pipeline ───
-# 🔥 rembg AUTO MODDA: REMBG_SEM(1) seri + 8s timeout
-# Railway yükseltilmiş plan (8GB RAM) → rembg güvenli çalışır
-# Timeout aşılırsa ham crop ile fallback → Lens çalışmaya devam eder
+# 🔥 rembg AUTO MODDA: REMBG_SEM(2) paralel + 10s timeout
+# Railway 8GB RAM → 2 paralel rembg güvenli (~500MB each = 1GB peak)
+# 4 parça / 2 paralel = 2 batch × ~5s = ~10s rembg toplam
 REMBG_CATS = {"jacket", "top", "bottom", "dress", "shoes", "bag", "scarf", "hat"}
 
 async def process_auto_piece(p, img_obj, cc):
@@ -574,12 +579,12 @@ async def process_auto_piece(p, img_obj, cc):
                     async with REMBG_SEM:
                         clean = await asyncio.wait_for(
                             asyncio.to_thread(remove_bg, cropped_bytes),
-                            timeout=8.0
+                            timeout=10.0
                         )
                         print(f"  [{cat}] rembg OK ({len(clean)//1024}KB)")
                         return clean
                 except asyncio.TimeoutError:
-                    print(f"  [{cat}] rembg TIMEOUT 8s, using raw crop")
+                    print(f"  [{cat}] rembg TIMEOUT 10s, using raw crop")
                 except Exception as e:
                     print(f"  [{cat}] rembg ERR: {e}")
             return cropped_bytes  # fallback: ham crop
