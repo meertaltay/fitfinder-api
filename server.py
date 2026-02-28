@@ -541,18 +541,47 @@ def _lens(url, cc="tr"):
     res, seen = [], set()
     try:
         d = GoogleSearch({"engine": "google_lens", "url": url, "api_key": SERPAPI_KEY, "hl": cfg["hl"], "country": cfg["gl"]}).get_dict()
+
+        # 1) EXACT MATCHES — "Tam eşleşmeler" = aynı fotoğraf web'de bulundu (Bershka, Trendyol vs.)
+        #    Bu sonuçlar EN GÜVENİLİR — birebir aynı ürün!
+        for m in d.get("exact_matches", []):
+            lnk = m.get("link", "")
+            ttl = m.get("title", m.get("source", ""))
+            src = m.get("source", "")
+            if not lnk or lnk in seen: continue
+            if is_blocked(lnk): continue
+            seen.add(lnk)
+            if not ttl: ttl = src or lnk
+            pr = m.get("price", {})
+            res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
+                "link": make_affiliate(lnk), "price": pr.get("value", "") if isinstance(pr, dict) else str(pr),
+                "thumbnail": m.get("thumbnail", ""), "image": m.get("image", ""),
+                "is_local": is_local(lnk, src, cfg), "ai_verified": True, "_exact": True})
+        exact_count = len(res)
+        if exact_count > 0:
+            print(f"  Lens EXACT matches: {exact_count}")
+            for r in res[:3]:
+                print(f"    ✅ {r['title'][:50]} | {r['source']}")
+
+        # 2) VISUAL MATCHES — benzer görünen ürünler
         for m in d.get("visual_matches", []):
             lnk, ttl, src = m.get("link", ""), m.get("title", ""), m.get("source", "")
             if not lnk or not ttl or lnk in seen: continue
             if is_blocked(lnk) or not is_fashion(lnk, ttl, src): continue
             seen.add(lnk)
             pr = m.get("price", {})
-            res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src, "link": make_affiliate(lnk), "price": pr.get("value", "") if isinstance(pr, dict) else str(pr), "thumbnail": m.get("thumbnail", ""), "image": m.get("image", ""), "is_local": is_local(lnk, src, cfg)})
-            if len(res) >= 20: break
-    except Exception: pass
+            res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
+                "link": make_affiliate(lnk), "price": pr.get("value", "") if isinstance(pr, dict) else str(pr),
+                "thumbnail": m.get("thumbnail", ""), "image": m.get("image", ""),
+                "is_local": is_local(lnk, src, cfg)})
+            if len(res) >= 25: break
+
+    except Exception as e:
+        print(f"Lens err: {e}")
 
     def score(r):
         s = 0
+        if r.get("_exact"): s += 100  # Exact matches ALWAYS on top
         if r["price"]: s += 10
         if r["is_local"]: s += 5
         c = (r["link"] + " " + r["source"]).lower()
@@ -560,6 +589,7 @@ def _lens(url, cc="tr"):
         if any(d in c for d in DUPE_SITES): s -= 50
         return -s
     res.sort(key=score)
+    # Keep _exact flag for downstream scoring (cleaned later)
     return res
 
 def _shop(q, cc="tr", limit=6):
@@ -920,10 +950,15 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 score = base_score
                 combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
 
+                # 🏆 EXACT LENS MATCH — same photo found on web (like Google Lens "Tam eşleşmeler")
+                if r.get("_exact"):
+                    score += 50
+                    r["ai_verified"] = True
+
                 # Cross-channel bonus (aynı ürün birden fazla kanalda = güvenilir)
                 link = r.get("link", "")
                 channels_found = sum([link in shop_links, link in lens_links, link in google_links])
-                if channels_found >= 3: score += 30; r["ai_verified"] = True  # 3 kanalda da var!
+                if channels_found >= 3: score += 30; r["ai_verified"] = True
                 elif channels_found >= 2: score += 20; r["ai_verified"] = True
 
                 # Brand match
@@ -979,7 +1014,9 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                     t = r.get("title", "").lower()
                     if any(w in t for w in vt_words): has_text_match = True; break
 
-            if top_score >= 25 and (has_brand_match or has_text_match):
+            if top_score >= 50:
+                match_level = "exact"  # Lens exact match (same photo found online)
+            elif top_score >= 25 and (has_brand_match or has_text_match):
                 match_level = "exact"
             elif top_score >= 15 or has_brand_match:
                 match_level = "close"
@@ -994,7 +1031,7 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
 
             # Clean internal fields
             for r in all_items:
-                for k in ["_score", "_priority", "_channel", "_src"]: r.pop(k, None)
+                for k in ["_score", "_priority", "_channel", "_src", "_exact"]: r.pop(k, None)
 
             results.append({
                 "category": cat,
