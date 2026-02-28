@@ -40,7 +40,7 @@ app = FastAPI(title="FitFinder API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 API_SEM = asyncio.Semaphore(3)
-REMBG_SEM = asyncio.Semaphore(1)  # Max 1 rembg (her biri ~500MB RAM, Railway 512MB)
+REMBG_SEM = asyncio.Semaphore(1)  # Seri rembg — RAM güvenliği (her biri ~500MB peak)
 
 _CACHE = {}
 CACHE_TTL = 3600
@@ -539,9 +539,9 @@ def _shop(q, cc="tr", limit=6):
     return res
 
 # ─── Auto Piece Pipeline ───
-# 🔥 rembg ARTIK AUTO MODDA DA ÇALIŞIYOR (REMBG_SEM ile paralel)
-# Neden çalışmıyordu: REMBG_LOCK seri = 4 parça × 4s = 16s timeout
-# Neden şimdi çalışıyor: REMBG_SEM(2) paralel = 4 parça / 2 = 8s max
+# 🔥 rembg AUTO MODDA: REMBG_SEM(1) seri + 8s timeout
+# Railway yükseltilmiş plan (8GB RAM) → rembg güvenli çalışır
+# Timeout aşılırsa ham crop ile fallback → Lens çalışmaya devam eder
 REMBG_CATS = {"jacket", "top", "bottom", "dress", "shoes", "bag", "scarf", "hat"}
 
 async def process_auto_piece(p, img_obj, cc):
@@ -574,12 +574,12 @@ async def process_auto_piece(p, img_obj, cc):
                     async with REMBG_SEM:
                         clean = await asyncio.wait_for(
                             asyncio.to_thread(remove_bg, cropped_bytes),
-                            timeout=5.0
+                            timeout=8.0
                         )
                         print(f"  [{cat}] rembg OK ({len(clean)//1024}KB)")
                         return clean
                 except asyncio.TimeoutError:
-                    print(f"  [{cat}] rembg TIMEOUT 5s, using raw crop")
+                    print(f"  [{cat}] rembg TIMEOUT 8s, using raw crop")
                 except Exception as e:
                     print(f"  [{cat}] rembg ERR: {e}")
             return cropped_bytes  # fallback: ham crop
@@ -756,7 +756,7 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
         print(f"Claude: {len(pieces)} pieces detected")
 
         # Process up to 5 pieces in parallel (no rembg/rerank = stays well under 30s)
-        tasks = [process_auto_piece(p, img_obj, cc) for p in pieces[:3]]
+        tasks = [process_auto_piece(p, img_obj, cc) for p in pieces[:4]]
         results = list(await asyncio.gather(*tasks))
 
         # Ürün bulunamayan parçaları ekranda gösterme (UX iyileştirme)
