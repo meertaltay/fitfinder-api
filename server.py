@@ -675,7 +675,14 @@ def _shop(q, cc="tr", limit=6):
     try:
         d = GoogleSearch({"engine": "google_shopping", "q": q, "gl": cfg["gl"], "hl": cfg["hl"], "api_key": SERPAPI_KEY}).get_dict()
         for item in d.get("shopping_results", []):
-            lnk = item.get("product_link") or item.get("link", "")
+            # Prefer direct store link over Google Shopping comparison page
+            direct = item.get("link", "")
+            google_page = item.get("product_link", "")
+            # Use direct link if it's a real store URL (not google.com)
+            if direct and "google.com" not in direct:
+                lnk = direct
+            else:
+                lnk = google_page or direct
             ttl, src = item.get("title", ""), item.get("source", "")
             if not lnk or not ttl or lnk in seen or is_blocked(lnk): continue
             seen.add(lnk)
@@ -1271,33 +1278,85 @@ TRENDING_QUERIES = {
 }
 
 def _fetch_trending_products(lang="tr"):
-    """SerpAPI Shopping'den gerçek trending ürünleri çek."""
+    """Google organic + Shopping'den trending ürünleri çek — DOĞRUDAN MAĞAZA LİNKLERİ."""
     cc = "tr" if lang == "tr" else "us"
     cfg = get_country_config(cc)
     products = []
     queries = TRENDING_QUERIES.get(lang, TRENDING_QUERIES["en"])
     for q in queries:
         try:
+            # 1) Önce Shopping'den dene — direct link varsa al
             d = GoogleSearch({"engine": "google_shopping", "q": q, "gl": cfg["gl"], "hl": cfg["hl"], "api_key": SERPAPI_KEY, "num": 5}).get_dict()
-            for item in d.get("shopping_results", [])[:3]:  # İlk 3'e bak, en iyisini al
-                # link = doğrudan mağaza sayfası (en iyi)
-                # product_link = Google Shopping karşılaştırma sayfası (yine de ürünü gösterir)
+            found = False
+            for item in d.get("shopping_results", [])[:5]:
                 direct_link = item.get("link", "")
                 google_link = item.get("product_link", "")
-                best_link = direct_link or google_link
                 ttl = item.get("title", "")
                 src = item.get("source", "")
                 pr = item.get("price", str(item.get("extracted_price", "")))
                 thumb = item.get("thumbnail", "")
-                if ttl and thumb and best_link and not is_blocked(best_link):
+
+                # Google Shopping link'i filtrele — sadece DOĞRUDAN mağaza linki kabul et
+                # Google karşılaştırma sayfaları genelde google.com/shopping içerir
+                is_direct = direct_link and "google.com" not in direct_link and not is_blocked(direct_link)
+                best_link = direct_link if is_direct else ""
+
+                if ttl and thumb and best_link:
+                    best_link = localize_url(best_link, cc)
                     products.append({
                         "title": ttl[:40],
                         "brand": src,
-                        "img": thumb,  # Google Shopping thumbnail — Google CDN, always works
+                        "img": thumb,
                         "price": pr,
-                        "link": best_link,  # Mağaza sayfası veya Google Shopping ürün sayfası
+                        "link": make_affiliate(best_link),
                     })
+                    found = True
                     break
+
+            # 2) Shopping'de direkt link yoksa → Google organic'ten fashion domain'i bul
+            if not found:
+                d2 = GoogleSearch({"engine": "google", "q": q, "gl": cfg["gl"], "hl": cfg["hl"], "api_key": SERPAPI_KEY, "num": 5}).get_dict()
+
+                # Inline shopping'den dene
+                for item in d2.get("inline_shopping_results", [])[:3]:
+                    lnk = item.get("link", "")
+                    ttl = item.get("title", "")
+                    src = item.get("source", "")
+                    pr = item.get("price", item.get("extracted_price", ""))
+                    thumb = item.get("thumbnail", "")
+                    if lnk and ttl and thumb and not is_blocked(lnk) and is_fashion(lnk, ttl, src):
+                        lnk = localize_url(lnk, cc)
+                        products.append({
+                            "title": ttl[:40],
+                            "brand": get_brand(lnk, src) or src,
+                            "img": thumb,
+                            "price": str(pr) if pr else "",
+                            "link": make_affiliate(lnk),
+                        })
+                        found = True
+                        break
+
+                # Organic results'tan fashion domain bul
+                if not found:
+                    for item in d2.get("organic_results", [])[:5]:
+                        lnk = item.get("link", "")
+                        ttl = item.get("title", "")
+                        src = item.get("displayed_link", "")
+                        thumb = item.get("thumbnail", "")
+                        if lnk and ttl and not is_blocked(lnk) and is_fashion(lnk, ttl, src):
+                            lnk = localize_url(lnk, cc)
+                            # Organic'te fiyat snippet'ten çek
+                            snippet = item.get("snippet", "")
+                            pr_match = re.search(r'(\d[\d.,]+)\s*(?:TL|₺|\$|€|£)', snippet)
+                            products.append({
+                                "title": ttl[:40],
+                                "brand": get_brand(lnk, src) or src,
+                                "img": thumb or "",
+                                "price": pr_match.group(0) if pr_match else "",
+                                "link": make_affiliate(lnk),
+                            })
+                            break
+
         except Exception as e:
             print(f"Trending fetch err ({q}): {e}")
     return products
@@ -1385,7 +1444,7 @@ async def brand_logo(name: str = ""):
                     headers={"Cache-Control": "public, max-age=604800"})
 
 @app.get("/api/health")
-async def health(): return {"status": "ok", "version": "v42-logo-fix", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
+async def health(): return {"status": "ok", "version": "v42-optimized", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
 
 # ─── SESSION STORE (detect → search-piece) ───
 DETECT_SESSIONS = {}  # detect_id → {pieces, img_url, crop_data, cc, created_at}
