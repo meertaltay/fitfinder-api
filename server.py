@@ -570,11 +570,19 @@ async def process_auto_piece(p, img_obj, cc):
 
         async def do_rembg():
             if HAS_REMBG and cat in REMBG_CATS:
-                async with REMBG_SEM:
-                    clean = await asyncio.to_thread(remove_bg, cropped_bytes)
-                    print(f"  [{cat}] rembg OK ({len(clean)//1024}KB)")
-                    return clean
-            return cropped_bytes  # rembg yoksa veya kategori uygun değilse ham crop
+                try:
+                    async with REMBG_SEM:
+                        clean = await asyncio.wait_for(
+                            asyncio.to_thread(remove_bg, cropped_bytes),
+                            timeout=5.0
+                        )
+                        print(f"  [{cat}] rembg OK ({len(clean)//1024}KB)")
+                        return clean
+                except asyncio.TimeoutError:
+                    print(f"  [{cat}] rembg TIMEOUT 5s, using raw crop")
+                except Exception as e:
+                    print(f"  [{cat}] rembg ERR: {e}")
+            return cropped_bytes  # fallback: ham crop
 
         async def do_shop():
             if q:
