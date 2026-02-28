@@ -1246,14 +1246,14 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
 TRENDING = {
     "tr": {
         "brands": [
-            {"name": "Zara", "logo": "https://logo.clearbit.com/zara.com"},
-            {"name": "Bershka", "logo": "https://logo.clearbit.com/bershka.com"},
-            {"name": "Mango", "logo": "https://logo.clearbit.com/mango.com"},
-            {"name": "Nike", "logo": "https://logo.clearbit.com/nike.com"},
-            {"name": "Adidas", "logo": "https://logo.clearbit.com/adidas.com"},
-            {"name": "H&M", "logo": "https://logo.clearbit.com/hm.com"},
-            {"name": "Koton", "logo": "https://logo.clearbit.com/koton.com"},
-            {"name": "Pull&Bear", "logo": "https://logo.clearbit.com/pullandbear.com"},
+            {"name": "Zara", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://zara.com"},
+            {"name": "Bershka", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://bershka.com"},
+            {"name": "Mango", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://mango.com"},
+            {"name": "Nike", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://nike.com"},
+            {"name": "Adidas", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://adidas.com"},
+            {"name": "H&M", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://hm.com"},
+            {"name": "Koton", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://koton.com"},
+            {"name": "Pull&Bear", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://pullandbear.com"},
         ],
         "products": [
             {"title": "Oversize Deri Ceket", "brand": "Zara", "img": "https://static.zara.net/assets/public/1f0f/0f3d/0e0e4d43af98/a7fdb2a79f60/05479318800-e1/05479318800-e1.jpg", "price": "₺2.999", "link": "https://www.zara.com/tr/"},
@@ -1268,14 +1268,14 @@ TRENDING = {
     },
     "en": {
         "brands": [
-            {"name": "Zara", "logo": "https://logo.clearbit.com/zara.com"},
-            {"name": "Nike", "logo": "https://logo.clearbit.com/nike.com"},
-            {"name": "Adidas", "logo": "https://logo.clearbit.com/adidas.com"},
-            {"name": "H&M", "logo": "https://logo.clearbit.com/hm.com"},
-            {"name": "Mango", "logo": "https://logo.clearbit.com/mango.com"},
-            {"name": "Uniqlo", "logo": "https://logo.clearbit.com/uniqlo.com"},
-            {"name": "COS", "logo": "https://logo.clearbit.com/cosstores.com"},
-            {"name": "ASOS", "logo": "https://logo.clearbit.com/asos.com"},
+            {"name": "Zara", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://zara.com"},
+            {"name": "Nike", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://nike.com"},
+            {"name": "Adidas", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://adidas.com"},
+            {"name": "H&M", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://hm.com"},
+            {"name": "Mango", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://mango.com"},
+            {"name": "Uniqlo", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://uniqlo.com"},
+            {"name": "COS", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://cosstores.com"},
+            {"name": "ASOS", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://asos.com"},
         ],
         "products": [
             {"title": "Oversize Leather Jacket", "brand": "Zara", "img": "https://static.zara.net/assets/public/1f0f/0f3d/0e0e4d43af98/a7fdb2a79f60/05479318800-e1/05479318800-e1.jpg", "price": "$129", "link": "https://www.zara.com/us/"},
@@ -1634,15 +1634,29 @@ async def proxy_img(url: str = ""):
     url_hash = md5(url.encode()).hexdigest()
     if url_hash in IMG_CACHE:
         ct, data = IMG_CACHE[url_hash]
-        return Response(content=data, media_type=ct)
+        return Response(content=data, media_type=ct, headers={"Cache-Control": "public, max-age=86400"})
     try:
-        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-            r = await client.get(url, headers={"User-Agent": "Mozilla/5.0", "Referer": url})
-            if r.status_code == 200:
+        # Extract domain for Referer/Origin spoof
+        parsed = urllib.parse.urlparse(url)
+        origin = f"{parsed.scheme}://{parsed.netloc}"
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            r = await client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.8",
+                "Referer": origin + "/",
+                "Origin": origin,
+                "Sec-Fetch-Dest": "image",
+                "Sec-Fetch-Mode": "no-cors",
+                "Sec-Fetch-Site": "same-origin",
+            })
+            if r.status_code == 200 and len(r.content) > 100:
                 ct = r.headers.get("content-type", "image/jpeg")
-                IMG_CACHE[url_hash] = (ct, r.content)
-                return Response(content=r.content, media_type=ct)
-    except Exception: pass
+                if "image" in ct or "octet" in ct:
+                    IMG_CACHE[url_hash] = (ct, r.content)
+                    return Response(content=r.content, media_type=ct, headers={"Cache-Control": "public, max-age=86400"})
+    except Exception as e:
+        print(f"Proxy img err: {e}")
     return Response(content=b"", status_code=404)
 
 @app.get("/api/countries")
@@ -1818,20 +1832,20 @@ function loadTrending(){
   fetch('/api/trending?country='+getCC()).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var ts=document.getElementById('trendingSection');var h='';
+    function px(u){return'/api/img?url='+encodeURIComponent(u)}
     // Brands with logos
     if(d.brands&&d.brands.length){
       h+='<div class="sec-title">'+d.section_brands+'</div><div class="brand-grid">';
       for(var i=0;i<d.brands.length;i++){var b=d.brands[i];
-        h+='<div class="brand-chip"><div class="b-logo"><img src="'+b.logo+'" onerror="this.onerror=null;this.parentElement.innerHTML=\'<span style=font-size:20px;font-weight:800;color:var(--accent)>'+b.name.charAt(0)+'</span>\'"></div><div class="b-name">'+b.name+'</div></div>';}
+        h+='<div class="brand-chip"><div class="b-logo"><img src="'+b.logo+'" onerror="this.onerror=null;this.style.display=\'none\';this.parentElement.innerHTML=\'<span style=color:var(--accent);font-size:20px;font-weight:800>'+b.name.charAt(0)+'</span>\'"></div><div class="b-name">'+b.name+'</div></div>';}
       h+='</div>';
     }
-    // Trending products with proxied images
+    // Trending products
     if(d.products&&d.products.length){
       h+='<div class="sec-title">'+d.section_trending+'</div><div class="trend-scroll">';
       for(var i=0;i<d.products.length;i++){var p=d.products[i];
-        var imgUrl='/api/img?url='+encodeURIComponent(p.img);
         h+='<a href="'+p.link+'" target="_blank" rel="noopener" class="trend-card">';
-        h+='<img src="'+imgUrl+'" onerror="this.onerror=null;this.style.opacity=0">';
+        h+='<img src="'+px(p.img)+'" onerror="this.onerror=null;this.style.display=\'none\'">';
         h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price">'+p.price+'</div></div></a>';}
       h+='</div>';
     }
