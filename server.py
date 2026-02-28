@@ -8,6 +8,7 @@ import time
 import sys
 import uuid
 import httpx
+import html
 from hashlib import md5
 import urllib.parse
 from PIL import Image, ImageOps
@@ -1259,63 +1260,145 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
 
     return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q, "country": cc, "bg_removed": HAS_REMBG, "crop_image": crop_b64}
 
-# ─── TRENDING DATA (curated, update weekly) ───
-TRENDING = {
-    "tr": {
-        "brands": [
-            {"name": "Zara", "initial": "Z", "bg": "#000000"},
-            {"name": "Bershka", "initial": "B", "bg": "#1a1a1a"},
-            {"name": "Mango", "initial": "M", "bg": "#c8a265"},
-            {"name": "Nike", "initial": "N", "bg": "#111111"},
-            {"name": "Adidas", "initial": "A", "bg": "#000000"},
-            {"name": "H&M", "initial": "H", "bg": "#cc0000"},
-            {"name": "Koton", "initial": "K", "bg": "#2c2c2c"},
-            {"name": "Pull&Bear", "initial": "P", "bg": "#384030"},
-        ],
-        "products": [
-            {"title": "Oversize Suni Deri Ceket", "brand": "Zara", "img": "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300&h=400&fit=crop", "price": "₺2.599", "link": "https://www.trendyol.com/sr?q=zara+oversize+deri+ceket"},
-            {"title": "Varsity Bomber Ceket", "brand": "Bershka", "img": "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=300&h=400&fit=crop", "price": "₺1.799", "link": "https://www.trendyol.com/sr?q=bershka+varsity+ceket"},
-            {"title": "Air Force 1 '07", "brand": "Nike", "img": "https://images.unsplash.com/photo-1600269452121-4f2416e55c28?w=300&h=400&fit=crop", "price": "₺3.499", "link": "https://www.trendyol.com/sr?q=nike+air+force+1"},
-            {"title": "Samba OG", "brand": "Adidas", "img": "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=300&h=400&fit=crop", "price": "₺3.199", "link": "https://www.trendyol.com/sr?q=adidas+samba+og"},
-            {"title": "Wide Leg Jean", "brand": "Mango", "img": "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=300&h=400&fit=crop", "price": "₺1.299", "link": "https://www.trendyol.com/sr?q=mango+wide+leg+jean"},
-            {"title": "Basic Oversize Tişört", "brand": "Koton", "img": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&h=400&fit=crop", "price": "₺349", "link": "https://www.trendyol.com/sr?q=koton+oversize+tisort"},
-        ],
-        "section_brands": "🏷️ Popüler Markalar",
-        "section_trending": "🔥 Bu Hafta Trend",
-    },
-    "en": {
-        "brands": [
-            {"name": "Zara", "initial": "Z", "bg": "#000000"},
-            {"name": "Nike", "initial": "N", "bg": "#111111"},
-            {"name": "Adidas", "initial": "A", "bg": "#000000"},
-            {"name": "H&M", "initial": "H", "bg": "#cc0000"},
-            {"name": "Mango", "initial": "M", "bg": "#c8a265"},
-            {"name": "Uniqlo", "initial": "U", "bg": "#c41200"},
-            {"name": "COS", "initial": "C", "bg": "#1a1a1a"},
-            {"name": "ASOS", "initial": "A", "bg": "#2d2d2d"},
-        ],
-        "products": [
-            {"title": "Oversize Leather Jacket", "brand": "Zara", "img": "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300&h=400&fit=crop", "price": "$129", "link": "https://www.zara.com/us/"},
-            {"title": "Air Force 1 '07", "brand": "Nike", "img": "https://images.unsplash.com/photo-1600269452121-4f2416e55c28?w=300&h=400&fit=crop", "price": "$115", "link": "https://www.nike.com/"},
-            {"title": "Samba OG", "brand": "Adidas", "img": "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=300&h=400&fit=crop", "price": "$100", "link": "https://www.adidas.com/"},
-            {"title": "Wide Leg Jeans", "brand": "Mango", "img": "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=300&h=400&fit=crop", "price": "$59", "link": "https://shop.mango.com/us/"},
-            {"title": "Relaxed Fit Tee", "brand": "Uniqlo", "img": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&h=400&fit=crop", "price": "$15", "link": "https://www.uniqlo.com/us/"},
-            {"title": "Varsity Bomber", "brand": "H&M", "img": "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=300&h=400&fit=crop", "price": "$49", "link": "https://www2.hm.com/en_us/"},
-        ],
-        "section_brands": "🏷️ Popular Brands",
-        "section_trending": "🔥 Trending This Week",
-    },
+# ─── TRENDING DATA (dynamic + curated) ───
+TRENDING_CACHE = {}  # lang → {brands, products, ts}
+TRENDING_TTL = 86400  # 24 saat cache
+
+BRAND_DATA = {
+    "tr": [
+        {"name": "Zara", "domain": "zara.com", "q": "zara kıyafet"},
+        {"name": "Bershka", "domain": "bershka.com", "q": "bershka giyim"},
+        {"name": "Mango", "domain": "mango.com", "q": "mango kadın giyim"},
+        {"name": "Nike", "domain": "nike.com", "q": "nike ayakkabı"},
+        {"name": "Adidas", "domain": "adidas.com", "q": "adidas originals"},
+        {"name": "H&M", "domain": "hm.com", "q": "h&m giyim"},
+        {"name": "Koton", "domain": "koton.com", "q": "koton giyim"},
+        {"name": "Pull&Bear", "domain": "pullandbear.com", "q": "pull bear giyim"},
+    ],
+    "en": [
+        {"name": "Zara", "domain": "zara.com", "q": "zara clothing"},
+        {"name": "Nike", "domain": "nike.com", "q": "nike shoes"},
+        {"name": "Adidas", "domain": "adidas.com", "q": "adidas originals"},
+        {"name": "H&M", "domain": "hm.com", "q": "h&m clothing"},
+        {"name": "Mango", "domain": "mango.com", "q": "mango women clothing"},
+        {"name": "Uniqlo", "domain": "uniqlo.com", "q": "uniqlo basics"},
+        {"name": "COS", "domain": "cosstores.com", "q": "cos clothing"},
+        {"name": "ASOS", "domain": "asos.com", "q": "asos fashion"},
+    ],
 }
+
+TRENDING_QUERIES = {
+    "tr": [
+        "oversize deri ceket erkek",
+        "varsity bomber ceket",
+        "nike air force 1",
+        "adidas samba og",
+        "wide leg jean kadın",
+        "oversize tişört",
+    ],
+    "en": [
+        "oversized leather jacket",
+        "varsity bomber jacket",
+        "nike air force 1",
+        "adidas samba og",
+        "wide leg jeans women",
+        "oversized tee",
+    ],
+}
+
+def _fetch_trending_products(lang="tr"):
+    """SerpAPI Shopping'den gerçek trending ürünleri çek."""
+    cc = "tr" if lang == "tr" else "us"
+    cfg = get_country_config(cc)
+    products = []
+    queries = TRENDING_QUERIES.get(lang, TRENDING_QUERIES["en"])
+    for q in queries:
+        try:
+            d = GoogleSearch({"engine": "google_shopping", "q": q, "gl": cfg["gl"], "hl": cfg["hl"], "api_key": SERPAPI_KEY, "num": 5}).get_dict()
+            for item in d.get("shopping_results", [])[:3]:  # İlk 3'e bak, en iyisini al
+                # link = doğrudan mağaza sayfası (en iyi)
+                # product_link = Google Shopping karşılaştırma sayfası (yine de ürünü gösterir)
+                direct_link = item.get("link", "")
+                google_link = item.get("product_link", "")
+                best_link = direct_link or google_link
+                ttl = item.get("title", "")
+                src = item.get("source", "")
+                pr = item.get("price", str(item.get("extracted_price", "")))
+                thumb = item.get("thumbnail", "")
+                if ttl and thumb and best_link and not is_blocked(best_link):
+                    products.append({
+                        "title": ttl[:40],
+                        "brand": src,
+                        "img": thumb,  # Google Shopping thumbnail — Google CDN, always works
+                        "price": pr,
+                        "link": best_link,  # Mağaza sayfası veya Google Shopping ürün sayfası
+                    })
+                    break
+        except Exception as e:
+            print(f"Trending fetch err ({q}): {e}")
+    return products
+
+def _get_trending(lang="tr"):
+    """Trending data al — cache varsa cache'den, yoksa SerpAPI'den çek."""
+    now = time.time()
+    cached = TRENDING_CACHE.get(lang)
+    if cached and (now - cached["ts"]) < TRENDING_TTL:
+        return cached
+
+    brands = BRAND_DATA.get(lang, BRAND_DATA["en"])
+    labels = {"tr": ("🏷️ Popüler Markalar", "🔥 Bu Hafta Trend"), "en": ("🏷️ Popular Brands", "🔥 Trending This Week")}
+    lb = labels.get(lang, labels["en"])
+
+    # SerpAPI'den gerçek ürünleri çek
+    products = _fetch_trending_products(lang)
+    if not products:
+        # Fallback — SerpAPI yoksa boş göster
+        products = []
+
+    data = {
+        "brands": brands,
+        "products": products,
+        "section_brands": lb[0],
+        "section_trending": lb[1],
+        "ts": now,
+    }
+    TRENDING_CACHE[lang] = data
+    print(f"🔥 Trending refreshed ({lang}): {len(products)} products, {len(brands)} brands")
+    return data
 
 CC_LANG_MAP = {"tr": "tr", "us": "en", "uk": "en", "de": "en", "fr": "en", "sa": "en", "ae": "en", "eg": "en"}
 
 @app.get("/api/trending")
-async def trending(country: str = "tr"):
+async def trending(country: str = "tr", refresh: bool = False):
     cc = country.lower()
     lang = CC_LANG_MAP.get(cc, "en")
-    data = TRENDING.get(lang, TRENDING["en"])
+    if refresh:
+        TRENDING_CACHE.pop(lang, None)  # Cache temizle
+    data = _get_trending(lang)
     return {"success": True, "brands": data["brands"], "products": data["products"],
             "section_brands": data["section_brands"], "section_trending": data["section_trending"]}
+
+# ─── BRAND LOGO SVG ENDPOINT ───
+@app.get("/api/logo")
+async def brand_logo(name: str = ""):
+    """Marka adından SVG logo üret."""
+    if not name: return Response(content=b"", status_code=400)
+    safe_name = html.escape(name.upper())  # & → &amp; for XML
+    # Her marka için distinctive renk (dark bg'de görünür olmalı!)
+    colors = {"zara": "#ffffff", "bershka": "#a8d8a8", "mango": "#c8a265", "nike": "#ffffff",
+              "adidas": "#ffffff", "h&m": "#cc0000", "koton": "#8a9a8a", "pull&bear": "#7a9a6a",
+              "uniqlo": "#c41200", "cos": "#ffffff", "asos": "#b8b8b8"}
+    text_color = colors.get(name.lower(), "#e0e0e0")
+    # Font boyutu marka uzunluğuna göre ayarla
+    fs = 16 if len(name) <= 4 else (12 if len(name) <= 6 else 9)
+    svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
+  <rect width="80" height="80" rx="14" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+  <text x="40" y="44" text-anchor="middle" dominant-baseline="middle"
+    fill="{text_color}" font-family="system-ui,-apple-system,sans-serif"
+    font-size="{fs}" font-weight="800" letter-spacing="1">{safe_name}</text>
+</svg>'''
+    return Response(content=svg.encode(), media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=604800"})
 
 @app.get("/api/health")
 async def health(): return {"status": "ok", "version": "v41-auto-stacked", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
@@ -1746,13 +1829,15 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .brand-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:28px}
 .brand-chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 6px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s}
 .brand-chip:hover,.brand-chip:active{border-color:var(--accent);transform:scale(1.04)}
-.brand-chip .b-logo{width:44px;height:44px;border-radius:12px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.brand-chip .b-logo span{font-size:20px;font-weight:800;color:#fff;letter-spacing:-1px}
+.brand-chip .b-logo{width:48px;height:48px;border-radius:12px;margin:0 auto 6px;display:block}
 .brand-chip .b-name{font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trend-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:28px}
 .trend-card{flex-shrink:0;width:150px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s}
 .trend-card:hover{border-color:var(--accent)}
-.trend-card img{width:150px;height:170px;object-fit:cover;display:block;background:#1a1a1a}
+.trend-card .tc-img{width:150px;height:170px;overflow:hidden;background:#1a1a1a;display:flex;align-items:center;justify-content:center}
+.trend-card .tc-img img{width:100%;height:100%;object-fit:cover;display:block}
+.trend-card .tc-img.no-img{background:linear-gradient(135deg,#1a1a1a,#2a2a2a)}
+.trend-card .tc-img.no-img img{display:none}
 .trend-card .tc-info{padding:10px}
 .trend-card .tc-title{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trend-card .tc-brand{font-size:9px;color:var(--muted);margin-top:2px}
@@ -1856,19 +1941,19 @@ function loadTrending(){
   fetch('/api/trending?country='+getCC()).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var ts=document.getElementById('trendingSection');var h='';
-    // Brands with styled initials
+    // Brands with SVG logos from server
     if(d.brands&&d.brands.length){
       h+='<div class="sec-title">'+d.section_brands+'</div><div class="brand-grid">';
       for(var i=0;i<d.brands.length;i++){var b=d.brands[i];
-        h+='<div class="brand-chip"><div class="b-logo" style="background:'+b.bg+'"><span>'+b.initial+'</span></div><div class="b-name">'+b.name+'</div></div>';}
+        h+='<div class="brand-chip"><img class="b-logo" src="/api/logo?name='+encodeURIComponent(b.name)+'"><div class="b-name">'+b.name+'</div></div>';}
       h+='</div>';
     }
-    // Trending products
+    // Trending products with real images from SerpAPI
     if(d.products&&d.products.length){
       h+='<div class="sec-title">'+d.section_trending+'</div><div class="trend-scroll">';
       for(var i=0;i<d.products.length;i++){var p=d.products[i];
         h+='<a href="'+p.link+'" target="_blank" rel="noopener" class="trend-card">';
-        h+='<img src="'+p.img+'" onerror="this.onerror=null;this.style.display=\'none\'">';
+        h+='<div class="tc-img"><img src="'+p.img+'" onerror="this.onerror=null;this.parentElement.classList.add(\'no-img\')"></div>';
         h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price">'+p.price+'</div></div></a>';}
       h+='</div>';
     }
