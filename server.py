@@ -44,7 +44,7 @@ except ImportError:
 app = FastAPI(title="FitFinder API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-API_SEM = asyncio.Semaphore(5)  # v39: more parallel API calls (Lens + Shopping + Google Organic)
+API_SEM = asyncio.Semaphore(6)  # v40: 3 Lens calls + Shopping + Google Organic
 REMBG_SEM = asyncio.Semaphore(2)  # 8GB RAM → 2 paralel rembg güvenli
 
 _CACHE = {}
@@ -536,14 +536,20 @@ Return ONLY valid JSON array:
     return None
 
 DUPE_SITES = ["shein.", "temu.", "aliexpress.", "alibaba.", "cider.", "dhgate.", "wish.", "romwe.", "patpat."]
-def _lens(url, cc="tr"):
+
+def _lens(url, cc="tr", lens_type="all"):
+    """Google Lens API. lens_type: 'all', 'exact_matches', 'visual_matches', 'products'"""
     cfg = get_country_config(cc)
     res, seen = [], set()
     try:
-        d = GoogleSearch({"engine": "google_lens", "url": url, "api_key": SERPAPI_KEY, "hl": cfg["hl"], "country": cfg["gl"]}).get_dict()
+        params = {"engine": "google_lens", "url": url, "api_key": SERPAPI_KEY,
+                  "hl": cfg["hl"], "country": cfg["gl"]}
+        if lens_type != "all":
+            params["type"] = lens_type
 
-        # 1) EXACT MATCHES — "Tam eşleşmeler" = aynı fotoğraf web'de bulundu (Bershka, Trendyol vs.)
-        #    Bu sonuçlar EN GÜVENİLİR — birebir aynı ürün!
+        d = GoogleSearch(params).get_dict()
+
+        # 1) EXACT MATCHES — "Tam eşleşmeler" = aynı fotoğraf web'de bulundu
         for m in d.get("exact_matches", []):
             lnk = m.get("link", "")
             ttl = m.get("title", m.get("source", ""))
@@ -554,14 +560,15 @@ def _lens(url, cc="tr"):
             if not ttl: ttl = src or lnk
             pr = m.get("price", {})
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
-                "link": make_affiliate(lnk), "price": pr.get("value", "") if isinstance(pr, dict) else str(pr),
+                "link": make_affiliate(lnk),
+                "price": pr.get("value", "") if isinstance(pr, dict) else str(pr) if pr else "",
                 "thumbnail": m.get("thumbnail", ""), "image": m.get("image", ""),
                 "is_local": is_local(lnk, src, cfg), "ai_verified": True, "_exact": True})
         exact_count = len(res)
         if exact_count > 0:
-            print(f"  Lens EXACT matches: {exact_count}")
-            for r in res[:3]:
-                print(f"    ✅ {r['title'][:50]} | {r['source']}")
+            print(f"  Lens EXACT matches ({lens_type}): {exact_count}")
+            for r in res[:5]:
+                print(f"    ✅ {r['title'][:60]} | {r['source']}")
 
         # 2) VISUAL MATCHES — benzer görünen ürünler
         for m in d.get("visual_matches", []):
@@ -571,25 +578,25 @@ def _lens(url, cc="tr"):
             seen.add(lnk)
             pr = m.get("price", {})
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
-                "link": make_affiliate(lnk), "price": pr.get("value", "") if isinstance(pr, dict) else str(pr),
+                "link": make_affiliate(lnk),
+                "price": pr.get("value", "") if isinstance(pr, dict) else str(pr) if pr else "",
                 "thumbnail": m.get("thumbnail", ""), "image": m.get("image", ""),
                 "is_local": is_local(lnk, src, cfg)})
             if len(res) >= 25: break
 
     except Exception as e:
-        print(f"Lens err: {e}")
+        print(f"Lens err ({lens_type}): {e}")
 
     def score(r):
         s = 0
-        if r.get("_exact"): s += 100  # Exact matches ALWAYS on top
-        if r["price"]: s += 10
-        if r["is_local"]: s += 5
-        c = (r["link"] + " " + r["source"]).lower()
+        if r.get("_exact"): s += 100
+        if r.get("price"): s += 10
+        if r.get("is_local"): s += 5
+        c = (r.get("link", "") + " " + r.get("source", "")).lower()
         if any(d in c for d in FASHION_DOMAINS): s += 3
         if any(d in c for d in DUPE_SITES): s -= 50
         return -s
     res.sort(key=score)
-    # Keep _exact flag for downstream scoring (cleaned later)
     return res
 
 def _shop(q, cc="tr", limit=6):
@@ -820,34 +827,44 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 return await asyncio.to_thread(_google_organic, q, cc, limit)
 
         async def do_piece_lens(crop_bytes):
-            """Upload crop → Lens. Simple, no rembg."""
+            """Upload crop → Lens VISUAL matches (similar looking products)."""
             url = await upload_img(crop_bytes)
             if url:
                 async with API_SEM:
-                    results = await asyncio.to_thread(_lens, url, cc)
-                    return results
+                    return await asyncio.to_thread(_lens, url, cc, "visual_matches")
             return []
 
-        async def do_full_lens():
-            """Full image Lens as backup."""
+        async def do_full_lens_exact():
+            """Full image → Lens EXACT matches (same photo found on Bershka, Instagram etc.)."""
             if img_url:
                 async with API_SEM:
-                    return await asyncio.to_thread(_lens, img_url, cc)
+                    return await asyncio.to_thread(_lens, img_url, cc, "exact_matches")
+            return []
+
+        async def do_full_lens_visual():
+            """Full image → Lens VISUAL matches (backup — similar products)."""
+            if img_url:
+                async with API_SEM:
+                    return await asyncio.to_thread(_lens, img_url, cc, "visual_matches")
             return []
 
         # Build ALL tasks
         tasks = []
         task_map = []  # (type, piece_idx, extra_info)
 
-        # Per-piece Lens (MOST IMPORTANT — like user tapping on piece in Google Lens)
+        # 🏆 FULL IMAGE EXACT MATCHES — This is what Google Lens app does!
+        # Same photo on Bershka.com, Instagram etc. = birebir aynı ürün
+        tasks.append(do_full_lens_exact())
+        task_map.append(("full_lens_exact", -1, None))
+
+        # Per-piece Lens VISUAL (crop → similar products)
         for piece_idx, crop_bytes in crop_tasks:
             tasks.append(do_piece_lens(crop_bytes))
             task_map.append(("piece_lens", piece_idx, None))
 
-        # Full image Lens (backup)
-        full_lens_idx = len(tasks)
-        tasks.append(do_full_lens())
-        task_map.append(("full_lens", -1, None))
+        # Full image Lens VISUAL (backup — distribute by keyword)
+        tasks.append(do_full_lens_visual())
+        task_map.append(("full_lens_visual", -1, None))
 
         # Shopping
         shop_start_idx = len(tasks)
@@ -874,17 +891,47 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
         for task_idx, (task_type, piece_idx, extra) in enumerate(task_map):
             results = all_results[task_idx] if task_idx < len(all_results) else []
 
-            if task_type == "piece_lens":
-                # Per-piece Lens results go directly to that piece
+            if task_type == "full_lens_exact":
+                # 🏆 EXACT matches from full image — distribute to pieces by keyword
+                # These are THE BEST results (same photo found on Bershka.com etc.)
+                if results:
+                    exact_matches = match_lens_to_pieces(results, pieces)
+                    for i in range(len(pieces)):
+                        for r in exact_matches.get(i, []):
+                            link = r.get("link", "")
+                            if link not in seen_per_piece[i]:
+                                seen_per_piece[i].add(link)
+                                piece_lens[i].append(r)
+                    # Also: unmatched exact results go to ALL pieces (they're too good to lose)
+                    matched_links = set()
+                    for i in range(len(pieces)):
+                        for r in exact_matches.get(i, []):
+                            matched_links.add(r.get("link", ""))
+                    for r in results:
+                        link = r.get("link", "")
+                        if link not in matched_links:
+                            # Give to the first piece that doesn't have it
+                            for i in range(len(pieces)):
+                                if link not in seen_per_piece[i]:
+                                    seen_per_piece[i].add(link)
+                                    piece_lens[i].append(r)
+                                    break
+                    exact_total = sum(len(v) for v in exact_matches.values())
+                    print(f"  🏆 Full EXACT Lens: {len(results)} results → {exact_total} matched to pieces")
+                    for r in results[:5]:
+                        print(f"    ✅ {r.get('title','')[:60]} | {r.get('source','')} | exact={r.get('_exact',False)}")
+
+            elif task_type == "piece_lens":
+                # Per-piece Lens VISUAL results go directly to that piece
                 for r in results:
                     link = r.get("link", "")
                     if link not in seen_per_piece[piece_idx]:
                         seen_per_piece[piece_idx].add(link)
                         piece_lens[piece_idx].append(r)
-                print(f"  [{pieces[piece_idx].get('category')}] Piece Lens: {len(results)} results")
+                print(f"  [{pieces[piece_idx].get('category')}] Piece Lens visual: {len(results)} results")
 
-            elif task_type == "full_lens":
-                # Full Lens — distribute by keyword matching (backup)
+            elif task_type == "full_lens_visual":
+                # Full Lens VISUAL — distribute by keyword matching (backup)
                 full_lens_matches = match_lens_to_pieces(results, pieces)
                 for i in range(len(pieces)):
                     for r in full_lens_matches.get(i, []):
@@ -892,7 +939,7 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                         if link not in seen_per_piece[i]:
                             seen_per_piece[i].add(link)
                             piece_lens[i].append(r)
-                print(f"  Full Lens: {len(results)} results (backup, distributed)")
+                print(f"  Full Lens visual: {len(results)} results (backup)")
 
             elif task_type == "shop":
                 for r in results:
