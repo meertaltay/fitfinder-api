@@ -156,6 +156,137 @@ def filter_by_category(results, cat):
         if matched: filtered.append(r)
     return filtered
 
+# 🕵️ STRATEJİ 1: PARMAK İZİ PUANLAMA (Fingerprint Scoring)
+def score_by_fingerprint(results, fingerprint, brand="", visible_text=""):
+    """Her sonucu parmak izi detaylarına göre puanla. Daha çok detay eşleşen = daha üst sıra."""
+    if not fingerprint and not brand and not visible_text:
+        return results
+
+    scored = []
+    for r in results:
+        title_lower = r.get("title", "").lower()
+        link_lower = (r.get("link", "") + " " + r.get("source", "")).lower()
+        combined_text = title_lower + " " + link_lower
+        fp_score = 0
+
+        # Parmak izi eşleştirme (her detay +3 puan)
+        if fingerprint:
+            for detail in fingerprint:
+                if not detail: continue
+                # Her detayı kelimelere böl, en az 1 kelime eşleşirse puan ver
+                words = [w.strip().lower() for w in detail.split() if len(w) > 2]
+                matched_words = sum(1 for w in words if w in combined_text)
+                if matched_words >= 1:
+                    fp_score += 3
+                if matched_words >= 2:
+                    fp_score += 2  # Bonus: 2+ kelime eşleşti
+
+        # 🔍 OCR text eşleştirme (+10 puan — çok güçlü sinyal)
+        if visible_text and visible_text.lower() not in ["none", "?", ""]:
+            for vt in visible_text.lower().split():
+                if len(vt) > 2 and vt in combined_text:
+                    fp_score += 10
+                    break
+
+        # Marka eşleştirme (+8 puan)
+        if brand and brand != "?" and len(brand) > 2:
+            if brand.lower() in combined_text:
+                fp_score += 8
+
+        r_copy = r.copy()
+        r_copy["_fp_score"] = fp_score
+        scored.append(r_copy)
+
+    # Yüksek parmak izi puanı olan üste
+    scored.sort(key=lambda x: -x.get("_fp_score", 0))
+    return scored
+
+# 🎯 STRATEJİ 2: VENN ŞEMASI (Çapraz Doğrulama)
+def venn_intersect_boost(shop_res, lens_res):
+    """Hem Lens hem Shopping'de bulunan ürünler = BİREBİR EŞLEŞME → zirveye taşı!"""
+    # Her iki listeden domain+title fingerprint oluştur
+    def make_fingerprint(r):
+        """URL domain + title'dan benzersiz parmak izi"""
+        try:
+            domain = urllib.parse.urlparse(r.get("link", "")).netloc.replace("www.", "")
+        except:
+            domain = ""
+        # Title'ın ilk 5 kelimesi (normalize)
+        title_words = re.sub(r'[^\w\s]', '', r.get("title", "").lower()).split()[:5]
+        return domain + ":" + " ".join(title_words)
+
+    # Shop fingerprint seti
+    shop_fps = {}
+    for r in shop_res:
+        fp = make_fingerprint(r)
+        shop_fps[fp] = r
+
+    # Lens'te olanları kontrol et
+    intersection = []
+    lens_only = []
+    for r in lens_res:
+        fp = make_fingerprint(r)
+        if fp in shop_fps:
+            r_copy = r.copy()
+            r_copy["_venn_match"] = True
+            r_copy["ai_verified"] = True  # Çapraz doğrulanmış!
+            intersection.append(r_copy)
+        else:
+            lens_only.append(r)
+
+    # Ayrıca title benzerliği ile de kontrol et (fuzzy match)
+    shop_titles = set()
+    for r in shop_res:
+        words = set(re.sub(r'[^\w\s]', '', r.get("title", "").lower()).split())
+        words = {w for w in words if len(w) > 3}
+        if words: shop_titles.add(frozenset(words))
+
+    for r in lens_only[:]:  # Copy iterate
+        words = set(re.sub(r'[^\w\s]', '', r.get("title", "").lower()).split())
+        words = {w for w in words if len(w) > 3}
+        if words:
+            for st in shop_titles:
+                overlap = len(words & st) / max(len(words | st), 1)
+                if overlap >= 0.4:  # %40+ kelime örtüşmesi
+                    r_copy = r.copy()
+                    r_copy["_venn_match"] = True
+                    intersection.append(r_copy)
+                    lens_only.remove(r)
+                    break
+
+    return intersection, lens_only
+
+# 🔍 STRATEJİ 4: OCR ARAMA SORGUSU OLUŞTURUCU
+def build_ocr_query(brand, visible_text, color, category, lang_cfg):
+    """Görünür metin + marka varsa agresif bir 2. arama sorgusu oluştur."""
+    parts = []
+
+    # Marka varsa mutlaka ekle
+    if brand and brand != "?" and len(brand) > 1:
+        parts.append(brand)
+
+    # OCR text varsa ekle (logo, yazı)
+    if visible_text and visible_text.lower() not in ["none", "?", "", "yok"]:
+        # Sadece anlamlı kelimeleri al
+        for word in visible_text.split():
+            clean = re.sub(r'[^\w]', '', word)
+            if len(clean) > 1 and clean.lower() not in ["none", "yok"]:
+                parts.append(clean)
+                break  # En önemli 1 kelime yeter
+
+    # Renk + kategori
+    if color and color.lower() not in ["?", ""]:
+        parts.append(color)
+
+    cat_names = {"hat": "şapka", "sunglasses": "güneş gözlüğü", "jacket": "ceket", "top": "üst",
+        "bottom": "pantolon", "dress": "elbise", "shoes": "ayakkabı", "bag": "çanta",
+        "watch": "saat", "scarf": "atkı", "accessory": "aksesuar"}
+    if category in cat_names:
+        parts.append(cat_names.get(category, category))
+
+    query = " ".join(parts).strip()
+    return query if len(query) > 4 else ""
+
 async def upload_img(img_bytes):
     async with httpx.AsyncClient(timeout=30) as c:
         if IMGUR_CLIENT_ID:
@@ -307,29 +438,32 @@ async def claude_detect(img_b64, cc="tr"):
         try:
             r = await c.post("https://api.anthropic.com/v1/messages",
                 headers={"Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
-                json={"model": CLAUDE_MODEL, "max_tokens": 1500,
+                json={"model": CLAUDE_MODEL, "max_tokens": 2000,
                     "messages": [{"role": "user", "content": [
                         {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
-                        {"type": "text", "text": f"""Analyze clearly visible clothing items and accessories.
+                        {"type": "text", "text": f"""You are an expert fashion detective. Analyze EVERY visible clothing item and accessory.
 Gender: "{g_m}" (male) or "{g_f}" (female).
 
-CRITICAL RULES:
-1. ONLY list items you are 100% SURE the person is wearing.
+RULES:
+1. ONLY items you are 100% SURE the person is wearing (30%+ visible).
 2. A collar/lining peeking under a jacket is NOT a separate piece.
-3. If less than 30% visible, do NOT list it.
-4. Read ALL visible text, logos.
 
-For each item:
+🔍 AGGRESSIVE OCR: Zoom into EVERY text, logo, label, embroidery, print on each item. Even tiny 2cm text on a pocket, sole, or tag. This is CRITICAL for exact matching.
+
+🕵️ FINGERPRINT: For each item, identify 3 UNIQUE details that distinguish it from similar items (zipper style, collar type, pattern, stitching, button shape, pocket design, sole pattern, buckle type etc.)
+
+For each item return:
 - category: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
 - short_title: 2-4 word {lang} name
 - color: in {lang}
-- brand: Guess if obvious. Else "?"
-- visible_text: Readable text/logos
-- box_2d: [ymin, xmin, ymax, xmax] bounding box as PERCENTAGES (0.0 to 100.0). MUST encompass the whole item!
-- search_query: 4-6 word SPECIFIC {lang} query.
+- brand: Read logos/text carefully. Guess if obvious. Else "?"
+- visible_text: ALL readable text, logos, numbers on this item (be aggressive, zoom in!)
+- fingerprint: exactly 3 unique distinguishing micro-details in English (e.g. ["asymmetric silver zipper", "quilted diamond shoulders", "snap-button mandarin collar"])
+- box_2d: [ymin, xmin, ymax, xmax] as PERCENTAGES (0.0-100.0). MUST cover the WHOLE item generously!
+- search_query: 6-8 word ULTRA-SPECIFIC {lang} shopping query. MUST include: gender + brand (if known) + color + material + distinguishing detail. Example: "erkek Nike siyah deri asimetrik fermuarlı bomber ceket"
 
 Return ONLY valid JSON array:
-[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","box_2d":[0.0,0.0,100.0,100.0],"search_query":""}}]"""}
+[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","fingerprint":["","",""],"box_2d":[0.0,0.0,100.0,100.0],"search_query":""}}]"""}
                     ]}]})
             data = r.json()
             if "error" in data:
@@ -397,6 +531,8 @@ REMBG_CATS = {"jacket", "top", "bottom", "dress"}  # Only cloth items get rembg 
 async def process_auto_piece(p, img_obj, cc):
     cat, box, q, brand = p.get("category", ""), p.get("box_2d"), p.get("search_query", ""), p.get("brand", "")
     color, short_title = p.get("color", ""), p.get("short_title", cat.title())
+    visible_text = p.get("visible_text", "")
+    fingerprint = p.get("fingerprint", [])  # 🕵️ Mikro-detay parmak izi
 
     try:
         # Step 1: Crop from high-res image
@@ -404,7 +540,7 @@ async def process_auto_piece(p, img_obj, cc):
         if box and isinstance(box, list) and len(box) == 4:
             cropped_bytes = await asyncio.to_thread(crop_piece, img_obj, box)
 
-        # 🌟 Crop preview for UI (user can see what AI cropped)
+        # 🌟 Crop preview for UI
         crop_b64 = ""
         if cropped_bytes:
             try:
@@ -415,7 +551,10 @@ async def process_auto_piece(p, img_obj, cc):
                 crop_b64 = "data:image/jpeg;base64," + base64.b64encode(t_buf.getvalue()).decode()
             except Exception: pass
 
-        # Step 2: Upload crop + Shopping in PARALLEL (no rembg, no rerank)
+        # Step 2: Upload crop + Shopping + OCR Shopping → ALL PARALLEL
+        # 🔍 STRATEJİ 4: OCR Agresif Arama (visible_text varsa 2. sorgu)
+        ocr_q = build_ocr_query(brand, visible_text, color, cat, get_country_config(cc))
+
         async def do_upload():
             return await upload_img(cropped_bytes) if cropped_bytes else None
         async def do_shop():
@@ -423,8 +562,24 @@ async def process_auto_piece(p, img_obj, cc):
                 async with API_SEM:
                     return await asyncio.to_thread(_shop, q, cc, 8)
             return []
+        async def do_ocr_shop():
+            if ocr_q and ocr_q != q:  # Farklı bir sorgu ise 2. arama yap
+                async with API_SEM:
+                    return await asyncio.to_thread(_shop, ocr_q, cc, 4)
+            return []
 
-        url, shop_res = await asyncio.gather(do_upload(), do_shop())
+        url, shop_res, ocr_shop_res = await asyncio.gather(
+            do_upload(), do_shop(), do_ocr_shop()
+        )
+
+        # OCR sonuçlarını ana shop'a ekle (dedup)
+        shop_links = {r["link"] for r in shop_res}
+        for r in ocr_shop_res:
+            if r["link"] not in shop_links:
+                shop_res.append(r)
+                shop_links.add(r["link"])
+
+        print(f"  [{cat}] Shop:{len(shop_res)} (ocr_q='{ocr_q}')")
 
         # Step 3: Lens on cropped image
         lens_res = []
@@ -434,7 +589,7 @@ async def process_auto_piece(p, img_obj, cc):
                     lens_res = await asyncio.to_thread(_lens, url, cc)
                 # 🛡️ DEMİR KUBBE AKTİF!
                 lens_res = filter_by_category(lens_res, cat)
-                print(f"  [{cat}] Lens:{len(lens_res)} Shop:{len(shop_res)}")
+                print(f"  [{cat}] Lens:{len(lens_res)} (after filter)")
             except Exception: pass
 
         # Step 4: Brand filter
@@ -442,15 +597,43 @@ async def process_auto_piece(p, img_obj, cc):
             lens_res = filter_rival_brands(lens_res, brand)
             shop_res = filter_rival_brands(shop_res, brand)
 
-        # Step 5: Combine — Shop first (text=reliable), Lens second (visual)
+        # 🎯 STRATEJİ 2: VENN ŞEMASI — Çapraz doğrulama
+        venn_matches, lens_only = venn_intersect_boost(shop_res, lens_res)
+        if venn_matches:
+            print(f"  [{cat}] 🎯 VENN: {len(venn_matches)} cross-validated matches!")
+
+        # 🕵️ STRATEJİ 1: PARMAK İZİ PUANLAMA
+        # Shop sonuçlarını parmak izine göre puanla
+        shop_scored = score_by_fingerprint(shop_res, fingerprint, brand, visible_text)
+        lens_scored = score_by_fingerprint(lens_only, fingerprint, brand, visible_text)
+
+        # Step 5: Akıllı birleştirme — Venn > Fingerprint-Shop > Fingerprint-Lens
         seen, combined = set(), []
-        for x in shop_res + lens_res:
+
+        # Önce: Çapraz doğrulanmış ürünler (HEM Lens HEM Shopping'de)
+        for x in venn_matches:
             if x["link"] not in seen:
                 seen.add(x["link"]); combined.append(x)
 
+        # Sonra: Parmak izi puanına göre sıralı Shop sonuçları
+        for x in shop_scored:
+            if x["link"] not in seen:
+                seen.add(x["link"]); combined.append(x)
+
+        # En son: Parmak izi puanına göre sıralı Lens sonuçları
+        for x in lens_scored:
+            if x["link"] not in seen:
+                seen.add(x["link"]); combined.append(x)
+
+        # Cleanup: _fp_score'u kaldır (frontend'e gitmemeli)
+        for x in combined:
+            x.pop("_fp_score", None)
+            x.pop("_venn_match", None)
+
         return {
             "category": cat, "short_title": short_title, "color": color,
-            "brand": brand if brand != "?" else "", "visible_text": p.get("visible_text", ""),
+            "brand": brand if brand != "?" else "", "visible_text": visible_text,
+            "fingerprint": fingerprint,
             "products": combined[:8], "lens_count": len(lens_res), "has_crop": cropped_bytes is not None,
             "crop_image": crop_b64
         }
@@ -458,7 +641,7 @@ async def process_auto_piece(p, img_obj, cc):
         print(f"  [{cat}] FAILED: {e}")
         return {
             "category": cat, "short_title": short_title, "color": color,
-            "brand": brand if brand != "?" else "", "visible_text": p.get("visible_text", ""),
+            "brand": brand if brand != "?" else "", "visible_text": visible_text,
             "products": [], "lens_count": 0, "has_crop": False, "crop_image": ""
         }
 
@@ -761,6 +944,7 @@ function renderAuto(d){
     h+='<div><span class="p-title">'+(p.short_title||p.category)+'</span>';
     if(p.brand&&p.brand!=='?')h+='<span class="p-brand">'+p.brand+'</span>';
     var vt=p.visible_text||'';if(vt&&vt.toLowerCase()!=='none')h+='<div style="font-size:10px;color:var(--accent);font-style:italic;margin-top:2px">"'+vt+'"</div>';
+    var fp=p.fingerprint||[];if(fp.length>0){h+='<div style="font-size:9px;color:var(--dim);margin-top:3px">';for(var fi=0;fi<fp.length;fi++){if(fp[fi])h+=(fi>0?' · ':'')+fp[fi]}h+='</div>'}
     if(lc>0)h+='<div style="font-size:9px;color:var(--green);margin-top:1px">\u{1F3AF} '+lc+' '+t('lensMatch')+'</div>';
     h+='</div></div>';
     if(!hero){h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">'+t('noProd')+'</div></div>';continue}
