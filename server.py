@@ -40,7 +40,7 @@ app = FastAPI(title="FitFinder API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 API_SEM = asyncio.Semaphore(3)
-REMBG_SEM = asyncio.Semaphore(2)  # Max 2 paralel rembg (RAM güvenliği)
+REMBG_SEM = asyncio.Semaphore(1)  # Max 1 rembg (her biri ~500MB RAM, Railway 512MB)
 
 _CACHE = {}
 CACHE_TTL = 3600
@@ -748,7 +748,7 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
         print(f"Claude: {len(pieces)} pieces detected")
 
         # Process up to 5 pieces in parallel (no rembg/rerank = stays well under 30s)
-        tasks = [process_auto_piece(p, img_obj, cc) for p in pieces[:4]]
+        tasks = [process_auto_piece(p, img_obj, cc) for p in pieces[:3]]
         results = list(await asyncio.gather(*tasks))
 
         # Ürün bulunamayan parçaları ekranda gösterme (UX iyileştirme)
