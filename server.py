@@ -44,7 +44,7 @@ except ImportError:
 app = FastAPI(title="FitFinder API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-API_SEM = asyncio.Semaphore(3)
+API_SEM = asyncio.Semaphore(5)  # v39: more parallel API calls (Lens + Shopping + Google Organic)
 REMBG_SEM = asyncio.Semaphore(2)  # 8GB RAM → 2 paralel rembg güvenli
 
 _CACHE = {}
@@ -394,8 +394,8 @@ def crop_piece(img_obj, box):
             top = max(0, cy - min_dim // 2)
             bottom = min(h, cy + min_dim // 2)
 
-        # %10 Nefes payı
-        pad_y, pad_x = int((bottom - top) * 0.10), int((right - left) * 0.10)
+        # %20 Nefes payı (Lens'e geniş bağlam ver)
+        pad_y, pad_x = int((bottom - top) * 0.20), int((right - left) * 0.20)
         px1, py1 = max(0, left - pad_x), max(0, top - pad_y)
         px2, py2 = min(w, right + pad_x), min(h, bottom + pad_y)
 
@@ -487,7 +487,7 @@ async def claude_detect(img_b64, cc="tr"):
                 json={"model": CLAUDE_MODEL, "max_tokens": 1500,
                     "messages": [{"role": "user", "content": [
                         {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
-                        {"type": "text", "text": f"""You are an expert fashion product identifier. Your job is to identify clothing items so they can be found in online stores.
+                        {"type": "text", "text": f"""You are a fashion product identification expert with EXCEPTIONAL text-reading ability. Your #1 job is reading EVERY piece of text on clothing to help find the exact product in stores.
 
 Gender: "{g_m}" (male) or "{g_f}" (female).
 
@@ -495,20 +495,34 @@ RULES:
 1. ONLY items the person is CLEARLY wearing (30%+ visible).
 2. A collar/lining peeking under a jacket is NOT a separate piece.
 
-🔍 CRITICAL — READ ALL TEXT: Zoom into EVERY patch, logo, label, embroidery, tag, print on each item. Read ALL visible text — this is the #1 most important signal for finding the exact product. Even tiny 2cm text matters!
+⚠️ TEXT READING IS YOUR #1 PRIORITY:
+- Zoom into EVERY patch, logo, label, tag, embroidery, print, badge on each item
+- Read character by character — do NOT guess or approximate
+- Varsity jackets have 3-6 patches with text. READ EVERY SINGLE ONE.
+- Common patch text: brand names, city names, numbers, slogans, team names
+- Even if text is curved, upside down, partially hidden — try to read it
+- Report ALL text you see, separated by commas
+
+🏷️ BRAND DETECTION — CHECK THESE COMMON BRANDS:
+Fast fashion: Bershka, Zara, Pull&Bear, Stradivarius, H&M, Mango, DeFacto, LC Waikiki, Koton
+Sport: Nike, Adidas, Puma, New Balance, Converse, Vans, Reebok
+Premium: Tommy Hilfiger, Lacoste, Ralph Lauren, Calvin Klein, Levi's, Guess
+If you see ANY text matching these brands (even partially), mark it as the brand.
+Also check: zipper pulls, collar tags, sole stamps, button engravings.
 
 For each item return:
 - category: exactly one of: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
 - short_title: 2-4 word {lang} name
 - color: in {lang}
-- brand: Read ALL text/patches/logos carefully. If ANY readable text looks like a brand name, write it. If the style is iconic (e.g. varsity patches = Bershka, swoosh = Nike), write the brand. Else "?"
-- visible_text: ALL readable text on this item separated by commas. Be EXTREMELY thorough — patches, embroidery, labels, tags, prints. Example: "Timeless, Rebel, 66"
-- style_type: specific style in English (e.g. "varsity bomber", "slim fit chino", "bucket hat", "platform sneaker", "oversized hoodie")
-- search_query_specific: 5-8 word {lang} shopping query with ALL details: gender + brand + visible text + color + style. This should be specific enough to find the EXACT product. Example: "erkek Bershka Timeless yeşil varsity bomber ceket"
-- search_query_generic: 3-5 word {lang} generic query: gender + color + category. Example: "erkek yeşil bomber ceket"
+- brand: The brand name if detected. Check ALL text/patches/logos/tags. "?" ONLY if truly unreadable.
+- visible_text: EVERY readable text on this item, separated by commas. Be exhaustive. Example: "Timeless, Rebel Spirit, 66, Athletics"
+- style_type: specific style in English (e.g. "varsity bomber", "slim fit chino", "bucket hat")
+- search_query_specific: 5-8 word {lang} shopping query. MUST include: gender + brand (if found) + ALL key visible text + color + style. Example: "erkek Bershka Timeless yeşil varsity bomber ceket". The visible text words are CRITICAL for finding the exact product!
+- search_query_generic: 3-5 word {lang} fallback: gender + color + style. Example: "erkek yeşil bomber ceket"
+- box_2d: [ymin, xmin, ymax, xmax] on a 1000x1000 grid. Draw a TIGHT box around ONLY this item. Be precise — the box will be used to crop this piece for visual search.
 
 Return ONLY valid JSON array:
-[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","style_type":"","search_query_specific":"","search_query_generic":""}}]"""}
+[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","style_type":"","search_query_specific":"","search_query_generic":"","box_2d":[0,0,1000,1000]}}]"""}
                     ]}]})
             data = r.json()
             if "error" in data:
@@ -688,7 +702,7 @@ def match_lens_to_pieces(lens_results, pieces):
 
 @app.post("/api/full-analyze")
 async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
-    """v39: HYBRID — Shopping + Google Organic + Lens, all parallel. NO CROPS."""
+    """v40: HYBRID — Per-piece Lens (crop) + Shopping + Google Organic, all parallel."""
     if not SERPAPI_KEY: raise HTTPException(500, "No API key")
     cc = country.lower()
     contents = await file.read()
@@ -696,15 +710,19 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
     try:
         img = Image.open(io.BytesIO(contents)).convert("RGB")
         img = ImageOps.exif_transpose(img)
-        img.thumbnail((800, 800))
-        buf = io.BytesIO(); img.save(buf, format="JPEG", quality=85)
+        img_obj = img.copy()  # Keep original for cropping
+        img_obj.thumbnail((1400, 1400))
+        img.thumbnail((1400, 1400))  # High-res for Claude OCR
+        buf = io.BytesIO(); img.save(buf, format="JPEG", quality=95)
         optimized = buf.getvalue()
         b64 = base64.b64encode(optimized).decode()
+        print(f"  Image: {img.size[0]}x{img.size[1]}, {len(optimized)//1024}KB sent to Claude")
     except Exception:
+        img_obj = Image.open(io.BytesIO(contents)).convert("RGB")
         optimized = contents
         b64 = base64.b64encode(contents).decode()
 
-    print(f"\n{'='*50}\n=== AUTO v38 === country={cc}")
+    print(f"\n{'='*50}\n=== AUTO v40 HYBRID+CROP === country={cc}")
 
     try:
         # ── Step 1: Claude detect + Upload full image → PARALLEL ──
@@ -717,12 +735,16 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
         pieces = pieces[:5]
         print(f"Claude: {len(pieces)} pieces")
         for p in pieces:
-            print(f"  → {p.get('category')} | brand={p.get('brand')} | text={p.get('visible_text')} | q1={p.get('search_query_specific','')[:50]}")
+            print(f"  → {p.get('category')} | brand={p.get('brand')} | text='{p.get('visible_text','')}' | style={p.get('style_type','')}")
+            print(f"    q_spec: {p.get('search_query_specific','')}")
+            print(f"    q_gen:  {p.get('search_query_generic','')}")
 
-        # ── Step 2: Build ALL search queries ──
-        # Her parça için 3 tip sorgu: specific, ocr, generic
+        # ── Step 2: Crop each piece + Build search queries ──
         search_queries = []  # [(piece_idx, query_str, priority)]
+        crop_tasks = []  # [(piece_idx, crop_bytes)]
+
         for i, p in enumerate(pieces):
+            # Search queries
             q_specific = p.get("search_query_specific", "").strip()
             q_generic = p.get("search_query_generic", "").strip()
             q_ocr = build_ocr_shopping_query(
@@ -734,17 +756,31 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             if q_ocr and q_ocr != q_specific: search_queries.append((i, q_ocr, "ocr"))
             if q_generic and q_generic != q_specific: search_queries.append((i, q_generic, "generic"))
 
-        print(f"Search queries: {len(search_queries)}")
+            # Crop for Lens (simple, no rembg)
+            box = p.get("box_2d")
+            if box and isinstance(box, list) and len(box) == 4:
+                try:
+                    cropped_bytes = await asyncio.to_thread(crop_piece, img_obj, box)
+                    if cropped_bytes:
+                        crop_tasks.append((i, cropped_bytes))
+                        # Generate thumbnail preview for UI
+                        try:
+                            t_img = Image.open(io.BytesIO(cropped_bytes)).convert("RGB")
+                            t_img.thumbnail((128, 128))
+                            t_buf = io.BytesIO(); t_img.save(t_buf, format="JPEG", quality=75)
+                            pieces[i]["_crop_b64"] = "data:image/jpeg;base64," + base64.b64encode(t_buf.getvalue()).decode()
+                        except: pass
+                        print(f"  [{p.get('category')}] Cropped OK ({len(cropped_bytes)//1024}KB) box={box}")
+                    else:
+                        print(f"  [{p.get('category')}] Crop FAILED")
+                except Exception as e:
+                    print(f"  [{p.get('category')}] Crop error: {e}")
+
+        print(f"Search queries: {len(search_queries)} | Crops: {len(crop_tasks)}")
         for idx, q, pri in search_queries:
             print(f"  [{pieces[idx].get('category')}] {pri}: '{q}'")
 
-        # ── Step 3: HYBRID PARALLEL — Lens + Shopping + Google Organic ──
-        async def do_lens():
-            if img_url:
-                async with API_SEM:
-                    return await asyncio.to_thread(_lens, img_url, cc)
-            return []
-
+        # ── Step 3: Upload crops + Per-piece Lens + Shopping + Google → ALL PARALLEL ──
         async def do_shop(q, limit=6):
             async with API_SEM:
                 return await asyncio.to_thread(_shop, q, cc, limit)
@@ -753,61 +789,109 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             async with API_SEM:
                 return await asyncio.to_thread(_google_organic, q, cc, limit)
 
-        # Build task list: [lens, shop1, shop2, ..., google1, google2, ...]
-        tasks = [do_lens()]
-        shop_task_map = []  # track which task index → which (piece_idx, priority)
-        google_task_map = []
+        async def do_piece_lens(crop_bytes):
+            """Upload crop → Lens. Simple, no rembg."""
+            url = await upload_img(crop_bytes)
+            if url:
+                async with API_SEM:
+                    results = await asyncio.to_thread(_lens, url, cc)
+                    return results
+            return []
 
+        async def do_full_lens():
+            """Full image Lens as backup."""
+            if img_url:
+                async with API_SEM:
+                    return await asyncio.to_thread(_lens, img_url, cc)
+            return []
+
+        # Build ALL tasks
+        tasks = []
+        task_map = []  # (type, piece_idx, extra_info)
+
+        # Per-piece Lens (MOST IMPORTANT — like user tapping on piece in Google Lens)
+        for piece_idx, crop_bytes in crop_tasks:
+            tasks.append(do_piece_lens(crop_bytes))
+            task_map.append(("piece_lens", piece_idx, None))
+
+        # Full image Lens (backup)
+        full_lens_idx = len(tasks)
+        tasks.append(do_full_lens())
+        task_map.append(("full_lens", -1, None))
+
+        # Shopping
+        shop_start_idx = len(tasks)
         for piece_idx, q, pri in search_queries:
             limit = 8 if pri == "specific" else 4
             tasks.append(do_shop(q, limit))
-            shop_task_map.append((piece_idx, pri))
+            task_map.append(("shop", piece_idx, pri))
 
-        # Google organic: sadece specific sorguyu at (SerpAPI credit tasarrufu)
-        google_start_idx = len(tasks)
+        # Google organic (only specific query per piece)
         for piece_idx, q, pri in search_queries:
-            if pri == "specific":  # Sadece en iyi sorguyu Google'a at
+            if pri == "specific":
                 tasks.append(do_google(q, 6))
-                google_task_map.append((piece_idx, pri))
+                task_map.append(("google", piece_idx, pri))
 
+        # 🚀 FIRE ALL AT ONCE
         all_results = await asyncio.gather(*tasks)
-        lens_all = all_results[0]
-        shop_results_list = list(all_results[1:google_start_idx])
-        google_results_list = list(all_results[google_start_idx:])
 
-        print(f"Full Lens: {len(lens_all)} | Shop batches: {len(shop_results_list)} | Google batches: {len(google_results_list)}")
-
-        # ── Step 4: Match Lens → pieces by keyword ──
-        piece_lens = match_lens_to_pieces(lens_all, pieces)
-
-        # ── Step 5: Merge ALL results per piece ──
+        # ── Step 4: Distribute results to pieces ──
+        piece_lens = {i: [] for i in range(len(pieces))}
         piece_shop = {i: [] for i in range(len(pieces))}
         piece_google = {i: [] for i in range(len(pieces))}
         seen_per_piece = {i: set() for i in range(len(pieces))}
 
-        # Shopping results
-        for shop_idx, (piece_idx, priority) in enumerate(shop_task_map):
-            results = shop_results_list[shop_idx] if shop_idx < len(shop_results_list) else []
-            for r in results:
-                link = r.get("link", "")
-                if link not in seen_per_piece[piece_idx]:
-                    seen_per_piece[piece_idx].add(link)
-                    r_copy = r.copy()
-                    r_copy["_priority"] = priority
-                    r_copy["_channel"] = "shopping"
-                    piece_shop[piece_idx].append(r_copy)
+        for task_idx, (task_type, piece_idx, extra) in enumerate(task_map):
+            results = all_results[task_idx] if task_idx < len(all_results) else []
 
-        # Google organic results
-        for g_idx, (piece_idx, priority) in enumerate(google_task_map):
-            results = google_results_list[g_idx] if g_idx < len(google_results_list) else []
-            for r in results:
-                link = r.get("link", "")
-                if link not in seen_per_piece[piece_idx]:
-                    seen_per_piece[piece_idx].add(link)
-                    r_copy = r.copy()
-                    r_copy["_priority"] = priority
-                    r_copy["_channel"] = "google"
-                    piece_google[piece_idx].append(r_copy)
+            if task_type == "piece_lens":
+                # Per-piece Lens results go directly to that piece
+                for r in results:
+                    link = r.get("link", "")
+                    if link not in seen_per_piece[piece_idx]:
+                        seen_per_piece[piece_idx].add(link)
+                        piece_lens[piece_idx].append(r)
+                print(f"  [{pieces[piece_idx].get('category')}] Piece Lens: {len(results)} results")
+
+            elif task_type == "full_lens":
+                # Full Lens — distribute by keyword matching (backup)
+                full_lens_matches = match_lens_to_pieces(results, pieces)
+                for i in range(len(pieces)):
+                    for r in full_lens_matches.get(i, []):
+                        link = r.get("link", "")
+                        if link not in seen_per_piece[i]:
+                            seen_per_piece[i].add(link)
+                            piece_lens[i].append(r)
+                print(f"  Full Lens: {len(results)} results (backup, distributed)")
+
+            elif task_type == "shop":
+                for r in results:
+                    link = r.get("link", "")
+                    if link not in seen_per_piece[piece_idx]:
+                        seen_per_piece[piece_idx].add(link)
+                        r_copy = r.copy()
+                        r_copy["_priority"] = extra
+                        r_copy["_channel"] = "shopping"
+                        piece_shop[piece_idx].append(r_copy)
+
+            elif task_type == "google":
+                for r in results:
+                    link = r.get("link", "")
+                    if link not in seen_per_piece[piece_idx]:
+                        seen_per_piece[piece_idx].add(link)
+                        r_copy = r.copy()
+                        r_copy["_priority"] = extra
+                        r_copy["_channel"] = "google"
+                        piece_google[piece_idx].append(r_copy)
+
+        # Log Lens results per piece (for debugging)
+        for i in range(len(pieces)):
+            cat = pieces[i].get("category", "")
+            lens_r = piece_lens.get(i, [])
+            if lens_r:
+                print(f"  [{cat}] Lens top 5:")
+                for j, r in enumerate(lens_r[:5]):
+                    print(f"    {j+1}. {r.get('title','')[:60]} | {r.get('source','')}")
 
         # ── Step 6: Build final results per piece (HYBRID SCORING) ──
         results = []
@@ -872,11 +956,11 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 r["_score"] = score_result(r, 13)  # Google organic = specific'e yakın güven
                 all_items.append(r)
 
-            # Lens results
+            # Lens results (per-piece crop = like Google Lens app, HIGH confidence)
             for r in matched_lens:
                 if r["link"] in seen: continue
                 seen.add(r["link"])
-                r["_score"] = score_result(r, 3)
+                r["_score"] = score_result(r, 18)  # Per-piece Lens = most reliable source
                 all_items.append(r)
 
             # Sort by score
@@ -920,7 +1004,8 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 "visible_text": visible_text,
                 "products": all_items[:8],
                 "lens_count": len(matched_lens),
-                "match_level": match_level,  # "exact" | "close" | "similar"
+                "match_level": match_level,
+                "crop_image": p.get("_crop_b64", ""),
             })
 
         return {"success": True, "pieces": results, "country": cc}
@@ -1013,7 +1098,7 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q, "country": cc, "bg_removed": HAS_REMBG, "crop_image": crop_b64}
 
 @app.get("/api/health")
-async def health(): return {"status": "ok", "version": "v39-hybrid", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
+async def health(): return {"status": "ok", "version": "v40-hybrid-crop-lens", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
 @app.get("/favicon.ico")
 async def favicon(): return Response(content=b"", media_type="image/x-icon")
 @app.get("/api/countries")
