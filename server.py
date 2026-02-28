@@ -1246,36 +1246,36 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
 TRENDING = {
     "tr": {
         "brands": [
-            {"name": "Zara", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://zara.com"},
-            {"name": "Bershka", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://bershka.com"},
-            {"name": "Mango", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://mango.com"},
-            {"name": "Nike", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://nike.com"},
-            {"name": "Adidas", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://adidas.com"},
-            {"name": "H&M", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://hm.com"},
-            {"name": "Koton", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://koton.com"},
-            {"name": "Pull&Bear", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://pullandbear.com"},
+            {"name": "Zara", "initial": "Z", "bg": "#000000"},
+            {"name": "Bershka", "initial": "B", "bg": "#1a1a1a"},
+            {"name": "Mango", "initial": "M", "bg": "#c8a265"},
+            {"name": "Nike", "initial": "N", "bg": "#111111"},
+            {"name": "Adidas", "initial": "A", "bg": "#000000"},
+            {"name": "H&M", "initial": "H", "bg": "#cc0000"},
+            {"name": "Koton", "initial": "K", "bg": "#2c2c2c"},
+            {"name": "Pull&Bear", "initial": "P", "bg": "#384030"},
         ],
         "products": [
-            {"title": "Oversize Deri Ceket", "brand": "Zara", "img": "https://static.zara.net/assets/public/1f0f/0f3d/0e0e4d43af98/a7fdb2a79f60/05479318800-e1/05479318800-e1.jpg", "price": "₺2.999", "link": "https://www.zara.com/tr/"},
-            {"title": "Varsity Bomber Ceket", "brand": "Bershka", "img": "https://static.bershka.net/4/photos2/2024/V/0/1/p/2782/240/501/2782240501_1_1_3.jpg", "price": "₺1.799", "link": "https://www.bershka.com/tr/"},
-            {"title": "Air Force 1", "brand": "Nike", "img": "https://static.nike.com/a/images/t_PDP_936_v1/f_auto,q_auto:eco/b7d9211c-26e7-431a-ac24-b0540fb3c00f/AIR+FORCE+1+%2707.png", "price": "₺3.499", "link": "https://www.nike.com/tr/"},
-            {"title": "Samba OG", "brand": "Adidas", "img": "https://assets.adidas.com/images/h_840,f_auto,q_auto,fl_lossy,c_fill,g_auto/fbaf991a78bc4896a3e9a7e8025b396c_9366/Samba_OG_Ayakkabi_Beyaz_B75806_01_standard.jpg", "price": "₺3.199", "link": "https://www.adidas.com.tr/"},
-            {"title": "Wide Leg Jean", "brand": "Mango", "img": "https://st.mango.com/second/phones/he/67084043_01_D.jpg", "price": "₺1.299", "link": "https://shop.mango.com/tr/"},
-            {"title": "Basic Oversize Tişört", "brand": "Koton", "img": "https://img-koton.mncdn.com/mnresize/1200/1800/productimages/2sam10226hk/2sam10226hk-999-01.jpg", "price": "₺349", "link": "https://www.koton.com/"},
+            {"title": "Oversize Suni Deri Ceket", "brand": "Zara", "img": "https://cdn.dsmcdn.com/ty1640/prod/QC/20250130/08/5c0b8b1d-6c3a-33f5-8afb-3e63dc2ad40b/1_org_zoom.jpg", "price": "₺2.599", "link": "https://www.trendyol.com/sr?q=zara+oversize+deri+ceket&qt=zara+oversize+deri+ceket&st=zara+oversize+deri+ceket"},
+            {"title": "Varsity Bomber Ceket", "brand": "Bershka", "img": "https://cdn.dsmcdn.com/ty1590/prod/QC/20250107/13/19c6b236-e43b-3bb4-b1e3-ad2c1c31e7f5/1_org_zoom.jpg", "price": "₺1.799", "link": "https://www.trendyol.com/sr?q=bershka+varsity+ceket&qt=bershka+varsity+ceket&st=bershka+varsity+ceket"},
+            {"title": "Air Force 1 '07", "brand": "Nike", "img": "https://cdn.dsmcdn.com/ty583/product/media/images/20221024/18/201548498/259498851/1/1_org_zoom.jpg", "price": "₺3.499", "link": "https://www.trendyol.com/sr?q=nike+air+force+1&qt=nike+air+force+1&st=nike+air+force+1"},
+            {"title": "Samba OG", "brand": "Adidas", "img": "https://cdn.dsmcdn.com/ty814/product/media/images/20230417/11/328087498/136498498/1/1_org_zoom.jpg", "price": "₺3.199", "link": "https://www.trendyol.com/sr?q=adidas+samba+og&qt=adidas+samba+og&st=adidas+samba+og"},
+            {"title": "Wide Leg Jean Pantolon", "brand": "Mango", "img": "https://cdn.dsmcdn.com/ty1574/prod/QC/20241224/15/0bda2e98-6b6b-34c1-a39c-da7a03093285/1_org_zoom.jpg", "price": "₺1.299", "link": "https://www.trendyol.com/sr?q=mango+wide+leg+jean&qt=mango+wide+leg+jean&st=mango+wide+leg+jean"},
+            {"title": "Basic Oversize Tişört", "brand": "Koton", "img": "https://cdn.dsmcdn.com/ty1095/product/media/images/20230711/19/389814855/963082498/1/1_org_zoom.jpg", "price": "₺349", "link": "https://www.trendyol.com/sr?q=koton+oversize+tisort&qt=koton+oversize+tisort&st=koton+oversize+tisort"},
         ],
         "section_brands": "🏷️ Popüler Markalar",
         "section_trending": "🔥 Bu Hafta Trend",
     },
     "en": {
         "brands": [
-            {"name": "Zara", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://zara.com"},
-            {"name": "Nike", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://nike.com"},
-            {"name": "Adidas", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://adidas.com"},
-            {"name": "H&M", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://hm.com"},
-            {"name": "Mango", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://mango.com"},
-            {"name": "Uniqlo", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://uniqlo.com"},
-            {"name": "COS", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://cosstores.com"},
-            {"name": "ASOS", "logo": "https://www.google.com/s2/favicons?sz=128&domain_url=https://asos.com"},
+            {"name": "Zara", "initial": "Z", "bg": "#000000"},
+            {"name": "Nike", "initial": "N", "bg": "#111111"},
+            {"name": "Adidas", "initial": "A", "bg": "#000000"},
+            {"name": "H&M", "initial": "H", "bg": "#cc0000"},
+            {"name": "Mango", "initial": "M", "bg": "#c8a265"},
+            {"name": "Uniqlo", "initial": "U", "bg": "#c41200"},
+            {"name": "COS", "initial": "C", "bg": "#1a1a1a"},
+            {"name": "ASOS", "initial": "A", "bg": "#2d2d2d"},
         ],
         "products": [
             {"title": "Oversize Leather Jacket", "brand": "Zara", "img": "https://static.zara.net/assets/public/1f0f/0f3d/0e0e4d43af98/a7fdb2a79f60/05479318800-e1/05479318800-e1.jpg", "price": "$129", "link": "https://www.zara.com/us/"},
@@ -1722,8 +1722,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .brand-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:28px}
 .brand-chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 6px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s}
 .brand-chip:hover,.brand-chip:active{border-color:var(--accent);transform:scale(1.04)}
-.brand-chip .b-logo{width:44px;height:44px;border-radius:10px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden}
-.brand-chip .b-logo img{width:36px;height:36px;object-fit:contain}
+.brand-chip .b-logo{width:44px;height:44px;border-radius:12px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.brand-chip .b-logo span{font-size:20px;font-weight:800;color:#fff;letter-spacing:-1px}
 .brand-chip .b-name{font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trend-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:28px}
 .trend-card{flex-shrink:0;width:150px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s}
@@ -1832,12 +1832,11 @@ function loadTrending(){
   fetch('/api/trending?country='+getCC()).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var ts=document.getElementById('trendingSection');var h='';
-    function px(u){return'/api/img?url='+encodeURIComponent(u)}
-    // Brands with logos
+    // Brands with styled initials
     if(d.brands&&d.brands.length){
       h+='<div class="sec-title">'+d.section_brands+'</div><div class="brand-grid">';
       for(var i=0;i<d.brands.length;i++){var b=d.brands[i];
-        h+='<div class="brand-chip"><div class="b-logo"><img src="'+b.logo+'" onerror="this.onerror=null;this.style.display=\'none\';this.parentElement.innerHTML=\'<span style=color:var(--accent);font-size:20px;font-weight:800>'+b.name.charAt(0)+'</span>\'"></div><div class="b-name">'+b.name+'</div></div>';}
+        h+='<div class="brand-chip"><div class="b-logo" style="background:'+b.bg+'"><span>'+b.initial+'</span></div><div class="b-name">'+b.name+'</div></div>';}
       h+='</div>';
     }
     // Trending products
@@ -1845,7 +1844,7 @@ function loadTrending(){
       h+='<div class="sec-title">'+d.section_trending+'</div><div class="trend-scroll">';
       for(var i=0;i<d.products.length;i++){var p=d.products[i];
         h+='<a href="'+p.link+'" target="_blank" rel="noopener" class="trend-card">';
-        h+='<img src="'+px(p.img)+'" onerror="this.onerror=null;this.style.display=\'none\'">';
+        h+='<img src="'+p.img+'" onerror="this.onerror=null;this.style.display=\'none\'">';
         h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price">'+p.price+'</div></div></a>';}
       h+='</div>';
     }
