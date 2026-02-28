@@ -6,6 +6,7 @@ import base64
 import asyncio
 import time
 import sys
+import uuid
 import httpx
 import urllib.parse
 from PIL import Image, ImageOps
@@ -1230,7 +1231,323 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q, "country": cc, "bg_removed": HAS_REMBG, "crop_image": crop_b64}
 
 @app.get("/api/health")
-async def health(): return {"status": "ok", "version": "v40-hybrid-crop-lens", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
+async def health(): return {"status": "ok", "version": "v41-piece-picker", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
+
+# ─── SESSION STORE (detect → search-piece) ───
+DETECT_SESSIONS = {}  # detect_id → {pieces, img_url, crop_data, cc, created_at}
+SESSION_TTL = 600  # 10 minutes
+
+def session_cleanup():
+    now = time.time()
+    expired = [k for k, v in DETECT_SESSIONS.items() if now - v.get("created_at", 0) > SESSION_TTL]
+    for k in expired: del DETECT_SESSIONS[k]
+
+# ─── DETECT ENDPOINT (Fast: ~3sec) ───
+@app.post("/api/detect")
+async def detect_pieces(file: UploadFile = File(...), country: str = Form("tr")):
+    """Step 1: Claude detects pieces + crops. Returns previews for user to pick."""
+    if not SERPAPI_KEY: raise HTTPException(500, "No API key")
+    cc = country.lower()
+    contents = await file.read()
+    session_cleanup()
+
+    try:
+        img = Image.open(io.BytesIO(contents)).convert("RGB")
+        img = ImageOps.exif_transpose(img)
+        img_obj = img.copy()
+        img_obj.thumbnail((1400, 1400))
+        img.thumbnail((1400, 1400))
+        buf = io.BytesIO(); img.save(buf, format="JPEG", quality=95)
+        optimized = buf.getvalue()
+        b64 = base64.b64encode(optimized).decode()
+        print(f"  Image: {img.size[0]}x{img.size[1]}, {len(optimized)//1024}KB sent to Claude")
+    except Exception:
+        img_obj = Image.open(io.BytesIO(contents)).convert("RGB")
+        optimized = contents
+        b64 = base64.b64encode(contents).decode()
+
+    print(f"\n{'='*50}\n=== DETECT v41 === country={cc}")
+
+    try:
+        # Claude detect + Upload full image → PARALLEL
+        detect_task = claude_detect(b64, cc)
+        upload_task = upload_img(optimized)
+        pieces, img_url = await asyncio.gather(detect_task, upload_task)
+
+        if not pieces:
+            return {"success": True, "detect_id": "", "pieces": [], "country": cc}
+        pieces = pieces[:6]
+        print(f"Claude: {len(pieces)} pieces")
+
+        # Crop each piece + generate thumbnails
+        crop_data = {}  # piece_idx → crop_bytes
+        piece_results = []
+        for i, p in enumerate(pieces):
+            print(f"  → {p.get('category')} | brand={p.get('brand')} | text='{p.get('visible_text','')}' | box={p.get('box_2d')}")
+            crop_b64 = ""
+            box = p.get("box_2d")
+            if box and isinstance(box, list) and len(box) == 4:
+                try:
+                    cropped_bytes = await asyncio.to_thread(crop_piece, img_obj, box)
+                    if cropped_bytes:
+                        crop_data[i] = cropped_bytes
+                        # Generate 200px thumbnail for picker UI
+                        t_img = Image.open(io.BytesIO(cropped_bytes)).convert("RGB")
+                        t_img.thumbnail((200, 200))
+                        t_buf = io.BytesIO(); t_img.save(t_buf, format="JPEG", quality=80)
+                        crop_b64 = "data:image/jpeg;base64," + base64.b64encode(t_buf.getvalue()).decode()
+                        print(f"    Cropped OK ({len(cropped_bytes)//1024}KB)")
+                except Exception as e:
+                    print(f"    Crop error: {e}")
+
+            piece_results.append({
+                "category": p.get("category", ""),
+                "short_title": p.get("short_title", p.get("category", "").title()),
+                "brand": p.get("brand", "") if p.get("brand", "") != "?" else "",
+                "visible_text": p.get("visible_text", ""),
+                "color": p.get("color", ""),
+                "style_type": p.get("style_type", ""),
+                "crop_image": crop_b64,
+                "has_crop": i in crop_data,
+            })
+
+        # Store session
+        detect_id = str(uuid.uuid4())[:12]
+        DETECT_SESSIONS[detect_id] = {
+            "pieces": pieces,
+            "img_url": img_url,
+            "crop_data": crop_data,
+            "cc": cc,
+            "created_at": time.time(),
+        }
+        print(f"  Session stored: {detect_id} ({len(pieces)} pieces, {len(crop_data)} crops)")
+
+        return {"success": True, "detect_id": detect_id, "pieces": piece_results, "country": cc}
+    except Exception as e:
+        print(f"DETECT FAILED: {e}")
+        import traceback; traceback.print_exc()
+        return {"success": False, "message": str(e), "pieces": []}
+
+
+# ─── SEARCH-PIECE ENDPOINT (Fast: ~3-5sec for single piece) ───
+@app.post("/api/search-piece")
+async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), country: str = Form("tr")):
+    """Step 2: Search for a single selected piece."""
+    if not SERPAPI_KEY: raise HTTPException(500, "No API key")
+
+    session = DETECT_SESSIONS.get(detect_id)
+    if not session:
+        return {"success": False, "message": "Session expired. Please rescan."}
+
+    cc = session["cc"]
+    pieces = session["pieces"]
+    if piece_index < 0 or piece_index >= len(pieces):
+        return {"success": False, "message": "Invalid piece"}
+
+    p = pieces[piece_index]
+    img_url = session.get("img_url", "")
+    crop_bytes = session.get("crop_data", {}).get(piece_index)
+    cfg = get_country_config(cc)
+
+    cat = p.get("category", "")
+    brand = p.get("brand", "")
+    visible_text = p.get("visible_text", "")
+    print(f"\n{'='*50}\n=== SEARCH PIECE v41: [{cat}] === brand={brand} text='{visible_text}'")
+
+    # Build search queries for this piece
+    q_specific = p.get("search_query_specific", "").strip()
+    q_generic = p.get("search_query_generic", "").strip()
+    q_ocr = build_ocr_shopping_query(
+        brand, visible_text, p.get("color", ""),
+        cat, p.get("style_type", ""), cfg)
+
+    queries = []
+    if q_specific: queries.append((q_specific, "specific"))
+    if q_ocr and q_ocr != q_specific: queries.append((q_ocr, "ocr"))
+    if q_generic and q_generic != q_specific: queries.append((q_generic, "generic"))
+
+    for q, pri in queries:
+        print(f"  {pri}: '{q}'")
+
+    try:
+        # ── ALL searches in parallel ──
+        async def do_shop(q, limit=6):
+            async with API_SEM:
+                return await asyncio.to_thread(_shop, q, cc, limit)
+
+        async def do_google(q, limit=6):
+            async with API_SEM:
+                return await asyncio.to_thread(_google_organic, q, cc, limit)
+
+        async def do_piece_lens():
+            if not crop_bytes: return []
+            url = await upload_img(crop_bytes)
+            if url:
+                async with API_SEM:
+                    return await asyncio.to_thread(_lens, url, cc, "visual_matches")
+            return []
+
+        async def do_full_lens_exact():
+            if img_url:
+                async with API_SEM:
+                    return await asyncio.to_thread(_lens, img_url, cc, "exact_matches")
+            return []
+
+        async def do_full_lens_visual():
+            if img_url:
+                async with API_SEM:
+                    return await asyncio.to_thread(_lens, img_url, cc, "visual_matches")
+            return []
+
+        tasks = []
+        task_labels = []
+
+        # 1. Full image exact Lens (best source — same photo on Bershka etc.)
+        tasks.append(do_full_lens_exact()); task_labels.append("exact_lens")
+        # 2. Per-piece crop Lens visual
+        tasks.append(do_piece_lens()); task_labels.append("piece_lens")
+        # 3. Full image visual Lens (backup)
+        tasks.append(do_full_lens_visual()); task_labels.append("full_lens_visual")
+        # 4. Shopping queries
+        for q, pri in queries:
+            tasks.append(do_shop(q)); task_labels.append(f"shop_{pri}")
+        # 5. Google organic (specific only)
+        if q_specific:
+            tasks.append(do_google(q_specific)); task_labels.append("google")
+
+        all_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # ── Collect results ──
+        exact_lens_results = all_results[0] if not isinstance(all_results[0], Exception) else []
+        piece_lens_results = all_results[1] if not isinstance(all_results[1], Exception) else []
+        full_lens_visual = all_results[2] if not isinstance(all_results[2], Exception) else []
+
+        shop_results = []
+        google_results = []
+        for idx in range(3, len(all_results)):
+            r = all_results[idx] if not isinstance(all_results[idx], Exception) else []
+            label = task_labels[idx]
+            if label.startswith("shop_"): shop_results.extend(r)
+            elif label == "google": google_results.extend(r)
+
+        # ── Filter full-image Lens results to THIS piece using keywords ──
+        piece_kws = PIECE_KEYWORDS.get(cat, [])
+        def matches_piece(r):
+            t = (r.get("title", "") + " " + r.get("source", "")).lower()
+            return any(kw in t for kw in piece_kws)
+
+        # Exact lens: filter to this piece (or include all if only 1 piece)
+        filtered_exact = []
+        for r in exact_lens_results:
+            if len(pieces) == 1 or matches_piece(r) or r.get("_exact"):
+                filtered_exact.append(r)
+
+        filtered_full_visual = [r for r in full_lens_visual if matches_piece(r)] if len(pieces) > 1 else full_lens_visual
+
+        # Combine all lens results
+        all_lens = filtered_exact + piece_lens_results + filtered_full_visual
+
+        print(f"  Results: exact={len(filtered_exact)} piece_lens={len(piece_lens_results)} full_visual={len(filtered_full_visual)} shop={len(shop_results)} google={len(google_results)}")
+        if filtered_exact:
+            for r in filtered_exact[:3]:
+                print(f"    ✅ EXACT: {r.get('title','')[:50]} | {r.get('source','')}")
+
+        # ── Score everything ──
+        shop_links = {r.get("link", "") for r in shop_results}
+        lens_links = {r.get("link", "") for r in all_lens}
+        google_links = {r.get("link", "") for r in google_results}
+
+        def score_result(r, base_score=0):
+            score = base_score
+            combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
+            if r.get("_exact"): score += 50; r["ai_verified"] = True
+            link = r.get("link", "")
+            channels_found = sum([link in shop_links, link in lens_links, link in google_links])
+            if channels_found >= 3: score += 30; r["ai_verified"] = True
+            elif channels_found >= 2: score += 20; r["ai_verified"] = True
+            if brand and brand != "?" and len(brand) > 2 and brand.lower() in combined: score += 8
+            if visible_text and visible_text.lower() not in ["none", "?", ""]:
+                for vt in visible_text.lower().replace(",", " ").split():
+                    if len(vt) > 2 and vt in combined: score += 10; break
+            if r.get("price"): score += 2
+            if r.get("is_local"): score += 3
+            return score
+
+        seen = set()
+        all_items = []
+
+        # Lens (highest priority)
+        for r in all_lens:
+            if r.get("link") and r["link"] not in seen:
+                seen.add(r["link"])
+                r["_score"] = score_result(r, 18)
+                all_items.append(r)
+
+        # Shopping
+        for r in shop_results:
+            if r.get("link") and r["link"] not in seen:
+                seen.add(r["link"])
+                r["_score"] = score_result(r, 15)
+                all_items.append(r)
+
+        # Google organic
+        for r in google_results:
+            if r.get("link") and r["link"] not in seen:
+                seen.add(r["link"])
+                r["_score"] = score_result(r, 13)
+                all_items.append(r)
+
+        all_items.sort(key=lambda x: -x.get("_score", 0))
+
+        # Match confidence
+        top_score = all_items[0].get("_score", 0) if all_items else 0
+        has_brand = any(brand and brand != "?" and brand.lower() in (r.get("title","")+" "+r.get("link","")).lower() for r in all_items[:3]) if brand and brand != "?" else False
+        has_text = False
+        if visible_text and visible_text.lower() not in ["none", "?", ""]:
+            vt_words = [w for w in visible_text.lower().replace(",", " ").split() if len(w) > 2]
+            for r in all_items[:3]:
+                if any(w in r.get("title", "").lower() for w in vt_words): has_text = True; break
+
+        if top_score >= 50: match_level = "exact"
+        elif top_score >= 25 and (has_brand or has_text): match_level = "exact"
+        elif top_score >= 15 or has_brand: match_level = "close"
+        else: match_level = "similar"
+
+        for j, r in enumerate(all_items[:3]):
+            print(f"  #{j+1}: score={r.get('_score',0)} {r.get('title','')[:50]}")
+        print(f"  match={match_level} brand={has_brand} text={has_text}")
+
+        # Clean internal fields
+        for r in all_items:
+            for k in ["_score", "_priority", "_channel", "_src", "_exact"]: r.pop(k, None)
+
+        crop_b64 = ""
+        if crop_bytes:
+            try:
+                t_img = Image.open(io.BytesIO(crop_bytes)).convert("RGB")
+                t_img.thumbnail((128, 128))
+                t_buf = io.BytesIO(); t_img.save(t_buf, format="JPEG", quality=75)
+                crop_b64 = "data:image/jpeg;base64," + base64.b64encode(t_buf.getvalue()).decode()
+            except: pass
+
+        return {
+            "success": True,
+            "piece": {
+                "category": cat,
+                "short_title": p.get("short_title", cat.title()),
+                "brand": brand if brand != "?" else "",
+                "visible_text": visible_text,
+                "products": all_items[:8],
+                "lens_count": len(all_lens),
+                "match_level": match_level,
+                "crop_image": crop_b64,
+            },
+            "country": cc,
+        }
+    except Exception as e:
+        print(f"SEARCH PIECE FAILED: {e}")
+        import traceback; traceback.print_exc()
+        return {"success": False, "message": str(e)}
 @app.get("/favicon.ico")
 async def favicon(): return Response(content=b"", media_type="image/x-icon")
 @app.get("/api/countries")
@@ -1274,6 +1591,15 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .p-hdr{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .p-title{font-size:16px;font-weight:700}
 .p-brand{font-size:9px;font-weight:700;color:var(--bg);background:var(--accent);padding:2px 7px;border-radius:4px;margin-left:6px}
+.piece-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.piece-card{background:var(--card);border-radius:12px;border:2px solid var(--border);overflow:hidden;cursor:pointer;transition:border-color .2s,transform .15s;animation:fadeUp .35s ease both}
+.piece-card:hover,.piece-card:active{border-color:var(--accent);transform:scale(1.02)}
+.piece-card img{width:100%;height:140px;object-fit:cover;display:block}
+.piece-card .pc-info{padding:10px}
+.piece-card .pc-cat{font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px}
+.piece-card .pc-brand{font-size:9px;font-weight:700;color:var(--bg);background:var(--accent);padding:1px 6px;border-radius:3px;margin-top:4px;display:inline-block}
+.piece-card .pc-text{font-size:9px;color:var(--accent);font-style:italic;margin-top:3px}
+.piece-card .pc-noimg{width:100%;height:140px;display:flex;align-items:center;justify-content:center;font-size:48px;background:rgba(255,255,255,.03)}
 .scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
 .card{flex-shrink:0;width:135px;background:var(--card);border-radius:10px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text)}
 .card.local{border-color:var(--accent)}
@@ -1334,6 +1660,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
         <button class="btn-main btn-green" onclick="cropAndSearch()" id="btnFind"></button>
         <button class="btn-main btn-outline" onclick="cancelManual()" style="margin-top:8px;font-size:13px" id="btnCancel"></button>
       </div>
+      <div id="piecePicker" style="display:none"></div>
       <div id="ld" style="display:none"></div>
       <div id="err" style="display:none"></div>
       <div id="res" style="display:none"></div>
@@ -1355,8 +1682,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 var IC={hat:"\u{1F9E2}",sunglasses:"\u{1F576}",top:"\u{1F455}",jacket:"\u{1F9E5}",bag:"\u{1F45C}",accessory:"\u{1F48D}",watch:"\u{231A}",bottom:"\u{1F456}",dress:"\u{1F457}",shoes:"\u{1F45F}",scarf:"\u{1F9E3}"};
 var cF=null,cPrev=null,cropper=null,CC='us';
 var L={
-  tr:{flag:"\u{1F1F9}\u{1F1F7}",heroTitle:'Gorseldeki outfiti<br><span style="color:var(--accent)">birebir</span> bul.',heroSub:'Fotograf yukle, AI parcalari tespit etsin<br>veya kendin sec, Google Lens bulsun.',upload:'Fotograf Yukle',uploadSub:'Galeri veya screenshot',auto:'\u{1F916} Otomatik Tara',manual:'\u{2702}\u{FE0F} Kendim Seceyim',feat1:'Otomatik Tara',feat1d:'AI tum parcalari tespit edip arar',feat2:'Kendim Seceyim',feat2d:'Parmaginla parcayi sec, birebir bul',back:'\u2190 Geri',cropHint:'\u{1F447} Aramak istedigin parcayi cercevele',manualPh:'Opsiyonel: ne aradigini yaz',find:'\u{1F50D} Bu Parcayi Bul',cancel:'\u2190 Vazgec',loading:'Parcalar tespit ediliyor...',loadingManual:'AI analiz ediyor...',noResult:'Sonuc bulunamadi',noProd:'Urun bulunamadi',retry:'\u{2702}\u{FE0F} Kendim Seceyim ile Tekrar Dene',another:'\u{2702}\u{FE0F} Baska Parca Sec',selected:'Sectigin Parca',lensMatch:'Lens eslesmesi',recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} Lens Eslesmesi',goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',alts:'\u{1F4B8} Alternatifler \u{1F449}',navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme',matchExact:'\u2705 Birebir Eslesme',matchClose:'\u{1F7E1} Yakin Eslesme',matchSimilar:'\u{1F7E0} Benzer Urunler',step_detect:'AI parcalari tespit ediyor...',step_bg:'Kesiliyor...',step_lens:'Google Lens taramasi...',step_ai:'AI kumasi inceliyor...',step_verify:'Birebir eslesme kontrolu...',step_done:'Sonuclar hazirlaniyor...'},
-  en:{flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',heroSub:'Upload a photo, AI detects each piece<br>or select manually, Google Lens finds it.',upload:'Upload Photo',uploadSub:'Gallery or screenshot',auto:'\u{1F916} Auto Scan',manual:'\u{2702}\u{FE0F} Select Myself',feat1:'Auto Scan',feat1d:'AI detects all pieces and searches',feat2:'Select Myself',feat2d:'Select the piece with your finger, find exact match',back:'\u2190 Back',cropHint:'\u{1F447} Frame the piece you want to find',manualPh:'Optional: describe what you\'re looking for',find:'\u{1F50D} Find This Piece',cancel:'\u2190 Cancel',loading:'Detecting pieces...',loadingManual:'AI analyzing...',noResult:'No results found',noProd:'No products found',retry:'\u{2702}\u{FE0F} Try Select Myself',another:'\u{2702}\u{FE0F} Select Another Piece',selected:'Your Selection',lensMatch:'Lens match',recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} Lens Match',goStore:'Go to Store \u2197',noPrice:'Click for price',alts:'\u{1F4B8} Alternatives \u{1F449}',navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match',matchExact:'\u2705 Exact Match',matchClose:'\u{1F7E1} Close Match',matchSimilar:'\u{1F7E0} Similar Items',step_detect:'AI detecting pieces...',step_lens:'Google Lens scanning...',step_match:'Matching stores...',step_done:'Preparing results...',step_bg:'Removing background...',step_search:'Scanning global stores...',step_ai:'AI analyzing fabric...',step_verify:'Verifying exact match...'}
+  tr:{flag:"\u{1F1F9}\u{1F1F7}",heroTitle:'Gorseldeki outfiti<br><span style="color:var(--accent)">birebir</span> bul.',heroSub:'Fotograf yukle, AI parcalari tespit etsin<br>istedigin parcaya tikla, birebir bulsun.',upload:'Fotograf Yukle',uploadSub:'Galeri veya screenshot',auto:'\u{1F916} Otomatik Tara',manual:'\u{2702}\u{FE0F} Kendim Seceyim',feat1:'Otomatik Tara',feat1d:'AI parcalari tespit eder, sen sec',feat2:'Kendim Seceyim',feat2d:'Parmaginla parcayi sec, birebir bul',back:'\u2190 Geri',cropHint:'\u{1F447} Aramak istedigin parcayi cercevele',manualPh:'Opsiyonel: ne aradigini yaz',find:'\u{1F50D} Bu Parcayi Bul',cancel:'\u2190 Vazgec',loading:'Parcalar tespit ediliyor...',loadingManual:'AI analiz ediyor...',noResult:'Sonuc bulunamadi',noProd:'Urun bulunamadi',retry:'\u{2702}\u{FE0F} Kendim Seceyim ile Tekrar Dene',another:'\u{2702}\u{FE0F} Baska Parca Sec',selected:'Sectigin Parca',lensMatch:'Lens eslesmesi',recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} Lens Eslesmesi',goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',alts:'\u{1F4B8} Alternatifler \u{1F449}',navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme',matchExact:'\u2705 Birebir Eslesme',matchClose:'\u{1F7E1} Yakin Eslesme',matchSimilar:'\u{1F7E0} Benzer Urunler',step_detect:'AI parcalari tespit ediyor...',step_bg:'Kesiliyor...',step_lens:'Google Lens taramasi...',step_ai:'AI kumasi inceliyor...',step_verify:'Birebir eslesme kontrolu...',step_done:'Sonuclar hazirlaniyor...',piecesFound:'parca tespit edildi',pickPiece:'Aramak istedigin parcaya tikla',searchingPiece:'Parca araniyor...',backToPieces:'\u2190 Diger Parcalar',noDetect:'Parca tespit edilemedi. Kendim Seceyim ile deneyin.'},
+  en:{flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',heroSub:'Upload a photo, AI detects each piece<br>tap any piece to find it instantly.',upload:'Upload Photo',uploadSub:'Gallery or screenshot',auto:'\u{1F916} Auto Scan',manual:'\u{2702}\u{FE0F} Select Myself',feat1:'Auto Scan',feat1d:'AI detects pieces, you pick one to search',feat2:'Select Myself',feat2d:'Select the piece with your finger, find exact match',back:'\u2190 Back',cropHint:'\u{1F447} Frame the piece you want to find',manualPh:'Optional: describe what you\'re looking for',find:'\u{1F50D} Find This Piece',cancel:'\u2190 Cancel',loading:'Detecting pieces...',loadingManual:'AI analyzing...',noResult:'No results found',noProd:'No products found',retry:'\u{2702}\u{FE0F} Try Select Myself',another:'\u{2702}\u{FE0F} Select Another Piece',selected:'Your Selection',lensMatch:'Lens match',recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} Lens Match',goStore:'Go to Store \u2197',noPrice:'Click for price',alts:'\u{1F4B8} Alternatives \u{1F449}',navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match',matchExact:'\u2705 Exact Match',matchClose:'\u{1F7E1} Close Match',matchSimilar:'\u{1F7E0} Similar Items',step_detect:'AI detecting pieces...',step_lens:'Google Lens scanning...',step_match:'Matching stores...',step_done:'Preparing results...',step_bg:'Removing background...',step_search:'Scanning global stores...',step_ai:'AI analyzing fabric...',step_verify:'Verifying exact match...',piecesFound:'pieces detected',pickPiece:'Tap a piece to search for it',searchingPiece:'Searching for piece...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces detected. Try Select Myself.'}
 };
 var L_fallback=L.en;
 function t(key){var lg=CC_LANG[CC]||'en';return(L[lg]||L_fallback)[key]||(L.en)[key]||key}
@@ -1393,11 +1720,88 @@ applyLang();
 function getCC(){return CC}
 document.getElementById('fi').addEventListener('change',function(e){if(e.target.files[0])loadF(e.target.files[0])});
 function loadF(f){if(!f.type.startsWith('image/'))return;cF=f;var r=new FileReader();r.onload=function(e){cPrev=e.target.result;showScreen()};r.readAsDataURL(f)}
-function showScreen(){document.getElementById('home').style.display='none';document.getElementById('rScreen').style.display='block';document.getElementById('prev').src=cPrev;document.getElementById('prev').style.maxHeight='260px';document.getElementById('prev').style.display='block';document.getElementById('actionBtns').style.display='flex';document.getElementById('cropMode').style.display='none';document.getElementById('ld').style.display='none';document.getElementById('err').style.display='none';document.getElementById('res').style.display='none';if(cropper){cropper.destroy();cropper=null}}
-function goHome(){if(_busy)return;document.getElementById('home').style.display='block';document.getElementById('rScreen').style.display='none';if(cropper){cropper.destroy();cropper=null}cF=null;cPrev=null}
-function autoScan(){if(_busy)return;document.getElementById('actionBtns').style.display='none';showLoading(t('loading'),[t('step_detect'),t('step_bg'),t('step_lens'),t('step_ai'),t('step_verify'),t('step_done')]);var fd=new FormData();fd.append('file',cF);fd.append('country',getCC());fetch('/api/full-analyze',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){hideLoading();if(!d.success)return showErr(d.message||'Error');renderAuto(d)}).catch(function(e){hideLoading();showErr(e.message)})}
+function showScreen(){document.getElementById('home').style.display='none';document.getElementById('rScreen').style.display='block';document.getElementById('prev').src=cPrev;document.getElementById('prev').style.maxHeight='260px';document.getElementById('prev').style.display='block';document.getElementById('actionBtns').style.display='flex';document.getElementById('cropMode').style.display='none';document.getElementById('piecePicker').style.display='none';document.getElementById('ld').style.display='none';document.getElementById('err').style.display='none';document.getElementById('res').style.display='none';if(cropper){cropper.destroy();cropper=null}}
+function goHome(){if(_busy)return;document.getElementById('home').style.display='block';document.getElementById('rScreen').style.display='none';if(cropper){cropper.destroy();cropper=null}cF=null;cPrev=null;_detectId='';_detectedPieces=[]}
+
+var _detectId='',_detectedPieces=[];
+
+function autoScan(){
+  if(_busy)return;
+  document.getElementById('actionBtns').style.display='none';
+  showLoading(t('loading'),[t('step_detect')]);
+  var fd=new FormData();fd.append('file',cF);fd.append('country',getCC());
+  fetch('/api/detect',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){
+    hideLoading();
+    if(!d.success)return showErr(d.message||'Error');
+    if(!d.pieces||!d.pieces.length)return showErr(t('noDetect'));
+    _detectId=d.detect_id;_detectedPieces=d.pieces;
+    showPiecePicker(d.pieces);
+  }).catch(function(e){hideLoading();showErr(e.message)})
+}
+
+function showPiecePicker(pieces){
+  document.getElementById('prev').style.maxHeight='160px';
+  document.getElementById('res').style.display='none';
+  document.getElementById('err').style.display='none';
+  var pp=document.getElementById('piecePicker');pp.style.display='block';
+  var h='<div style="margin:14px 0"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><div style="font-size:20px">\u{1F9E9}</div><div><span style="font-size:18px;font-weight:700">'+pieces.length+' '+t('piecesFound')+'</span></div></div><p style="font-size:12px;color:var(--muted)">'+t('pickPiece')+'</p></div>';
+  h+='<div class="piece-grid">';
+  for(var i=0;i<pieces.length;i++){
+    var p=pieces[i];var icon=IC[p.category]||'\u{1F455}';
+    h+='<div class="piece-card" onclick="searchPiece('+i+')" style="animation-delay:'+(i*.08)+'s">';
+    if(p.crop_image){h+='<img src="'+p.crop_image+'">'} else {h+='<div class="pc-noimg">'+icon+'</div>'}
+    h+='<div class="pc-info"><div class="pc-cat">'+icon+' '+(p.short_title||p.category)+'</div>';
+    if(p.brand)h+='<div class="pc-brand">'+p.brand+'</div>';
+    var vt=p.visible_text||'';if(vt&&vt.toLowerCase()!=='none')h+='<div class="pc-text">"'+vt+'"</div>';
+    h+='</div></div>';
+  }
+  h+='</div><button class="btn-main btn-outline" onclick="startManualFromPicker()" style="margin-top:16px">'+t('manual')+'</button>';
+  pp.innerHTML=h;
+}
+
+function searchPiece(idx){
+  if(_busy)return;
+  document.getElementById('piecePicker').style.display='none';
+  showLoading(t('searchingPiece'),[t('step_lens'),t('step_verify'),t('step_done')]);
+  var fd=new FormData();fd.append('detect_id',_detectId);fd.append('piece_index',idx);fd.append('country',getCC());
+  fetch('/api/search-piece',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){
+    hideLoading();
+    if(!d.success)return showErr(d.message||'Error');
+    renderPieceResult(d.piece);
+  }).catch(function(e){hideLoading();showErr(e.message)})
+}
+
+function renderPieceResult(p){
+  document.getElementById('prev').style.maxHeight='160px';
+  var ra=document.getElementById('res');ra.style.display='block';
+  var pr=p.products||[],lc=p.lens_count||0,hero=pr[0],alts=pr.slice(1);
+  var iconHtml=p.crop_image?'<img src="'+p.crop_image+'" style="width:52px;height:52px;border-radius:10px;object-fit:cover;border:2px solid '+(lc>0?'var(--green)':'var(--border)')+'">':'<div style="width:52px;height:52px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid '+(lc>0?'var(--green)':'var(--border)')+'">'+(IC[p.category]||'')+'</div>';
+  var h='<div class="piece"><div class="p-hdr">'+iconHtml+'<div><span class="p-title">'+(p.short_title||p.category)+'</span>';
+  if(p.brand&&p.brand!=='?')h+='<span class="p-brand">'+p.brand+'</span>';
+  var ml=p.match_level||'similar',mlKey=ml==='exact'?'matchExact':(ml==='close'?'matchClose':'matchSimilar'),mlColor=ml==='exact'?'var(--green)':(ml==='close'?'#eab308':'#f97316');
+  h+='<div style="font-size:9px;font-weight:700;color:'+mlColor+';margin-top:3px">'+t(mlKey)+'</div>';
+  var vt=p.visible_text||'';if(vt&&vt.toLowerCase()!=='none')h+='<div style="font-size:10px;color:var(--accent);font-style:italic;margin-top:2px">"'+vt+'"</div>';
+  if(lc>0)h+='<div style="font-size:9px;color:var(--green);margin-top:1px">\u{1F3AF} '+lc+' '+t('lensMatch')+'</div>';
+  h+='</div></div>';
+  if(!hero){h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">'+t('noProd')+'</div>'}
+  else{h+=heroHTML(hero,lc>0);if(alts.length>0)h+=altsHTML(alts)}
+  h+='</div>';
+  h+='<button class="btn-main btn-green" onclick="backToPieces()" style="margin-top:16px">'+t('backToPieces')+'</button>';
+  h+='<button class="btn-main btn-outline" onclick="startManualFromPicker()" style="margin-top:8px">'+t('manual')+'</button>';
+  ra.innerHTML=h;
+}
+
+function backToPieces(){
+  document.getElementById('res').style.display='none';document.getElementById('err').style.display='none';
+  if(_detectedPieces&&_detectedPieces.length>0){showPiecePicker(_detectedPieces)}else{showScreen()}
+}
+
+function startManualFromPicker(){
+  document.getElementById('piecePicker').style.display='none';document.getElementById('res').style.display='none';
+  startManual();
+}
 function startManual(){document.getElementById('actionBtns').style.display='none';document.getElementById('prev').style.display='none';document.getElementById('cropMode').style.display='block';document.getElementById('cropImg').src=cPrev;document.getElementById('manualQ').value='';setTimeout(function(){if(cropper)cropper.destroy();cropper=new Cropper(document.getElementById('cropImg'),{viewMode:1,dragMode:'move',autoCropArea:0.5,responsive:true,background:false,guides:true,highlight:true,cropBoxMovable:true,cropBoxResizable:true})},100)}
-function cancelManual(){if(cropper){cropper.destroy();cropper=null}document.getElementById('cropMode').style.display='none';document.getElementById('prev').style.display='block';document.getElementById('actionBtns').style.display='flex'}
+function cancelManual(){if(cropper){cropper.destroy();cropper=null}document.getElementById('cropMode').style.display='none';document.getElementById('prev').style.display='block';if(_detectedPieces&&_detectedPieces.length>0){showPiecePicker(_detectedPieces)}else{document.getElementById('actionBtns').style.display='flex'}}
 function cropAndSearch(){if(!cropper)return;var canvas=cropper.getCroppedCanvas({maxWidth:800,maxHeight:800});if(!canvas)return;document.getElementById('cropMode').style.display='none';document.getElementById('prev').style.display='block';showLoading(t('loadingManual'),[t('step_bg'),t('step_lens'),t('step_ai'),t('step_verify')]);canvas.toBlob(function(blob){var q=document.getElementById('manualQ').value.trim();var fd=new FormData();fd.append('file',blob,'crop.jpg');fd.append('query',q);fd.append('country',getCC());fetch('/api/manual-search',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){hideLoading();if(!d.success)return showErr('Error');renderManual(d,canvas.toDataURL('image/jpeg',0.7))}).catch(function(e){hideLoading();showErr(e.message)})},'image/jpeg',0.85);if(cropper){cropper.destroy();cropper=null}}
 var _ldTimer=null,_busy=false;
 function showLoading(txt,steps){_busy=true;var l=document.getElementById('ld');l.style.display='block';var msgs=steps||[txt];var idx=0;function render(){l.innerHTML='<div style="display:flex;align-items:center;gap:12px;background:var(--card);border-radius:12px;padding:16px;border:1px solid var(--border);margin:14px 0"><div style="width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div><div><div style="font-size:13px;font-weight:600">'+msgs[idx]+'</div>'+(msgs.length>1?'<div style="font-size:10px;color:var(--dim);margin-top:3px">'+(idx+1)+'/'+msgs.length+'</div>':'')+'</div></div>'}render();if(msgs.length>1){if(_ldTimer)clearInterval(_ldTimer);_ldTimer=setInterval(function(){idx=(idx+1)%msgs.length;render()},3500)}}
