@@ -277,14 +277,15 @@ def build_ocr_query(brand, visible_text, color, category, lang_cfg):
     if brand and brand != "?" and len(brand) > 1:
         parts.append(brand)
 
-    # OCR text varsa ekle (logo, yazı)
+    # OCR text varsa ekle (logo, yazı) — en önemli 3 kelimeye kadar
     if visible_text and visible_text.lower() not in ["none", "?", "", "yok"]:
-        # Sadece anlamlı kelimeleri al
+        ocr_count = 0
         for word in visible_text.split():
             clean = re.sub(r'[^\w]', '', word)
-            if len(clean) > 1 and clean.lower() not in ["none", "yok"]:
+            if len(clean) > 1 and clean.lower() not in ["none", "yok", "the", "and", "for"]:
                 parts.append(clean)
-                break  # En önemli 1 kelime yeter
+                ocr_count += 1
+                if ocr_count >= 3: break  # En önemli 3 kelime
 
     # Renk + kategori
     if color and color.lower() not in ["?", ""]:
@@ -500,11 +501,11 @@ For each item return:
 - category: MUST be lowercase, exactly one of: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
 - short_title: 2-4 word {lang} name
 - color: in {lang}
-- brand: Read logos/text carefully. Guess if obvious. Else "?"
-- visible_text: ALL readable text, logos, numbers on this item (be aggressive, zoom in!)
+- brand: Read ALL logos/text/patches/labels carefully. Check collars, tags, zippers, soles, buttons for brand names. If you see any text that could be a brand, USE IT. Guess brand from style if very obvious (e.g. varsity patch style = Bershka/Pull&Bear). Else "?"
+- visible_text: ALL readable text, logos, numbers, patch text, embroidery on this item (be EXTREMELY aggressive, zoom in on every patch, label, tag, print!)
 - fingerprint: exactly 3 unique distinguishing micro-details in English (e.g. ["asymmetric silver zipper", "quilted diamond shoulders", "snap-button mandarin collar"])
 - box_2d: [ymin, xmin, ymax, xmax]. Imagine the image is 1000x1000 pixels. Provide integer coordinates (0-1000).
-- search_query: MAX 3-4 word {lang} shopping query. ONLY: gender + brand (if known) + color + category. Example: "erkek siyah ceket" or "kadın Nike beyaz sneaker". DO NOT write long sentences!
+- search_query: 4-7 word {lang} shopping query. Include: gender + brand (if known) + color + style/subtype + visible text keywords. Be SPECIFIC about the item's style. Examples: "erkek Bershka yeşil varsity bomber ceket" or "kadın Nike beyaz Air Force 1 sneaker" or "erkek bordo nakışlı baseball şapka". Include any readable brand/text from the item! Generic queries like "erkek yeşil ceket" are USELESS - add style details!
 
 Return ONLY valid JSON array:
 [{{"category":"","short_title":"","color":"","brand":"","visible_text":"","fingerprint":["","",""],"box_2d":[0,0,1000,1000],"search_query":""}}]"""}
