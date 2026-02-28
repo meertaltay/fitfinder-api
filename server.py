@@ -100,7 +100,8 @@ def make_affiliate(url):
 
 BRAND_MAP = {"trendyol.com": "Trendyol", "hepsiburada.com": "Hepsiburada", "boyner.com.tr": "Boyner", "defacto.com": "DeFacto", "lcwaikiki.com": "LC Waikiki", "koton.com": "Koton", "beymen.com": "Beymen", "zara.com": "Zara", "bershka.com": "Bershka", "pullandbear.com": "Pull&Bear", "hm.com": "H&M", "mango.com": "Mango", "asos.com": "ASOS", "stradivarius.com": "Stradivarius", "massimodutti.com": "Massimo Dutti", "nike.com": "Nike", "adidas.": "Adidas"}
 BLOCKED = ["pinterest.", "instagram.", "facebook.", "twitter.", "tiktok.", "youtube.", "aliexpress.", "wish.com", "dhgate.", "alibaba.", "shein.", "temu.", "cider.", "romwe.", "patpat.", "rightmove.", "zillow.", "realtor.", "ikea.", "wayfair."]
-FASHION_DOMAINS = ["trendyol.", "hepsiburada.", "boyner.", "beymen.", "defacto.", "lcwaikiki.", "koton.", "flo.", "zara.com", "bershka.com", "pullandbear.com", "hm.com", "mango.com", "asos.com", "stradivarius.com", "massimodutti.com", "nike.com", "adidas.", "puma.com"]
+FASHION_DOMAINS = ["trendyol.", "hepsiburada.", "boyner.", "beymen.", "defacto.", "lcwaikiki.", "koton.", "flo.", "zara.com", "bershka.com", "pullandbear.com", "hm.com", "mango.com", "asos.com", "stradivarius.com", "massimodutti.com", "nike.com", "adidas.", "puma.com", "dolap.com", "gardrops.com", "morhipo.", "lidyana.", "n11.com", "amazon.", "network.", "derimod.", "ipekyol.", "vakko.", "tommy.", "lacoste.", "uniqlo.", "gap.com", "nordstrom.", "farfetch.", "ssense.", "zalando.", "aboutyou."]
+FASHION_KW = ["ceket", "kazak", "shirt", "dress", "ayakkabi", "sneaker", "shoe", "canta", "bag", "gozluk", "saat", "giyim", "fashion", "jacket", "hoodie", "sweatshirt", "jeans", "pantolon", "elbise", "bot", "mont", "kaban", "sapka", "hat", "watch", "clothing", "wear", "kolye", "kemer", "fiyat", "satin al", "urun", "modelleri"]
 
 PIECE_KEYWORDS = {
     "hat": ["sapka","şapka","cap","hat","bere","beanie","kasket","kepi","baseball","snapback","bucket","fedora"],
@@ -127,7 +128,7 @@ def is_blocked(link): return any(d in link.lower() for d in BLOCKED)
 def is_fashion(link, title, src):
     c = (link + " " + src).lower()
     if any(d in c for d in FASHION_DOMAINS): return True
-    return any(k in (title + " " + src).lower() for k in ["ceket", "kazak", "shirt", "dress", "ayakkabi", "sneaker", "shoe", "canta", "bag", "gozluk", "saat", "giyim", "fashion"])
+    return any(k in (title + " " + src).lower() for k in FASHION_KW)
 
 RIVAL_BRANDS = ["nike", "adidas", "puma", "zara", "hm", "bershka", "mango", "gucci", "prada", "balenciaga", "converse", "vans", "defacto", "koton", "lcw", "mavi", "colins", "levi", "tommy", "lacoste", "calvin klein", "massimo dutti", "pull&bear", "stradivarius"]
 
@@ -566,26 +567,67 @@ def _shop(q, cc="tr", limit=6):
     if res: cache_set(cache_key, res)
     return res
 
-# ─── SHOPPING-FIRST AUTO PIPELINE (v38) ───
-# Temel fikir: Crop ÇALIŞMIYOR. Shopping + iyi sorgu HER ZAMAN kazanır.
+
+# ─── Google Regular Search (organic results from fashion sites) ───
+def _google_organic(q, cc="tr", limit=8):
+    """Normal Google araması — Shopping'de olmayan ürünleri yakalar (Trendyol, Bershka.com, Dolap vs.)"""
+    cache_key = f"gorg:{cc}:{q}"
+    cached = cache_get(cache_key)
+    if cached: return cached
+    cfg = get_country_config(cc)
+    res, seen = [], set()
+    try:
+        d = GoogleSearch({"engine": "google", "q": q, "gl": cfg["gl"], "hl": cfg["hl"], "api_key": SERPAPI_KEY, "num": 15}).get_dict()
+
+        # 1) Inline shopping results (varsa)
+        for item in d.get("inline_shopping_results", d.get("shopping_results", [])):
+            lnk = item.get("link", "")
+            ttl = item.get("title", "")
+            src = item.get("source", "")
+            if not lnk or not ttl or lnk in seen or is_blocked(lnk): continue
+            if not is_fashion(lnk, ttl, src): continue
+            seen.add(lnk)
+            pr = item.get("price", item.get("extracted_price", ""))
+            res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
+                "link": make_affiliate(lnk), "price": str(pr) if pr else "",
+                "thumbnail": item.get("thumbnail", ""), "image": "",
+                "is_local": is_local(lnk, src, cfg), "_src": "google_inline"})
+            if len(res) >= limit: break
+
+        # 2) Organic results (fashion domain'lerden)
+        for item in d.get("organic_results", []):
+            lnk = item.get("link", "")
+            ttl = item.get("title", "")
+            src = item.get("displayed_link", item.get("source", ""))
+            if not lnk or not ttl or lnk in seen or is_blocked(lnk): continue
+            if not is_fashion(lnk, ttl, src): continue
+            seen.add(lnk)
+            # Organic'te fiyat snippet'den çekilebilir
+            snippet = item.get("snippet", "")
+            price = ""
+            price_match = re.search(r'(\d[\d.,]+)\s*(?:TL|₺|\$|€|£|AED|SAR)', snippet)
+            if price_match:
+                price = price_match.group(0)
+            res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
+                "link": make_affiliate(lnk), "price": price,
+                "thumbnail": item.get("thumbnail", ""), "image": "",
+                "is_local": is_local(lnk, src, cfg), "_src": "google_organic"})
+            if len(res) >= limit: break
+
+    except Exception as e: print(f"Google organic err: {e}")
+    if res: cache_set(cache_key, res)
+    return res
+
+
+# ─── HYBRID AUTO PIPELINE (v39) ───
+# Temel fikir: Crop ÇALIŞMIYOR. HİBRİT arama kazanır:
 # 1. Claude → brand, visible_text, style, 2 arama sorgusu
 # 2. Multi-query Shopping per piece (spesifik → generic)
-# 3. Full image Lens → keyword match to pieces (bonus)
-# 4. Smart merge + score
+# 3. Google Organic per piece (normal arama — Shopping'de olmayan ürünleri yakalar)
+# 4. Full image Lens → keyword match to pieces (bonus görsel)
+# 5. Cross-channel scoring + match confidence
 
-PIECE_KEYWORDS = {
-    "hat": ["hat", "beanie", "cap", "bere", "şapka", "sapka", "bucket", "fedora", "bonnet", "kappe", "mütze", "chapeau", "kasket"],
-    "sunglasses": ["sunglasses", "glasses", "güneş gözlüğü", "gozluk", "gözlük", "eyewear", "shades", "sonnenbrille", "lunettes"],
-    "scarf": ["scarf", "atkı", "atki", "şal", "sal", "fular", "echarpe", "schal"],
-    "jacket": ["jacket", "coat", "bomber", "blazer", "ceket", "mont", "kaban", "parka", "varsity", "deri", "leather", "mantel", "veste", "blouson", "overcoat"],
-    "top": ["shirt", "t-shirt", "tshirt", "hoodie", "sweatshirt", "sweater", "polo", "blouse", "kazak", "tişört", "tisort", "gömlek", "gomlek", "triko", "pullover", "chemise"],
-    "bottom": ["pants", "jeans", "trousers", "shorts", "pantolon", "jean", "denim", "jogger", "chino", "cargo", "hose", "pantalon", "eşofman"],
-    "dress": ["dress", "elbise", "gown", "jumpsuit", "tulum", "kleid", "robe"],
-    "shoes": ["shoe", "sneaker", "boot", "loafer", "sandal", "ayakkabı", "ayakkabi", "bot", "terlik", "schuh", "chaussure", "trainer"],
-    "bag": ["bag", "purse", "backpack", "çanta", "canta", "sırt çantası", "tasche", "sac"],
-    "watch": ["watch", "saat", "kol saati", "uhr", "montre", "timepiece", "horloge"],
-    "accessory": ["necklace", "bracelet", "ring", "belt", "kemer", "kolye", "bileklik", "yüzük", "accessory", "jewelry"],
-}
+# ─── HYBRID AUTO PIPELINE (v39) uses PIECE_KEYWORDS from above ───
 
 
 def build_ocr_shopping_query(brand, visible_text, color, category, style_type, lang_cfg):
@@ -646,7 +688,7 @@ def match_lens_to_pieces(lens_results, pieces):
 
 @app.post("/api/full-analyze")
 async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
-    """v38: Shopping-first, multi-query, full-image Lens bonus. NO CROPS."""
+    """v39: HYBRID — Shopping + Google Organic + Lens, all parallel. NO CROPS."""
     if not SERPAPI_KEY: raise HTTPException(500, "No API key")
     cc = country.lower()
     contents = await file.read()
@@ -677,26 +719,26 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
         for p in pieces:
             print(f"  → {p.get('category')} | brand={p.get('brand')} | text={p.get('visible_text')} | q1={p.get('search_query_specific','')[:50]}")
 
-        # ── Step 2: Build ALL Shopping queries ──
-        shop_queries = []  # [(piece_idx, query_str, priority)]
+        # ── Step 2: Build ALL search queries ──
+        # Her parça için 3 tip sorgu: specific, ocr, generic
+        search_queries = []  # [(piece_idx, query_str, priority)]
         for i, p in enumerate(pieces):
             q_specific = p.get("search_query_specific", "").strip()
             q_generic = p.get("search_query_generic", "").strip()
-            # Also try: brand + visible_text query (OCR-based)
             q_ocr = build_ocr_shopping_query(
                 p.get("brand", ""), p.get("visible_text", ""),
                 p.get("color", ""), p.get("category", ""),
                 p.get("style_type", ""), get_country_config(cc))
 
-            if q_specific: shop_queries.append((i, q_specific, "specific"))
-            if q_ocr and q_ocr != q_specific: shop_queries.append((i, q_ocr, "ocr"))
-            if q_generic and q_generic != q_specific: shop_queries.append((i, q_generic, "generic"))
+            if q_specific: search_queries.append((i, q_specific, "specific"))
+            if q_ocr and q_ocr != q_specific: search_queries.append((i, q_ocr, "ocr"))
+            if q_generic and q_generic != q_specific: search_queries.append((i, q_generic, "generic"))
 
-        print(f"Shopping queries: {len(shop_queries)}")
-        for idx, q, pri in shop_queries:
+        print(f"Search queries: {len(search_queries)}")
+        for idx, q, pri in search_queries:
             print(f"  [{pieces[idx].get('category')}] {pri}: '{q}'")
 
-        # ── Step 3: Full image Lens + ALL Shopping queries → PARALLEL ──
+        # ── Step 3: HYBRID PARALLEL — Lens + Shopping + Google Organic ──
         async def do_lens():
             if img_url:
                 async with API_SEM:
@@ -707,25 +749,44 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             async with API_SEM:
                 return await asyncio.to_thread(_shop, q, cc, limit)
 
+        async def do_google(q, limit=6):
+            async with API_SEM:
+                return await asyncio.to_thread(_google_organic, q, cc, limit)
+
+        # Build task list: [lens, shop1, shop2, ..., google1, google2, ...]
         tasks = [do_lens()]
-        for _, q, pri in shop_queries:
+        shop_task_map = []  # track which task index → which (piece_idx, priority)
+        google_task_map = []
+
+        for piece_idx, q, pri in search_queries:
             limit = 8 if pri == "specific" else 4
             tasks.append(do_shop(q, limit))
+            shop_task_map.append((piece_idx, pri))
+
+        # Google organic: sadece specific sorguyu at (SerpAPI credit tasarrufu)
+        google_start_idx = len(tasks)
+        for piece_idx, q, pri in search_queries:
+            if pri == "specific":  # Sadece en iyi sorguyu Google'a at
+                tasks.append(do_google(q, 6))
+                google_task_map.append((piece_idx, pri))
 
         all_results = await asyncio.gather(*tasks)
         lens_all = all_results[0]
-        shop_results_list = list(all_results[1:])
+        shop_results_list = list(all_results[1:google_start_idx])
+        google_results_list = list(all_results[google_start_idx:])
 
-        print(f"Full Lens: {len(lens_all)} results")
+        print(f"Full Lens: {len(lens_all)} | Shop batches: {len(shop_results_list)} | Google batches: {len(google_results_list)}")
 
         # ── Step 4: Match Lens → pieces by keyword ──
         piece_lens = match_lens_to_pieces(lens_all, pieces)
 
-        # ── Step 5: Merge Shopping results per piece ──
+        # ── Step 5: Merge ALL results per piece ──
         piece_shop = {i: [] for i in range(len(pieces))}
+        piece_google = {i: [] for i in range(len(pieces))}
         seen_per_piece = {i: set() for i in range(len(pieces))}
 
-        for shop_idx, (piece_idx, q, priority) in enumerate(shop_queries):
+        # Shopping results
+        for shop_idx, (piece_idx, priority) in enumerate(shop_task_map):
             results = shop_results_list[shop_idx] if shop_idx < len(shop_results_list) else []
             for r in results:
                 link = r.get("link", "")
@@ -733,9 +794,22 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                     seen_per_piece[piece_idx].add(link)
                     r_copy = r.copy()
                     r_copy["_priority"] = priority
+                    r_copy["_channel"] = "shopping"
                     piece_shop[piece_idx].append(r_copy)
 
-        # ── Step 6: Build final results per piece ──
+        # Google organic results
+        for g_idx, (piece_idx, priority) in enumerate(google_task_map):
+            results = google_results_list[g_idx] if g_idx < len(google_results_list) else []
+            for r in results:
+                link = r.get("link", "")
+                if link not in seen_per_piece[piece_idx]:
+                    seen_per_piece[piece_idx].add(link)
+                    r_copy = r.copy()
+                    r_copy["_priority"] = priority
+                    r_copy["_channel"] = "google"
+                    piece_google[piece_idx].append(r_copy)
+
+        # ── Step 6: Build final results per piece (HYBRID SCORING) ──
         results = []
         for i, p in enumerate(pieces):
             brand = p.get("brand", "")
@@ -743,71 +817,100 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             cat = p.get("category", "")
 
             shop = piece_shop.get(i, [])
+            google = piece_google.get(i, [])
             matched_lens = piece_lens.get(i, [])
 
             # Brand filter
             if brand and brand != "?":
                 matched_lens = filter_rival_brands(matched_lens, brand)
                 shop = filter_rival_brands(shop, brand)
+                google = filter_rival_brands(google, brand)
 
-            # Score and merge: Shopping first, Lens second
+            # Collect all links per channel for cross-reference
+            shop_links = {r.get("link", "") for r in shop}
+            lens_links = {r.get("link", "") for r in matched_lens}
+            google_links = {r.get("link", "") for r in google}
+
+            def score_result(r, base_score=0):
+                """Universal scoring function for any channel."""
+                score = base_score
+                combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
+
+                # Cross-channel bonus (aynı ürün birden fazla kanalda = güvenilir)
+                link = r.get("link", "")
+                channels_found = sum([link in shop_links, link in lens_links, link in google_links])
+                if channels_found >= 3: score += 30; r["ai_verified"] = True  # 3 kanalda da var!
+                elif channels_found >= 2: score += 20; r["ai_verified"] = True
+
+                # Brand match
+                if brand and brand != "?" and len(brand) > 2 and brand.lower() in combined:
+                    score += 8
+                # OCR text match (visible_text on the garment)
+                if visible_text and visible_text.lower() not in ["none", "?", ""]:
+                    for vt in visible_text.lower().replace(",", " ").split():
+                        if len(vt) > 2 and vt in combined: score += 10; break
+                # Price & local bonus
+                if r.get("price"): score += 2
+                if r.get("is_local"): score += 3
+                return score
+
             seen = set()
             all_items = []
 
-            # Shopping results with scoring
-            shop_links = {r.get("link", "") for r in shop}
-            lens_links = {r.get("link", "") for r in matched_lens}
-
+            # Shopping results
             for r in shop:
                 if r["link"] in seen: continue
                 seen.add(r["link"])
-                score = 0
-                # Priority bonus
-                if r.get("_priority") == "specific": score += 15
-                elif r.get("_priority") == "ocr": score += 12
-                else: score += 5
-                # Venn bonus: also in Lens
-                if r["link"] in lens_links:
-                    score += 20; r["ai_verified"] = True
-                # Brand match
-                combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
-                if brand and brand != "?" and len(brand) > 2 and brand.lower() in combined:
-                    score += 8
-                # OCR text match
-                if visible_text and visible_text.lower() not in ["none", "?", ""]:
-                    for vt in visible_text.lower().replace(",", " ").split():
-                        if len(vt) > 2 and vt in combined: score += 10; break
-                if r.get("price"): score += 2
-                if r.get("is_local"): score += 3
-                r["_score"] = score
+                base = 15 if r.get("_priority") == "specific" else (12 if r.get("_priority") == "ocr" else 5)
+                r["_score"] = score_result(r, base)
                 all_items.append(r)
 
-            # Add Lens-only results
+            # Google organic results (yüksek baz puan — Shopping'de olmayan ürünleri yakalar)
+            for r in google:
+                if r["link"] in seen: continue
+                seen.add(r["link"])
+                r["_score"] = score_result(r, 13)  # Google organic = specific'e yakın güven
+                all_items.append(r)
+
+            # Lens results
             for r in matched_lens:
                 if r["link"] in seen: continue
                 seen.add(r["link"])
-                score = 3  # Base Lens score
-                combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
-                if brand and brand != "?" and len(brand) > 2 and brand.lower() in combined:
-                    score += 8
-                if visible_text and visible_text.lower() not in ["none", "?", ""]:
-                    for vt in visible_text.lower().replace(",", " ").split():
-                        if len(vt) > 2 and vt in combined: score += 10; break
-                if r.get("price"): score += 2
-                if r.get("is_local"): score += 3
-                r["_score"] = score
+                r["_score"] = score_result(r, 3)
                 all_items.append(r)
 
             # Sort by score
             all_items.sort(key=lambda x: -x.get("_score", 0))
 
-            # Log top results
+            # ── Match confidence ──
+            top_score = all_items[0].get("_score", 0) if all_items else 0
+            has_brand_match = any(
+                brand and brand != "?" and brand.lower() in (r.get("title","") + " " + r.get("link","")).lower()
+                for r in all_items[:3]
+            ) if brand and brand != "?" else False
+            has_text_match = False
+            if visible_text and visible_text.lower() not in ["none", "?", ""]:
+                vt_words = [w for w in visible_text.lower().replace(",", " ").split() if len(w) > 2]
+                for r in all_items[:3]:
+                    t = r.get("title", "").lower()
+                    if any(w in t for w in vt_words): has_text_match = True; break
+
+            if top_score >= 25 and (has_brand_match or has_text_match):
+                match_level = "exact"
+            elif top_score >= 15 or has_brand_match:
+                match_level = "close"
+            else:
+                match_level = "similar"
+
+            # Log
             for j, r in enumerate(all_items[:3]):
-                print(f"  [{cat}] #{j+1}: score={r.get('_score',0)} {r.get('title','')[:50]}")
+                ch = r.get("_channel", r.get("_src", "lens"))
+                print(f"  [{cat}] #{j+1}: score={r.get('_score',0)} ch={ch} {r.get('title','')[:50]}")
+            print(f"  [{cat}] match={match_level} brand={has_brand_match} text={has_text_match}")
 
             # Clean internal fields
             for r in all_items:
-                r.pop("_score", None); r.pop("_priority", None)
+                for k in ["_score", "_priority", "_channel", "_src"]: r.pop(k, None)
 
             results.append({
                 "category": cat,
@@ -817,6 +920,7 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 "visible_text": visible_text,
                 "products": all_items[:8],
                 "lens_count": len(matched_lens),
+                "match_level": match_level,  # "exact" | "close" | "similar"
             })
 
         return {"success": True, "pieces": results, "country": cc}
@@ -909,7 +1013,7 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q, "country": cc, "bg_removed": HAS_REMBG, "crop_image": crop_b64}
 
 @app.get("/api/health")
-async def health(): return {"status": "ok", "version": "v38-shopping-first", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
+async def health(): return {"status": "ok", "version": "v39-hybrid", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
 @app.get("/favicon.ico")
 async def favicon(): return Response(content=b"", media_type="image/x-icon")
 @app.get("/api/countries")
@@ -1034,8 +1138,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 var IC={hat:"\u{1F9E2}",sunglasses:"\u{1F576}",top:"\u{1F455}",jacket:"\u{1F9E5}",bag:"\u{1F45C}",accessory:"\u{1F48D}",watch:"\u{231A}",bottom:"\u{1F456}",dress:"\u{1F457}",shoes:"\u{1F45F}",scarf:"\u{1F9E3}"};
 var cF=null,cPrev=null,cropper=null,CC='us';
 var L={
-  tr:{flag:"\u{1F1F9}\u{1F1F7}",heroTitle:'Gorseldeki outfiti<br><span style="color:var(--accent)">birebir</span> bul.',heroSub:'Fotograf yukle, AI parcalari tespit etsin<br>veya kendin sec, Google Lens bulsun.',upload:'Fotograf Yukle',uploadSub:'Galeri veya screenshot',auto:'\u{1F916} Otomatik Tara',manual:'\u{2702}\u{FE0F} Kendim Seceyim',feat1:'Otomatik Tara',feat1d:'AI tum parcalari tespit edip arar',feat2:'Kendim Seceyim',feat2d:'Parmaginla parcayi sec, birebir bul',back:'\u2190 Geri',cropHint:'\u{1F447} Aramak istedigin parcayi cercevele',manualPh:'Opsiyonel: ne aradigini yaz',find:'\u{1F50D} Bu Parcayi Bul',cancel:'\u2190 Vazgec',loading:'Parcalar tespit ediliyor...',loadingManual:'AI analiz ediyor...',noResult:'Sonuc bulunamadi',noProd:'Urun bulunamadi',retry:'\u{2702}\u{FE0F} Kendim Seceyim ile Tekrar Dene',another:'\u{2702}\u{FE0F} Baska Parca Sec',selected:'Sectigin Parca',lensMatch:'Lens eslesmesi',recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} Lens Eslesmesi',goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',alts:'\u{1F4B8} Alternatifler \u{1F449}',navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme',step_detect:'AI parcalari tespit ediyor...',step_bg:'Kesiliyor...',step_lens:'Google Lens taramasi...',step_ai:'AI kumasi inceliyor...',step_verify:'Birebir eslesme kontrolu...',step_done:'Sonuclar hazirlaniyor...'},
-  en:{flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',heroSub:'Upload a photo, AI detects each piece<br>or select manually, Google Lens finds it.',upload:'Upload Photo',uploadSub:'Gallery or screenshot',auto:'\u{1F916} Auto Scan',manual:'\u{2702}\u{FE0F} Select Myself',feat1:'Auto Scan',feat1d:'AI detects all pieces and searches',feat2:'Select Myself',feat2d:'Select the piece with your finger, find exact match',back:'\u2190 Back',cropHint:'\u{1F447} Frame the piece you want to find',manualPh:'Optional: describe what you\'re looking for',find:'\u{1F50D} Find This Piece',cancel:'\u2190 Cancel',loading:'Detecting pieces...',loadingManual:'AI analyzing...',noResult:'No results found',noProd:'No products found',retry:'\u{2702}\u{FE0F} Try Select Myself',another:'\u{2702}\u{FE0F} Select Another Piece',selected:'Your Selection',lensMatch:'Lens match',recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} Lens Match',goStore:'Go to Store \u2197',noPrice:'Click for price',alts:'\u{1F4B8} Alternatives \u{1F449}',navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match',step_detect:'AI detecting pieces...',step_lens:'Google Lens scanning...',step_match:'Matching stores...',step_done:'Preparing results...',step_bg:'Removing background...',step_search:'Scanning global stores...',step_ai:'AI analyzing fabric...',step_verify:'Verifying exact match...'}
+  tr:{flag:"\u{1F1F9}\u{1F1F7}",heroTitle:'Gorseldeki outfiti<br><span style="color:var(--accent)">birebir</span> bul.',heroSub:'Fotograf yukle, AI parcalari tespit etsin<br>veya kendin sec, Google Lens bulsun.',upload:'Fotograf Yukle',uploadSub:'Galeri veya screenshot',auto:'\u{1F916} Otomatik Tara',manual:'\u{2702}\u{FE0F} Kendim Seceyim',feat1:'Otomatik Tara',feat1d:'AI tum parcalari tespit edip arar',feat2:'Kendim Seceyim',feat2d:'Parmaginla parcayi sec, birebir bul',back:'\u2190 Geri',cropHint:'\u{1F447} Aramak istedigin parcayi cercevele',manualPh:'Opsiyonel: ne aradigini yaz',find:'\u{1F50D} Bu Parcayi Bul',cancel:'\u2190 Vazgec',loading:'Parcalar tespit ediliyor...',loadingManual:'AI analiz ediyor...',noResult:'Sonuc bulunamadi',noProd:'Urun bulunamadi',retry:'\u{2702}\u{FE0F} Kendim Seceyim ile Tekrar Dene',another:'\u{2702}\u{FE0F} Baska Parca Sec',selected:'Sectigin Parca',lensMatch:'Lens eslesmesi',recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} Lens Eslesmesi',goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',alts:'\u{1F4B8} Alternatifler \u{1F449}',navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme',matchExact:'\u2705 Birebir Eslesme',matchClose:'\u{1F7E1} Yakin Eslesme',matchSimilar:'\u{1F7E0} Benzer Urunler',step_detect:'AI parcalari tespit ediyor...',step_bg:'Kesiliyor...',step_lens:'Google Lens taramasi...',step_ai:'AI kumasi inceliyor...',step_verify:'Birebir eslesme kontrolu...',step_done:'Sonuclar hazirlaniyor...'},
+  en:{flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',heroSub:'Upload a photo, AI detects each piece<br>or select manually, Google Lens finds it.',upload:'Upload Photo',uploadSub:'Gallery or screenshot',auto:'\u{1F916} Auto Scan',manual:'\u{2702}\u{FE0F} Select Myself',feat1:'Auto Scan',feat1d:'AI detects all pieces and searches',feat2:'Select Myself',feat2d:'Select the piece with your finger, find exact match',back:'\u2190 Back',cropHint:'\u{1F447} Frame the piece you want to find',manualPh:'Optional: describe what you\'re looking for',find:'\u{1F50D} Find This Piece',cancel:'\u2190 Cancel',loading:'Detecting pieces...',loadingManual:'AI analyzing...',noResult:'No results found',noProd:'No products found',retry:'\u{2702}\u{FE0F} Try Select Myself',another:'\u{2702}\u{FE0F} Select Another Piece',selected:'Your Selection',lensMatch:'Lens match',recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} Lens Match',goStore:'Go to Store \u2197',noPrice:'Click for price',alts:'\u{1F4B8} Alternatives \u{1F449}',navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match',matchExact:'\u2705 Exact Match',matchClose:'\u{1F7E1} Close Match',matchSimilar:'\u{1F7E0} Similar Items',step_detect:'AI detecting pieces...',step_lens:'Google Lens scanning...',step_match:'Matching stores...',step_done:'Preparing results...',step_bg:'Removing background...',step_search:'Scanning global stores...',step_ai:'AI analyzing fabric...',step_verify:'Verifying exact match...'}
 };
 var L_fallback=L.en;
 function t(key){var lg=CC_LANG[CC]||'en';return(L[lg]||L_fallback)[key]||(L.en)[key]||key}
@@ -1091,8 +1195,11 @@ function renderAuto(d){
     h+='<div class="piece" style="animation-delay:'+(i*.1)+'s"><div class="p-hdr">'+iconHtml;
     h+='<div><span class="p-title">'+(p.short_title||p.category)+'</span>';
     if(p.brand&&p.brand!=='?')h+='<span class="p-brand">'+p.brand+'</span>';
+    var ml=p.match_level||'similar';
+    var mlKey=ml==='exact'?'matchExact':(ml==='close'?'matchClose':'matchSimilar');
+    var mlColor=ml==='exact'?'var(--green)':(ml==='close'?'#eab308':'#f97316');
+    h+='<div style="font-size:9px;font-weight:700;color:'+mlColor+';margin-top:3px">'+t(mlKey)+'</div>';
     var vt=p.visible_text||'';if(vt&&vt.toLowerCase()!=='none')h+='<div style="font-size:10px;color:var(--accent);font-style:italic;margin-top:2px">"'+vt+'"</div>';
-    var fp=p.fingerprint||[];if(fp.length>0){h+='<div style="font-size:9px;color:var(--dim);margin-top:3px">';for(var fi=0;fi<fp.length;fi++){if(fp[fi])h+=(fi>0?' · ':'')+fp[fi]}h+='</div>'}
     if(lc>0)h+='<div style="font-size:9px;color:var(--green);margin-top:1px">\u{1F3AF} '+lc+' '+t('lensMatch')+'</div>';
     h+='</div></div>';
     if(!hero){h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">'+t('noProd')+'</div></div>';continue}
