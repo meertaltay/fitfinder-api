@@ -483,32 +483,31 @@ async def claude_detect(img_b64, cc="tr"):
         try:
             r = await c.post("https://api.anthropic.com/v1/messages",
                 headers={"Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
-                json={"model": CLAUDE_MODEL, "max_tokens": 2000,
+                json={"model": CLAUDE_MODEL, "max_tokens": 1500,
                     "messages": [{"role": "user", "content": [
                         {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}},
-                        {"type": "text", "text": f"""You are an expert fashion detective. Analyze EVERY visible clothing item and accessory.
+                        {"type": "text", "text": f"""You are an expert fashion product identifier. Your job is to identify clothing items so they can be found in online stores.
+
 Gender: "{g_m}" (male) or "{g_f}" (female).
 
 RULES:
-1. ONLY items you are 100% SURE the person is wearing (30%+ visible).
+1. ONLY items the person is CLEARLY wearing (30%+ visible).
 2. A collar/lining peeking under a jacket is NOT a separate piece.
 
-🔍 AGGRESSIVE OCR: Zoom into EVERY text, logo, label, embroidery, print on each item. Even tiny 2cm text on a pocket, sole, or tag. This is CRITICAL for exact matching.
-
-🕵️ FINGERPRINT: For each item, identify 3 UNIQUE details that distinguish it from similar items (zipper style, collar type, pattern, stitching, button shape, pocket design, sole pattern, buckle type etc.)
+🔍 CRITICAL — READ ALL TEXT: Zoom into EVERY patch, logo, label, embroidery, tag, print on each item. Read ALL visible text — this is the #1 most important signal for finding the exact product. Even tiny 2cm text matters!
 
 For each item return:
-- category: MUST be lowercase, exactly one of: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
+- category: exactly one of: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
 - short_title: 2-4 word {lang} name
 - color: in {lang}
-- brand: Read ALL logos/text/patches/labels carefully. Check collars, tags, zippers, soles, buttons for brand names. If you see any text that could be a brand, USE IT. Guess brand from style if very obvious (e.g. varsity patch style = Bershka/Pull&Bear). Else "?"
-- visible_text: ALL readable text, logos, numbers, patch text, embroidery on this item (be EXTREMELY aggressive, zoom in on every patch, label, tag, print!)
-- fingerprint: exactly 3 unique distinguishing micro-details in English (e.g. ["asymmetric silver zipper", "quilted diamond shoulders", "snap-button mandarin collar"])
-- box_2d: [ymin, xmin, ymax, xmax]. Imagine the image is 1000x1000 pixels. Provide integer coordinates (0-1000).
-- search_query: 4-7 word {lang} shopping query. Include: gender + brand (if known) + color + style/subtype + visible text keywords. Be SPECIFIC about the item's style. Examples: "erkek Bershka yeşil varsity bomber ceket" or "kadın Nike beyaz Air Force 1 sneaker" or "erkek bordo nakışlı baseball şapka". Include any readable brand/text from the item! Generic queries like "erkek yeşil ceket" are USELESS - add style details!
+- brand: Read ALL text/patches/logos carefully. If ANY readable text looks like a brand name, write it. If the style is iconic (e.g. varsity patches = Bershka, swoosh = Nike), write the brand. Else "?"
+- visible_text: ALL readable text on this item separated by commas. Be EXTREMELY thorough — patches, embroidery, labels, tags, prints. Example: "Timeless, Rebel, 66"
+- style_type: specific style in English (e.g. "varsity bomber", "slim fit chino", "bucket hat", "platform sneaker", "oversized hoodie")
+- search_query_specific: 5-8 word {lang} shopping query with ALL details: gender + brand + visible text + color + style. This should be specific enough to find the EXACT product. Example: "erkek Bershka Timeless yeşil varsity bomber ceket"
+- search_query_generic: 3-5 word {lang} generic query: gender + color + category. Example: "erkek yeşil bomber ceket"
 
 Return ONLY valid JSON array:
-[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","fingerprint":["","",""],"box_2d":[0,0,1000,1000],"search_query":""}}]"""}
+[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","style_type":"","search_query_specific":"","search_query_generic":""}}]"""}
                     ]}]})
             data = r.json()
             if "error" in data:
@@ -567,161 +566,265 @@ def _shop(q, cc="tr", limit=6):
     if res: cache_set(cache_key, res)
     return res
 
-# ─── Auto Piece Pipeline ───
-# 🔥 remove.bg API ile arka plan silme (0 CPU, 0 RAM, ~1-2s per piece)
-# Local rembg Railway'de CPU timeout yapıyordu (4/4 TIMEOUT)
-# remove.bg API: HTTP call → temiz JPEG → Lens'e gönder → doğru sonuç
-REMBG_CATS = {"jacket", "top", "bottom", "dress", "shoes", "bag", "scarf", "hat"}
+# ─── SHOPPING-FIRST AUTO PIPELINE (v38) ───
+# Temel fikir: Crop ÇALIŞMIYOR. Shopping + iyi sorgu HER ZAMAN kazanır.
+# 1. Claude → brand, visible_text, style, 2 arama sorgusu
+# 2. Multi-query Shopping per piece (spesifik → generic)
+# 3. Full image Lens → keyword match to pieces (bonus)
+# 4. Smart merge + score
 
-async def process_auto_piece(p, img_obj, cc):
-    cat, box, q, brand = p.get("category", "").lower(), p.get("box_2d"), p.get("search_query", ""), p.get("brand", "")
-    color, short_title = p.get("color", ""), p.get("short_title", cat.title())
-    visible_text = p.get("visible_text", "")
-    fingerprint = p.get("fingerprint", [])
+PIECE_KEYWORDS = {
+    "hat": ["hat", "beanie", "cap", "bere", "şapka", "sapka", "bucket", "fedora", "bonnet", "kappe", "mütze", "chapeau", "kasket"],
+    "sunglasses": ["sunglasses", "glasses", "güneş gözlüğü", "gozluk", "gözlük", "eyewear", "shades", "sonnenbrille", "lunettes"],
+    "scarf": ["scarf", "atkı", "atki", "şal", "sal", "fular", "echarpe", "schal"],
+    "jacket": ["jacket", "coat", "bomber", "blazer", "ceket", "mont", "kaban", "parka", "varsity", "deri", "leather", "mantel", "veste", "blouson", "overcoat"],
+    "top": ["shirt", "t-shirt", "tshirt", "hoodie", "sweatshirt", "sweater", "polo", "blouse", "kazak", "tişört", "tisort", "gömlek", "gomlek", "triko", "pullover", "chemise"],
+    "bottom": ["pants", "jeans", "trousers", "shorts", "pantolon", "jean", "denim", "jogger", "chino", "cargo", "hose", "pantalon", "eşofman"],
+    "dress": ["dress", "elbise", "gown", "jumpsuit", "tulum", "kleid", "robe"],
+    "shoes": ["shoe", "sneaker", "boot", "loafer", "sandal", "ayakkabı", "ayakkabi", "bot", "terlik", "schuh", "chaussure", "trainer"],
+    "bag": ["bag", "purse", "backpack", "çanta", "canta", "sırt çantası", "tasche", "sac"],
+    "watch": ["watch", "saat", "kol saati", "uhr", "montre", "timepiece", "horloge"],
+    "accessory": ["necklace", "bracelet", "ring", "belt", "kemer", "kolye", "bileklik", "yüzük", "accessory", "jewelry"],
+}
+
+
+def build_ocr_shopping_query(brand, visible_text, color, category, style_type, lang_cfg):
+    """OCR text + brand'den 3. bir Shopping sorgusu oluştur."""
+    parts = []
+    if brand and brand != "?" and len(brand) > 1:
+        parts.append(brand)
+    if visible_text and visible_text.lower() not in ["none", "?", "", "yok"]:
+        for word in visible_text.replace(",", " ").split():
+            clean = re.sub(r'[^\w]', '', word)
+            if len(clean) > 1 and clean.lower() not in ["none", "yok", "the", "and", "for"]:
+                parts.append(clean)
+                if len(parts) >= 4: break
+    if color and color.lower() not in ["?", ""]:
+        parts.append(color)
+    cat_tr = {"hat": "şapka", "sunglasses": "güneş gözlüğü", "jacket": "ceket", "top": "üst",
+        "bottom": "pantolon", "dress": "elbise", "shoes": "ayakkabı", "bag": "çanta",
+        "watch": "saat", "scarf": "atkı", "accessory": "aksesuar"}
+    if category in cat_tr:
+        parts.append(cat_tr[category])
+    query = " ".join(parts).strip()
+    return query if len(query) > 4 else ""
+
+
+def match_lens_to_pieces(lens_results, pieces):
+    """Full image Lens sonuçlarını keyword + brand ile parçalara eşle."""
+    piece_lens = {i: [] for i in range(len(pieces))}
+    for lr in lens_results:
+        title_lower = lr["title"].lower()
+        link_lower = (lr.get("source", "") + " " + lr.get("link", "")).lower()
+        best_i, best_score = -1, 0
+        for i, p in enumerate(pieces):
+            cat = p.get("category", "")
+            kws = PIECE_KEYWORDS.get(cat, [])
+            score = 0
+            for kw in kws:
+                if kw in title_lower:
+                    score += 2; break
+            if score == 0: continue
+            # Brand bonus
+            pb = p.get("brand", "?").lower().strip()
+            if pb and pb != "?" and len(pb) > 2 and pb in (title_lower + " " + link_lower):
+                score += 10
+            # Visible text bonus
+            vt = p.get("visible_text", "").lower()
+            if vt and vt not in ["none", "?", ""]:
+                for word in vt.replace(",", " ").split():
+                    if len(word) > 2 and word in title_lower:
+                        score += 5; break
+            if score > best_score:
+                best_score = score; best_i = i
+        if best_i >= 0:
+            piece_lens[best_i].append(lr)
+    return piece_lens
+
+
+# ─── API ENDPOINTS ───
+
+@app.post("/api/full-analyze")
+async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
+    """v38: Shopping-first, multi-query, full-image Lens bonus. NO CROPS."""
+    if not SERPAPI_KEY: raise HTTPException(500, "No API key")
+    cc = country.lower()
+    contents = await file.read()
 
     try:
-        # Step 1: Crop from high-res image
-        cropped_bytes = None
-        if box and isinstance(box, list) and len(box) == 4:
-            cropped_bytes = await asyncio.to_thread(crop_piece, img_obj, box)
+        img = Image.open(io.BytesIO(contents)).convert("RGB")
+        img = ImageOps.exif_transpose(img)
+        img.thumbnail((800, 800))
+        buf = io.BytesIO(); img.save(buf, format="JPEG", quality=85)
+        optimized = buf.getvalue()
+        b64 = base64.b64encode(optimized).decode()
+    except Exception:
+        optimized = contents
+        b64 = base64.b64encode(contents).decode()
 
-        if not cropped_bytes:
-            print(f"  [{cat}] SKIP: crop failed")
-            return {"category": cat, "short_title": short_title, "color": color,
-                    "brand": brand if brand != "?" else "", "visible_text": visible_text,
-                    "products": [], "lens_count": 0, "has_crop": False, "crop_image": ""}
+    print(f"\n{'='*50}\n=== AUTO v38 === country={cc}")
 
-        # Step 2: rembg + Shopping → PARALLEL
-        # rembg arka planı siler → Lens'e TEMİZ görsel gider → doğru sonuç
-        has_real_ocr = (brand and brand != "?" and len(brand) > 1) or \
-                       (visible_text and visible_text.lower() not in ["none", "?", "", "yok", "-"])
-        ocr_q = build_ocr_query(brand, visible_text, color, cat, get_country_config(cc)) if has_real_ocr else ""
+    try:
+        # ── Step 1: Claude detect + Upload full image → PARALLEL ──
+        detect_task = claude_detect(b64, cc)
+        upload_task = upload_img(optimized)
+        pieces, img_url = await asyncio.gather(detect_task, upload_task)
 
-        async def do_rembg():
-            """remove.bg API ile arka plan sil (0 CPU, 0 RAM)."""
-            if cat in REMBG_CATS:
-                return await remove_bg_api(cropped_bytes)
-            return cropped_bytes  # aksesuar/saat → crop olduğu gibi
+        if not pieces:
+            return {"success": True, "pieces": [], "country": cc}
+        pieces = pieces[:5]
+        print(f"Claude: {len(pieces)} pieces")
+        for p in pieces:
+            print(f"  → {p.get('category')} | brand={p.get('brand')} | text={p.get('visible_text')} | q1={p.get('search_query_specific','')[:50]}")
 
-        async def do_shop():
-            if q:
+        # ── Step 2: Build ALL Shopping queries ──
+        shop_queries = []  # [(piece_idx, query_str, priority)]
+        for i, p in enumerate(pieces):
+            q_specific = p.get("search_query_specific", "").strip()
+            q_generic = p.get("search_query_generic", "").strip()
+            # Also try: brand + visible_text query (OCR-based)
+            q_ocr = build_ocr_shopping_query(
+                p.get("brand", ""), p.get("visible_text", ""),
+                p.get("color", ""), p.get("category", ""),
+                p.get("style_type", ""), get_country_config(cc))
+
+            if q_specific: shop_queries.append((i, q_specific, "specific"))
+            if q_ocr and q_ocr != q_specific: shop_queries.append((i, q_ocr, "ocr"))
+            if q_generic and q_generic != q_specific: shop_queries.append((i, q_generic, "generic"))
+
+        print(f"Shopping queries: {len(shop_queries)}")
+        for idx, q, pri in shop_queries:
+            print(f"  [{pieces[idx].get('category')}] {pri}: '{q}'")
+
+        # ── Step 3: Full image Lens + ALL Shopping queries → PARALLEL ──
+        async def do_lens():
+            if img_url:
                 async with API_SEM:
-                    return await asyncio.to_thread(_shop, q, cc, 8)
+                    return await asyncio.to_thread(_lens, img_url, cc)
             return []
 
-        async def do_ocr_shop():
-            if ocr_q and ocr_q != q and has_real_ocr:
-                async with API_SEM:
-                    return await asyncio.to_thread(_shop, ocr_q, cc, 4)
-            return []
+        async def do_shop(q, limit=6):
+            async with API_SEM:
+                return await asyncio.to_thread(_shop, q, cc, limit)
 
-        # rembg, shop, ocr_shop HEPSİ PARALEL
-        clean_bytes, shop_res, ocr_shop_res = await asyncio.gather(
-            do_rembg(), do_shop(), do_ocr_shop()
-        )
+        tasks = [do_lens()]
+        for _, q, pri in shop_queries:
+            limit = 8 if pri == "specific" else 4
+            tasks.append(do_shop(q, limit))
 
-        # OCR sonuçlarını ana shop'a ekle (dedup)
-        shop_links = {r["link"] for r in shop_res}
-        for r in ocr_shop_res:
-            if r["link"] not in shop_links:
-                shop_res.append(r); shop_links.add(r["link"])
+        all_results = await asyncio.gather(*tasks)
+        lens_all = all_results[0]
+        shop_results_list = list(all_results[1:])
 
-        # Crop preview (UI'da göster — rembg sonrası temiz görsel)
-        crop_b64 = ""
-        try:
-            t_img = Image.open(io.BytesIO(clean_bytes)).convert("RGB")
-            t_img.thumbnail((256, 256))
-            t_buf = io.BytesIO()
-            t_img.save(t_buf, format="JPEG", quality=80)
-            crop_b64 = "data:image/jpeg;base64," + base64.b64encode(t_buf.getvalue()).decode()
-        except Exception: pass
+        print(f"Full Lens: {len(lens_all)} results")
 
-        # Step 3: Upload TEMİZ görsel → Lens
-        url = await upload_img(clean_bytes)
-        print(f"  [{cat}] Shop:{len(shop_res)} OCR:{len(ocr_shop_res)} URL:{'OK' if url else 'FAIL'}")
+        # ── Step 4: Match Lens → pieces by keyword ──
+        piece_lens = match_lens_to_pieces(lens_all, pieces)
 
-        lens_res = []
-        if url:
-            try:
-                async with API_SEM:
-                    lens_res = await asyncio.to_thread(_lens, url, cc)
-                raw_lens = len(lens_res)
-                lens_res = filter_by_category(lens_res, cat)
-                print(f"  [{cat}] Lens: {raw_lens} raw → {len(lens_res)} after filter")
-            except Exception as e:
-                print(f"  [{cat}] Lens ERROR: {e}")
+        # ── Step 5: Merge Shopping results per piece ──
+        piece_shop = {i: [] for i in range(len(pieces))}
+        seen_per_piece = {i: set() for i in range(len(pieces))}
 
-        # Step 4: Brand filter
-        if brand and brand != "?":
-            lens_res = filter_rival_brands(lens_res, brand)
-            shop_res = filter_rival_brands(shop_res, brand)
+        for shop_idx, (piece_idx, q, priority) in enumerate(shop_queries):
+            results = shop_results_list[shop_idx] if shop_idx < len(shop_results_list) else []
+            for r in results:
+                link = r.get("link", "")
+                if link not in seen_per_piece[piece_idx]:
+                    seen_per_piece[piece_idx].add(link)
+                    r_copy = r.copy()
+                    r_copy["_priority"] = priority
+                    piece_shop[piece_idx].append(r_copy)
 
-        # Step 5: Akıllı birleştirme
-        seen, combined = set(), []
-        lens_links = {r.get("link", "") for r in lens_res}
-        shop_links_set = {r.get("link", "") for r in shop_res}
+        # ── Step 6: Build final results per piece ──
+        results = []
+        for i, p in enumerate(pieces):
+            brand = p.get("brand", "")
+            visible_text = p.get("visible_text", "")
+            cat = p.get("category", "")
 
-        all_results = []
-        for r in shop_res:
-            if r["link"] not in seen:
+            shop = piece_shop.get(i, [])
+            matched_lens = piece_lens.get(i, [])
+
+            # Brand filter
+            if brand and brand != "?":
+                matched_lens = filter_rival_brands(matched_lens, brand)
+                shop = filter_rival_brands(shop, brand)
+
+            # Score and merge: Shopping first, Lens second
+            seen = set()
+            all_items = []
+
+            # Shopping results with scoring
+            shop_links = {r.get("link", "") for r in shop}
+            lens_links = {r.get("link", "") for r in matched_lens}
+
+            for r in shop:
+                if r["link"] in seen: continue
                 seen.add(r["link"])
-                r_copy = r.copy(); r_copy["_source"] = "shop"; all_results.append(r_copy)
-        for r in lens_res:
-            if r["link"] not in seen:
+                score = 0
+                # Priority bonus
+                if r.get("_priority") == "specific": score += 15
+                elif r.get("_priority") == "ocr": score += 12
+                else: score += 5
+                # Venn bonus: also in Lens
+                if r["link"] in lens_links:
+                    score += 20; r["ai_verified"] = True
+                # Brand match
+                combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
+                if brand and brand != "?" and len(brand) > 2 and brand.lower() in combined:
+                    score += 8
+                # OCR text match
+                if visible_text and visible_text.lower() not in ["none", "?", ""]:
+                    for vt in visible_text.lower().replace(",", " ").split():
+                        if len(vt) > 2 and vt in combined: score += 10; break
+                if r.get("price"): score += 2
+                if r.get("is_local"): score += 3
+                r["_score"] = score
+                all_items.append(r)
+
+            # Add Lens-only results
+            for r in matched_lens:
+                if r["link"] in seen: continue
                 seen.add(r["link"])
-                r_copy = r.copy(); r_copy["_source"] = "lens"; all_results.append(r_copy)
+                score = 3  # Base Lens score
+                combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
+                if brand and brand != "?" and len(brand) > 2 and brand.lower() in combined:
+                    score += 8
+                if visible_text and visible_text.lower() not in ["none", "?", ""]:
+                    for vt in visible_text.lower().replace(",", " ").split():
+                        if len(vt) > 2 and vt in combined: score += 10; break
+                if r.get("price"): score += 2
+                if r.get("is_local"): score += 3
+                r["_score"] = score
+                all_items.append(r)
 
-        for r in all_results:
-            smart_score = 0
-            combined_text = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
+            # Sort by score
+            all_items.sort(key=lambda x: -x.get("_score", 0))
 
-            # VENN: Hem Shop HEM Lens'te varsa (+20)
-            if r["link"] in lens_links and r["link"] in shop_links_set:
-                smart_score += 20; r["ai_verified"] = True
+            # Log top results
+            for j, r in enumerate(all_items[:3]):
+                print(f"  [{cat}] #{j+1}: score={r.get('_score',0)} {r.get('title','')[:50]}")
 
-            # Parmak izi bonusu
-            if fingerprint:
-                for detail in fingerprint:
-                    if not detail: continue
-                    words = [w.strip().lower() for w in detail.split() if len(w) > 2]
-                    matched = sum(1 for w in words if w in combined_text)
-                    if matched >= 1: smart_score += 3
-                    if matched >= 2: smart_score += 2
+            # Clean internal fields
+            for r in all_items:
+                r.pop("_score", None); r.pop("_priority", None)
 
-            # OCR / marka bonusu
-            if visible_text and visible_text.lower() not in ["none", "?", ""]:
-                for vt in visible_text.lower().split():
-                    if len(vt) > 2 and vt in combined_text: smart_score += 10; break
-            if brand and brand != "?" and len(brand) > 2:
-                if brand.lower() in combined_text: smart_score += 8
-            if r.get("price"): smart_score += 2
-            if r.get("is_local"): smart_score += 3
+            results.append({
+                "category": cat,
+                "short_title": p.get("short_title", cat.title()),
+                "color": p.get("color", ""),
+                "brand": brand if brand != "?" else "",
+                "visible_text": visible_text,
+                "products": all_items[:8],
+                "lens_count": len(matched_lens),
+            })
 
-            r["_smart_score"] = smart_score
-
-        all_results.sort(key=lambda x: -x.get("_smart_score", 0))
-
-        # Top 3 log
-        for i, r in enumerate(all_results[:3]):
-            print(f"  [{cat}] #{i+1}: score={r.get('_smart_score',0)} src={r.get('_source','')} {r.get('title','')[:45]}")
-
-        for r in all_results:
-            r.pop("_smart_score", None); r.pop("_source", None)
-
-        return {
-            "category": cat, "short_title": short_title, "color": color,
-            "brand": brand if brand != "?" else "", "visible_text": visible_text,
-            "fingerprint": fingerprint,
-            "products": all_results[:8], "lens_count": len(lens_res), "has_crop": True,
-            "crop_image": crop_b64
-        }
+        return {"success": True, "pieces": results, "country": cc}
     except Exception as e:
-        print(f"  [{cat}] FAILED: {e}")
-        return {
-            "category": cat, "short_title": short_title, "color": color,
-            "brand": brand if brand != "?" else "", "visible_text": visible_text,
-            "products": [], "lens_count": 0, "has_crop": False, "crop_image": ""
-        }
+        print(f"AUTO ANALYZE FAILED: {e}")
+        import traceback; traceback.print_exc()
+        return {"success": False, "message": str(e), "pieces": []}
+
 
 # ─── Claude identify crop (Manual mode only) ───
 async def claude_identify_crop(img_bytes, cc="tr"):
@@ -746,45 +849,6 @@ async def claude_identify_crop(img_bytes, cc="tr"):
         except Exception: pass
     return ""
 
-# ─── API ENDPOINTS ───
-
-@app.post("/api/full-analyze")
-async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
-    if not SERPAPI_KEY: raise HTTPException(500, "No API key")
-    cc = country.lower()
-    contents = await file.read()
-
-    try:
-        img = Image.open(io.BytesIO(contents)).convert("RGB")
-        img = ImageOps.exif_transpose(img)
-        img_obj = img.copy()
-        img_obj.thumbnail((2000, 2000))  # High-res for cropping
-        img.thumbnail((1024, 1024))  # For Claude detection
-        buf = io.BytesIO(); img.save(buf, format="JPEG", quality=85)
-        b64 = base64.b64encode(buf.getvalue()).decode()
-    except Exception:
-        img_obj = Image.open(io.BytesIO(contents)).convert("RGB")
-        b64 = base64.b64encode(contents).decode()
-
-    print(f"\n{'='*50}\n=== AUTO ANALYZE === country={cc}")
-
-    try:
-        pieces = await claude_detect(b64, cc)
-        if not pieces:
-            return {"success": True, "pieces": [], "country": cc}
-        print(f"Claude: {len(pieces)} pieces detected")
-
-        # Process up to 5 pieces in parallel (no rembg/rerank = stays well under 30s)
-        tasks = [process_auto_piece(p, img_obj, cc) for p in pieces[:4]]
-        results = list(await asyncio.gather(*tasks))
-
-        # Ürün bulunamayan parçaları ekranda gösterme (UX iyileştirme)
-        results = [r for r in results if r.get("products") and len(r["products"]) > 0]
-
-        return {"success": True, "pieces": results, "country": cc}
-    except Exception as e:
-        print(f"AUTO ANALYZE FAILED: {e}")
-        return {"success": False, "message": str(e), "pieces": []}
 
 @app.post("/api/manual-search")
 async def manual_search(file: UploadFile = File(...), query: str = Form(""), country: str = Form("tr")):
@@ -845,7 +909,7 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q, "country": cc, "bg_removed": HAS_REMBG, "crop_image": crop_b64}
 
 @app.get("/api/health")
-async def health(): return {"status": "ok", "removebg": bool(REMOVEBG_KEY), "rembg": HAS_REMBG, "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY)}
+async def health(): return {"status": "ok", "version": "v38-shopping-first", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
 @app.get("/favicon.ico")
 async def favicon(): return Response(content=b"", media_type="image/x-icon")
 @app.get("/api/countries")
