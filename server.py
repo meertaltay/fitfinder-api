@@ -8,6 +8,7 @@ import time
 import sys
 import uuid
 import httpx
+from hashlib import md5
 import urllib.parse
 from PIL import Image, ImageOps
 
@@ -1245,14 +1246,14 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
 TRENDING = {
     "tr": {
         "brands": [
-            {"name": "Zara", "slug": "zara", "color": "#000"},
-            {"name": "Bershka", "slug": "bershka", "color": "#1a1a1a"},
-            {"name": "Mango", "slug": "mango", "color": "#c8a96e"},
-            {"name": "Nike", "slug": "nike", "color": "#111"},
-            {"name": "Adidas", "slug": "adidas", "color": "#000"},
-            {"name": "H&M", "slug": "hm", "color": "#e50010"},
-            {"name": "Koton", "slug": "koton", "color": "#1a1a1a"},
-            {"name": "Pull&Bear", "slug": "pullbear", "color": "#222"},
+            {"name": "Zara", "logo": "https://logo.clearbit.com/zara.com"},
+            {"name": "Bershka", "logo": "https://logo.clearbit.com/bershka.com"},
+            {"name": "Mango", "logo": "https://logo.clearbit.com/mango.com"},
+            {"name": "Nike", "logo": "https://logo.clearbit.com/nike.com"},
+            {"name": "Adidas", "logo": "https://logo.clearbit.com/adidas.com"},
+            {"name": "H&M", "logo": "https://logo.clearbit.com/hm.com"},
+            {"name": "Koton", "logo": "https://logo.clearbit.com/koton.com"},
+            {"name": "Pull&Bear", "logo": "https://logo.clearbit.com/pullandbear.com"},
         ],
         "products": [
             {"title": "Oversize Deri Ceket", "brand": "Zara", "img": "https://static.zara.net/assets/public/1f0f/0f3d/0e0e4d43af98/a7fdb2a79f60/05479318800-e1/05479318800-e1.jpg", "price": "₺2.999", "link": "https://www.zara.com/tr/"},
@@ -1267,14 +1268,14 @@ TRENDING = {
     },
     "en": {
         "brands": [
-            {"name": "Zara", "slug": "zara", "color": "#000"},
-            {"name": "Nike", "slug": "nike", "color": "#111"},
-            {"name": "Adidas", "slug": "adidas", "color": "#000"},
-            {"name": "H&M", "slug": "hm", "color": "#e50010"},
-            {"name": "Mango", "slug": "mango", "color": "#c8a96e"},
-            {"name": "Uniqlo", "slug": "uniqlo", "color": "#c41200"},
-            {"name": "COS", "slug": "cos", "color": "#1a1a1a"},
-            {"name": "ASOS", "slug": "asos", "color": "#2d2d2d"},
+            {"name": "Zara", "logo": "https://logo.clearbit.com/zara.com"},
+            {"name": "Nike", "logo": "https://logo.clearbit.com/nike.com"},
+            {"name": "Adidas", "logo": "https://logo.clearbit.com/adidas.com"},
+            {"name": "H&M", "logo": "https://logo.clearbit.com/hm.com"},
+            {"name": "Mango", "logo": "https://logo.clearbit.com/mango.com"},
+            {"name": "Uniqlo", "logo": "https://logo.clearbit.com/uniqlo.com"},
+            {"name": "COS", "logo": "https://logo.clearbit.com/cosstores.com"},
+            {"name": "ASOS", "logo": "https://logo.clearbit.com/asos.com"},
         ],
         "products": [
             {"title": "Oversize Leather Jacket", "brand": "Zara", "img": "https://static.zara.net/assets/public/1f0f/0f3d/0e0e4d43af98/a7fdb2a79f60/05479318800-e1/05479318800-e1.jpg", "price": "$129", "link": "https://www.zara.com/us/"},
@@ -1282,7 +1283,7 @@ TRENDING = {
             {"title": "Samba OG", "brand": "Adidas", "img": "https://assets.adidas.com/images/h_840,f_auto,q_auto,fl_lossy,c_fill,g_auto/fbaf991a78bc4896a3e9a7e8025b396c_9366/Samba_OG_Ayakkabi_Beyaz_B75806_01_standard.jpg", "price": "$100", "link": "https://www.adidas.com/"},
             {"title": "Wide Leg Jeans", "brand": "Mango", "img": "https://st.mango.com/second/phones/he/67084043_01_D.jpg", "price": "$59", "link": "https://shop.mango.com/us/"},
             {"title": "Relaxed Fit Tee", "brand": "Uniqlo", "img": "https://image.uniqlo.com/UQ/ST3/WesternCommon/imagesgoods/422992/item/goods_09_422992.jpg", "price": "$15", "link": "https://www.uniqlo.com/us/"},
-            {"title": "Varsity Bomber Jacket", "brand": "H&M", "img": "https://lp2.hm.com/hmgoepprod?set=format%5Bwebp%5D&source=url%5Bhttps://assets.hm.com/content/dam/global_digitalassets/2024_12/men_2a_trending-now_16_9.jpg%5D", "price": "$49", "link": "https://www2.hm.com/en_us/"},
+            {"title": "Varsity Bomber", "brand": "H&M", "img": "https://lp2.hm.com/hmgoepprod?set=format%5Bwebp%5D&source=url%5Bhttps://assets.hm.com/content/dam/global_digitalassets/2024_12/men_2a_trending-now_16_9.jpg%5D", "price": "$49", "link": "https://www2.hm.com/en_us/"},
         ],
         "section_brands": "🏷️ Popular Brands",
         "section_trending": "🔥 Trending This Week",
@@ -1623,6 +1624,27 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
         return {"success": False, "message": str(e)}
 @app.get("/favicon.ico")
 async def favicon(): return Response(content=b"", media_type="image/x-icon")
+
+# ─── IMAGE PROXY (bypass hotlink protection for trending images) ───
+IMG_CACHE = {}  # url_hash → (content_type, bytes)
+
+@app.get("/api/img")
+async def proxy_img(url: str = ""):
+    if not url: return Response(content=b"", status_code=400)
+    url_hash = md5(url.encode()).hexdigest()
+    if url_hash in IMG_CACHE:
+        ct, data = IMG_CACHE[url_hash]
+        return Response(content=data, media_type=ct)
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            r = await client.get(url, headers={"User-Agent": "Mozilla/5.0", "Referer": url})
+            if r.status_code == 200:
+                ct = r.headers.get("content-type", "image/jpeg")
+                IMG_CACHE[url_hash] = (ct, r.content)
+                return Response(content=r.content, media_type=ct)
+    except Exception: pass
+    return Response(content=b"", status_code=404)
+
 @app.get("/api/countries")
 async def countries(): return {cc: {"name": cfg["name"], "currency": cfg["currency"]} for cc, cfg in COUNTRIES.items()}
 @app.get("/", response_class=HTMLResponse)
@@ -1686,7 +1708,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .brand-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:28px}
 .brand-chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 6px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s}
 .brand-chip:hover,.brand-chip:active{border-color:var(--accent);transform:scale(1.04)}
-.brand-chip .b-letter{width:36px;height:36px;border-radius:50%;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff}
+.brand-chip .b-logo{width:44px;height:44px;border-radius:10px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden}
+.brand-chip .b-logo img{width:36px;height:36px;object-fit:contain}
 .brand-chip .b-name{font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trend-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:28px}
 .trend-card{flex-shrink:0;width:150px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s}
@@ -1795,20 +1818,20 @@ function loadTrending(){
   fetch('/api/trending?country='+getCC()).then(function(r){return r.json()}).then(function(d){
     if(!d.success)return;
     var ts=document.getElementById('trendingSection');var h='';
-    // Brands
+    // Brands with logos
     if(d.brands&&d.brands.length){
       h+='<div class="sec-title">'+d.section_brands+'</div><div class="brand-grid">';
-      var colors=['#c0392b','#2980b9','#27ae60','#8e44ad','#d35400','#16a085','#2c3e50','#f39c12'];
-      for(var i=0;i<d.brands.length;i++){var b=d.brands[i];var bg=colors[i%colors.length];
-        h+='<div class="brand-chip"><div class="b-letter" style="background:'+bg+'">'+b.name.charAt(0)+'</div><div class="b-name">'+b.name+'</div></div>';}
+      for(var i=0;i<d.brands.length;i++){var b=d.brands[i];
+        h+='<div class="brand-chip"><div class="b-logo"><img src="'+b.logo+'" onerror="this.onerror=null;this.parentElement.innerHTML=\'<span style=font-size:20px;font-weight:800;color:var(--accent)>'+b.name.charAt(0)+'</span>\'"></div><div class="b-name">'+b.name+'</div></div>';}
       h+='</div>';
     }
-    // Trending products
+    // Trending products with proxied images
     if(d.products&&d.products.length){
       h+='<div class="sec-title">'+d.section_trending+'</div><div class="trend-scroll">';
       for(var i=0;i<d.products.length;i++){var p=d.products[i];
+        var imgUrl='/api/img?url='+encodeURIComponent(p.img);
         h+='<a href="'+p.link+'" target="_blank" rel="noopener" class="trend-card">';
-        h+='<img src="'+p.img+'" style="width:150px;height:170px;object-fit:cover;display:block;background:#1a1a1a" onerror="this.onerror=null;this.style.opacity=0">';
+        h+='<img src="'+imgUrl+'" onerror="this.onerror=null;this.style.opacity=0">';
         h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price">'+p.price+'</div></div></a>';}
       h+='</div>';
     }
