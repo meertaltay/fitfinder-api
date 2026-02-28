@@ -848,21 +848,37 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             print(f"    q_gen:  {p.get('search_query_generic','')}")
 
         # ── Step 2: Crop each piece + Build search queries ──
+        # v42 OPTIMIZED: 1 merged query per piece (specific + OCR keywords)
+        # OLD: specific + ocr + generic = 3 SerpAPI calls per piece
+        # NEW: 1 smart merged query = 1 SerpAPI call per piece
         search_queries = []  # [(piece_idx, query_str, priority)]
         crop_tasks = []  # [(piece_idx, crop_bytes)]
 
         for i, p in enumerate(pieces):
-            # Search queries
             q_specific = p.get("search_query_specific", "").strip()
             q_generic = p.get("search_query_generic", "").strip()
-            q_ocr = build_ocr_shopping_query(
-                p.get("brand", ""), p.get("visible_text", ""),
-                p.get("color", ""), p.get("category", ""),
-                p.get("style_type", ""), get_country_config(cc))
 
-            if q_specific: search_queries.append((i, q_specific, "specific"))
-            if q_ocr and q_ocr != q_specific: search_queries.append((i, q_ocr, "ocr"))
-            if q_generic and q_generic != q_specific: search_queries.append((i, q_generic, "generic"))
+            # Merge OCR keywords into specific query (instead of separate call)
+            brand = p.get("brand", "")
+            visible_text = p.get("visible_text", "")
+            if q_specific:
+                # Check if OCR text is already in specific query
+                q_lower = q_specific.lower()
+                extra_ocr = []
+                if visible_text and visible_text.lower() not in ["none", "?", "", "yok"]:
+                    for word in visible_text.replace(",", " ").split():
+                        clean = re.sub(r'[^\w]', '', word)
+                        if len(clean) > 2 and clean.lower() not in q_lower and clean.lower() not in ["none", "yok", "the", "and", "for"]:
+                            extra_ocr.append(clean)
+                            if len(extra_ocr) >= 2: break  # Max 2 extra OCR words
+                if extra_ocr:
+                    q_merged = q_specific + " " + " ".join(extra_ocr)
+                    search_queries.append((i, q_merged, "specific"))
+                    print(f"  [{p.get('category')}] Merged OCR into specific: +{extra_ocr}")
+                else:
+                    search_queries.append((i, q_specific, "specific"))
+            elif q_generic:
+                search_queries.append((i, q_generic, "generic"))
 
             # Crop for Lens (simple, no rembg)
             box = p.get("box_2d")
@@ -871,7 +887,6 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                     cropped_bytes = await asyncio.to_thread(crop_piece, img_obj, box)
                     if cropped_bytes:
                         crop_tasks.append((i, cropped_bytes))
-                        # Generate thumbnail preview for UI
                         try:
                             t_img = Image.open(io.BytesIO(cropped_bytes)).convert("RGB")
                             t_img.thumbnail((128, 128))
@@ -884,25 +899,27 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 except Exception as e:
                     print(f"  [{p.get('category')}] Crop error: {e}")
 
-        print(f"Search queries: {len(search_queries)} | Crops: {len(crop_tasks)}")
+        serpapi_calls = len(search_queries) + len(crop_tasks) + 1  # +1 for full exact
+        print(f"Search queries: {len(search_queries)} | Crops: {len(crop_tasks)} | SerpAPI calls: {serpapi_calls}")
         for idx, q, pri in search_queries:
             print(f"  [{pieces[idx].get('category')}] {pri}: '{q}'")
 
-        # ── Step 3: Upload crops + Per-piece Lens + Shopping + Google → ALL PARALLEL ──
-        async def do_shop(q, limit=6):
+        # ── Step 3: Upload crops + Per-piece Lens + Shopping → ALL PARALLEL ──
+        # v42 OPTIMIZED: Removed full_lens_visual (piece_lens covers it)
+        # v42 OPTIMIZED: Removed Google organic (moved to "load more" button)
+        # v42 OPTIMIZED: 1 shopping query per piece (merged specific+OCR)
+        # Result: 2-piece outfit = 5 SerpAPI calls (was 12)
+
+        async def do_shop(q, limit=8):
             async with API_SEM:
                 return await asyncio.to_thread(_shop, q, cc, limit)
 
-        async def do_google(q, limit=6):
-            async with API_SEM:
-                return await asyncio.to_thread(_google_organic, q, cc, limit)
-
         async def do_piece_lens(crop_bytes):
-            """Upload crop → Lens VISUAL matches (similar looking products)."""
+            """Upload crop → Lens ALL (exact+visual matches for this piece)."""
             url = await upload_img(crop_bytes)
             if url:
                 async with API_SEM:
-                    return await asyncio.to_thread(_lens, url, cc, "visual_matches")
+                    return await asyncio.to_thread(_lens, url, cc, "all")
             return []
 
         async def do_full_lens_exact():
@@ -912,43 +929,23 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                     return await asyncio.to_thread(_lens, img_url, cc, "exact_matches")
             return []
 
-        async def do_full_lens_visual():
-            """Full image → Lens VISUAL matches (backup — similar products)."""
-            if img_url:
-                async with API_SEM:
-                    return await asyncio.to_thread(_lens, img_url, cc, "visual_matches")
-            return []
-
         # Build ALL tasks
         tasks = []
         task_map = []  # (type, piece_idx, extra_info)
 
         # 🏆 FULL IMAGE EXACT MATCHES — This is what Google Lens app does!
-        # Same photo on Bershka.com, Instagram etc. = birebir aynı ürün
         tasks.append(do_full_lens_exact())
         task_map.append(("full_lens_exact", -1, None))
 
-        # Per-piece Lens VISUAL (crop → similar products)
+        # Per-piece Lens (crop → similar+exact products)
         for piece_idx, crop_bytes in crop_tasks:
             tasks.append(do_piece_lens(crop_bytes))
             task_map.append(("piece_lens", piece_idx, None))
 
-        # Full image Lens VISUAL (backup — distribute by keyword)
-        tasks.append(do_full_lens_visual())
-        task_map.append(("full_lens_visual", -1, None))
-
-        # Shopping
-        shop_start_idx = len(tasks)
+        # Shopping (1 merged query per piece)
         for piece_idx, q, pri in search_queries:
-            limit = 8 if pri == "specific" else 4
-            tasks.append(do_shop(q, limit))
+            tasks.append(do_shop(q, 8))
             task_map.append(("shop", piece_idx, pri))
-
-        # Google organic (only specific query per piece)
-        for piece_idx, q, pri in search_queries:
-            if pri == "specific":
-                tasks.append(do_google(q, 6))
-                task_map.append(("google", piece_idx, pri))
 
         # 🚀 FIRE ALL AT ONCE
         all_results = await asyncio.gather(*tasks)
@@ -956,7 +953,6 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
         # ── Step 4: Distribute results to pieces ──
         piece_lens = {i: [] for i in range(len(pieces))}
         piece_shop = {i: [] for i in range(len(pieces))}
-        piece_google = {i: [] for i in range(len(pieces))}
         seen_per_piece = {i: set() for i in range(len(pieces))}
 
         for task_idx, (task_type, piece_idx, extra) in enumerate(task_map):
@@ -964,7 +960,6 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
 
             if task_type == "full_lens_exact":
                 # 🏆 EXACT matches from full image — distribute to pieces by keyword
-                # These are THE BEST results (same photo found on Bershka.com etc.)
                 if results:
                     exact_matches = match_lens_to_pieces(results, pieces)
                     for i in range(len(pieces)):
@@ -973,7 +968,7 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                             if link not in seen_per_piece[i]:
                                 seen_per_piece[i].add(link)
                                 piece_lens[i].append(r)
-                    # Also: unmatched exact results go to ALL pieces (they're too good to lose)
+                    # Unmatched exact results go to first available piece (too good to lose)
                     matched_links = set()
                     for i in range(len(pieces)):
                         for r in exact_matches.get(i, []):
@@ -981,7 +976,6 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                     for r in results:
                         link = r.get("link", "")
                         if link not in matched_links:
-                            # Give to the first piece that doesn't have it
                             for i in range(len(pieces)):
                                 if link not in seen_per_piece[i]:
                                     seen_per_piece[i].add(link)
@@ -993,24 +987,13 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                         print(f"    ✅ {r.get('title','')[:60]} | {r.get('source','')} | exact={r.get('_exact',False)}")
 
             elif task_type == "piece_lens":
-                # Per-piece Lens VISUAL results go directly to that piece
+                # Per-piece Lens results go directly to that piece
                 for r in results:
                     link = r.get("link", "")
                     if link not in seen_per_piece[piece_idx]:
                         seen_per_piece[piece_idx].add(link)
                         piece_lens[piece_idx].append(r)
-                print(f"  [{pieces[piece_idx].get('category')}] Piece Lens visual: {len(results)} results")
-
-            elif task_type == "full_lens_visual":
-                # Full Lens VISUAL — distribute by keyword matching (backup)
-                full_lens_matches = match_lens_to_pieces(results, pieces)
-                for i in range(len(pieces)):
-                    for r in full_lens_matches.get(i, []):
-                        link = r.get("link", "")
-                        if link not in seen_per_piece[i]:
-                            seen_per_piece[i].add(link)
-                            piece_lens[i].append(r)
-                print(f"  Full Lens visual: {len(results)} results (backup)")
+                print(f"  [{pieces[piece_idx].get('category')}] Piece Lens: {len(results)} results")
 
             elif task_type == "shop":
                 for r in results:
@@ -1021,16 +1004,6 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                         r_copy["_priority"] = extra
                         r_copy["_channel"] = "shopping"
                         piece_shop[piece_idx].append(r_copy)
-
-            elif task_type == "google":
-                for r in results:
-                    link = r.get("link", "")
-                    if link not in seen_per_piece[piece_idx]:
-                        seen_per_piece[piece_idx].add(link)
-                        r_copy = r.copy()
-                        r_copy["_priority"] = extra
-                        r_copy["_channel"] = "google"
-                        piece_google[piece_idx].append(r_copy)
 
         # Log Lens results per piece (for debugging)
         for i in range(len(pieces)):
@@ -1049,19 +1022,16 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             cat = p.get("category", "")
 
             shop = piece_shop.get(i, [])
-            google = piece_google.get(i, [])
             matched_lens = piece_lens.get(i, [])
 
             # Brand filter
             if brand and brand != "?":
                 matched_lens = filter_rival_brands(matched_lens, brand)
                 shop = filter_rival_brands(shop, brand)
-                google = filter_rival_brands(google, brand)
 
             # Collect all links per channel for cross-reference
             shop_links = {r.get("link", "") for r in shop}
             lens_links = {r.get("link", "") for r in matched_lens}
-            google_links = {r.get("link", "") for r in google}
 
             def score_result(r, base_score=0):
                 """Universal scoring function for any channel."""
@@ -1073,11 +1043,12 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                     score += 50
                     r["ai_verified"] = True
 
-                # Cross-channel bonus (aynı ürün birden fazla kanalda = güvenilir)
+                # Cross-channel bonus (same product in both lens + shopping = reliable)
                 link = r.get("link", "")
-                channels_found = sum([link in shop_links, link in lens_links, link in google_links])
-                if channels_found >= 3: score += 30; r["ai_verified"] = True
-                elif channels_found >= 2: score += 20; r["ai_verified"] = True
+                if link in shop_links and link in lens_links:
+                    score += 25; r["ai_verified"] = True
+                elif (link in shop_links) != (link in lens_links):  # in one but not both
+                    score += 5
 
                 # Brand match
                 if brand and brand != "?" and len(brand) > 2 and brand.lower() in combined:
@@ -1094,26 +1065,19 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             seen = set()
             all_items = []
 
+            # Lens results (per-piece crop + full exact = most reliable)
+            for r in matched_lens:
+                if r["link"] in seen: continue
+                seen.add(r["link"])
+                r["_score"] = score_result(r, 18)
+                all_items.append(r)
+
             # Shopping results
             for r in shop:
                 if r["link"] in seen: continue
                 seen.add(r["link"])
-                base = 15 if r.get("_priority") == "specific" else (12 if r.get("_priority") == "ocr" else 5)
+                base = 15 if r.get("_priority") == "specific" else 5
                 r["_score"] = score_result(r, base)
-                all_items.append(r)
-
-            # Google organic results (yüksek baz puan — Shopping'de olmayan ürünleri yakalar)
-            for r in google:
-                if r["link"] in seen: continue
-                seen.add(r["link"])
-                r["_score"] = score_result(r, 13)  # Google organic = specific'e yakın güven
-                all_items.append(r)
-
-            # Lens results (per-piece crop = like Google Lens app, HIGH confidence)
-            for r in matched_lens:
-                if r["link"] in seen: continue
-                seen.add(r["link"])
-                r["_score"] = score_result(r, 18)  # Per-piece Lens = most reliable source
                 all_items.append(r)
 
             # Sort by score
@@ -1381,27 +1345,47 @@ async def trending(country: str = "tr", refresh: bool = False):
 # ─── BRAND LOGO SVG ENDPOINT ───
 @app.get("/api/logo")
 async def brand_logo(name: str = ""):
-    """Marka adından SVG logo üret."""
+    """Marka adından SVG logo üret — compact display name + brand color."""
     if not name: return Response(content=b"", status_code=400)
-    safe_name = html.escape(name.upper())  # & → &amp; for XML
-    # Her marka için distinctive renk (dark bg'de görünür olmalı!)
+
+    # Known brand display names (short, fits in 80px box)
+    BRAND_DISPLAY = {
+        "zara": "ZARA", "bershka": "BSK", "mango": "MNG", "nike": "NIKE",
+        "adidas": "adi", "h&m": "H&M", "koton": "KTN", "pull&bear": "P&B",
+        "uniqlo": "UQ", "cos": "COS", "asos": "ASOS",
+    }
+    display = BRAND_DISPLAY.get(name.lower(), name.upper()[:5])  # Max 5 chars for unknowns
+    safe_display = html.escape(display)
+
+    # Brand colors (distinctive on dark bg)
     colors = {"zara": "#ffffff", "bershka": "#a8d8a8", "mango": "#c8a265", "nike": "#ffffff",
               "adidas": "#ffffff", "h&m": "#cc0000", "koton": "#8a9a8a", "pull&bear": "#7a9a6a",
               "uniqlo": "#c41200", "cos": "#ffffff", "asos": "#b8b8b8"}
     text_color = colors.get(name.lower(), "#e0e0e0")
-    # Font boyutu marka uzunluğuna göre ayarla
-    fs = 16 if len(name) <= 4 else (12 if len(name) <= 6 else 9)
+
+    # Brand-specific backgrounds
+    bg_colors = {"h&m": "#1a0000", "nike": "#111", "adidas": "#0a0a0a", "uniqlo": "#1a0000"}
+    bg = bg_colors.get(name.lower(), "#1a1a1a")
+
+    # Font size based on DISPLAY length (not original name)
+    fs = 20 if len(display) <= 3 else (16 if len(display) <= 4 else 13)
+    # Adidas uses lowercase italic style
+    style = 'font-style="italic"' if name.lower() == "adidas" else ''
+
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
-  <rect width="80" height="80" rx="14" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
-  <text x="40" y="44" text-anchor="middle" dominant-baseline="middle"
+  <rect width="80" height="80" rx="14" fill="{bg}" stroke="#333" stroke-width="1"/>
+  <text x="40" y="43" text-anchor="middle" dominant-baseline="middle"
     fill="{text_color}" font-family="system-ui,-apple-system,sans-serif"
-    font-size="{fs}" font-weight="800" letter-spacing="1">{safe_name}</text>
+    font-size="{fs}" font-weight="800" letter-spacing="0.5" {style}>{safe_display}</text>
+  <text x="40" y="62" text-anchor="middle" dominant-baseline="middle"
+    fill="#666" font-family="system-ui,sans-serif"
+    font-size="7" font-weight="500">{html.escape(name)}</text>
 </svg>'''
     return Response(content=svg.encode(), media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=604800"})
 
 @app.get("/api/health")
-async def health(): return {"status": "ok", "version": "v41-auto-stacked", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
+async def health(): return {"status": "ok", "version": "v42-logo-fix", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
 
 # ─── SESSION STORE (detect → search-piece) ───
 DETECT_SESSIONS = {}  # detect_id → {pieces, img_url, crop_data, cc, created_at}
@@ -1528,37 +1512,43 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
     visible_text = p.get("visible_text", "")
     print(f"\n{'='*50}\n=== SEARCH PIECE v41: [{cat}] === brand={brand} text='{visible_text}'")
 
-    # Build search queries for this piece
+    # Build search queries for this piece (v42: merged OCR into specific)
     q_specific = p.get("search_query_specific", "").strip()
     q_generic = p.get("search_query_generic", "").strip()
-    q_ocr = build_ocr_shopping_query(
-        brand, visible_text, p.get("color", ""),
-        cat, p.get("style_type", ""), cfg)
 
+    # Merge OCR keywords into specific query
     queries = []
-    if q_specific: queries.append((q_specific, "specific"))
-    if q_ocr and q_ocr != q_specific: queries.append((q_ocr, "ocr"))
-    if q_generic and q_generic != q_specific: queries.append((q_generic, "generic"))
+    if q_specific:
+        q_lower = q_specific.lower()
+        extra_ocr = []
+        if visible_text and visible_text.lower() not in ["none", "?", "", "yok"]:
+            for word in visible_text.replace(",", " ").split():
+                clean = re.sub(r'[^\w]', '', word)
+                if len(clean) > 2 and clean.lower() not in q_lower and clean.lower() not in ["none", "yok", "the", "and", "for"]:
+                    extra_ocr.append(clean)
+                    if len(extra_ocr) >= 2: break
+        if extra_ocr:
+            queries.append((q_specific + " " + " ".join(extra_ocr), "specific"))
+        else:
+            queries.append((q_specific, "specific"))
+    elif q_generic:
+        queries.append((q_generic, "generic"))
 
     for q, pri in queries:
         print(f"  {pri}: '{q}'")
 
     try:
-        # ── ALL searches in parallel ──
-        async def do_shop(q, limit=6):
+        # ── ALL searches in parallel (v42: no google organic) ──
+        async def do_shop(q, limit=8):
             async with API_SEM:
                 return await asyncio.to_thread(_shop, q, cc, limit)
-
-        async def do_google(q, limit=6):
-            async with API_SEM:
-                return await asyncio.to_thread(_google_organic, q, cc, limit)
 
         async def do_piece_lens():
             if not crop_bytes: return []
             url = await upload_img(crop_bytes)
             if url:
                 async with API_SEM:
-                    return await asyncio.to_thread(_lens, url, cc, "visual_matches")
+                    return await asyncio.to_thread(_lens, url, cc, "all")
             return []
 
         async def do_full_lens_exact():
@@ -1567,42 +1557,32 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
                     return await asyncio.to_thread(_lens, img_url, cc, "exact_matches")
             return []
 
-        async def do_full_lens_visual():
-            if img_url:
-                async with API_SEM:
-                    return await asyncio.to_thread(_lens, img_url, cc, "visual_matches")
-            return []
-
+        # v42 OPTIMIZED: removed full_lens_visual + google organic
         tasks = []
         task_labels = []
 
-        # 1. Full image exact Lens (best source — same photo on Bershka etc.)
+        # 1. Full image exact Lens
         tasks.append(do_full_lens_exact()); task_labels.append("exact_lens")
-        # 2. Per-piece crop Lens visual
+        # 2. Per-piece crop Lens (exact+visual)
         tasks.append(do_piece_lens()); task_labels.append("piece_lens")
-        # 3. Full image visual Lens (backup)
-        tasks.append(do_full_lens_visual()); task_labels.append("full_lens_visual")
-        # 4. Shopping queries
+        # 3. Shopping (1 merged query)
         for q, pri in queries:
             tasks.append(do_shop(q)); task_labels.append(f"shop_{pri}")
-        # 5. Google organic (specific only)
-        if q_specific:
-            tasks.append(do_google(q_specific)); task_labels.append("google")
+
+        serpapi_calls = len(tasks)
+        print(f"  v42 optimized: {serpapi_calls} SerpAPI calls")
 
         all_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # ── Collect results ──
         exact_lens_results = all_results[0] if not isinstance(all_results[0], Exception) else []
         piece_lens_results = all_results[1] if not isinstance(all_results[1], Exception) else []
-        full_lens_visual = all_results[2] if not isinstance(all_results[2], Exception) else []
 
         shop_results = []
-        google_results = []
-        for idx in range(3, len(all_results)):
+        for idx in range(2, len(all_results)):
             r = all_results[idx] if not isinstance(all_results[idx], Exception) else []
             label = task_labels[idx]
             if label.startswith("shop_"): shop_results.extend(r)
-            elif label == "google": google_results.extend(r)
 
         # ── Filter full-image Lens results to THIS piece using keywords ──
         piece_kws = PIECE_KEYWORDS.get(cat, [])
@@ -1616,29 +1596,26 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
             if len(pieces) == 1 or matches_piece(r) or r.get("_exact"):
                 filtered_exact.append(r)
 
-        filtered_full_visual = [r for r in full_lens_visual if matches_piece(r)] if len(pieces) > 1 else full_lens_visual
+        # Combine all lens results (no more full_lens_visual backup)
+        all_lens = filtered_exact + piece_lens_results
 
-        # Combine all lens results
-        all_lens = filtered_exact + piece_lens_results + filtered_full_visual
-
-        print(f"  Results: exact={len(filtered_exact)} piece_lens={len(piece_lens_results)} full_visual={len(filtered_full_visual)} shop={len(shop_results)} google={len(google_results)}")
+        print(f"  Results: exact={len(filtered_exact)} piece_lens={len(piece_lens_results)} shop={len(shop_results)}")
         if filtered_exact:
             for r in filtered_exact[:3]:
                 print(f"    ✅ EXACT: {r.get('title','')[:50]} | {r.get('source','')}")
 
-        # ── Score everything ──
+        # ── Score everything (v42: 2 channels — lens + shopping) ──
         shop_links = {r.get("link", "") for r in shop_results}
         lens_links = {r.get("link", "") for r in all_lens}
-        google_links = {r.get("link", "") for r in google_results}
 
         def score_result(r, base_score=0):
             score = base_score
             combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
             if r.get("_exact"): score += 50; r["ai_verified"] = True
             link = r.get("link", "")
-            channels_found = sum([link in shop_links, link in lens_links, link in google_links])
-            if channels_found >= 3: score += 30; r["ai_verified"] = True
-            elif channels_found >= 2: score += 20; r["ai_verified"] = True
+            # Cross-channel: same product in both lens + shopping = reliable
+            if link in shop_links and link in lens_links:
+                score += 25; r["ai_verified"] = True
             if brand and brand != "?" and len(brand) > 2 and brand.lower() in combined: score += 8
             if visible_text and visible_text.lower() not in ["none", "?", ""]:
                 for vt in visible_text.lower().replace(",", " ").split():
@@ -1662,13 +1639,6 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
             if r.get("link") and r["link"] not in seen:
                 seen.add(r["link"])
                 r["_score"] = score_result(r, 15)
-                all_items.append(r)
-
-        # Google organic
-        for r in google_results:
-            if r.get("link") and r["link"] not in seen:
-                seen.add(r["link"])
-                r["_score"] = score_result(r, 13)
                 all_items.append(r)
 
         all_items.sort(key=lambda x: -x.get("_score", 0))
@@ -1724,11 +1694,35 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
                 "crop_image": crop_b64,
             },
             "country": cc,
+            "_search_query": queries[0][0] if queries else "",  # For "load more" button
         }
     except Exception as e:
         print(f"SEARCH PIECE FAILED: {e}")
         import traceback; traceback.print_exc()
         return {"success": False, "message": str(e)}
+
+
+# ─── LOAD MORE: On-demand Google Organic (saves SerpAPI credits) ───
+@app.post("/api/load-more")
+async def load_more(query: str = Form(""), country: str = Form("tr"), exclude: str = Form("")):
+    """Lazy-load Google organic results — only when user taps 'More Results'."""
+    if not SERPAPI_KEY or not query:
+        return {"success": False, "products": []}
+    cc = country.lower()
+    exclude_links = set(json.loads(exclude)) if exclude else set()
+
+    print(f"\n=== LOAD MORE === q='{query}' cc={cc}")
+    async with API_SEM:
+        results = await asyncio.to_thread(_google_organic, query, cc, 10)
+
+    # Filter out already-shown results
+    products = []
+    for r in results:
+        if r.get("link", "") not in exclude_links:
+            products.append(r)
+    print(f"  Google organic: {len(results)} total, {len(products)} new")
+    return {"success": True, "products": products[:8]}
+
 @app.get("/favicon.ico")
 async def favicon(): return Response(content=b"", media_type="image/x-icon")
 
@@ -1906,8 +1900,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 var IC={hat:"\u{1F9E2}",sunglasses:"\u{1F576}",top:"\u{1F455}",jacket:"\u{1F9E5}",bag:"\u{1F45C}",accessory:"\u{1F48D}",watch:"\u{231A}",bottom:"\u{1F456}",dress:"\u{1F457}",shoes:"\u{1F45F}",scarf:"\u{1F9E3}"};
 var cF=null,cPrev=null,cropper=null,CC='us';
 var L={
-  tr:{flag:"\u{1F1F9}\u{1F1F7}",heroTitle:'Gorseldeki outfiti<br><span style="color:var(--accent)">birebir</span> bul.',heroSub:'Fotograf yukle, AI parcalari tespit etsin<br>istedigin parcaya tikla, birebir bulsun.',upload:'Fotograf Yukle',uploadSub:'Galeri veya screenshot',auto:'\u{1F916} Otomatik Tara',manual:'\u{2702}\u{FE0F} Kendim Seceyim',feat1:'Otomatik Tara',feat1d:'AI parcalari tespit eder, sen sec',feat2:'Kendim Seceyim',feat2d:'Parmaginla parcayi sec, birebir bul',back:'\u2190 Geri',cropHint:'\u{1F447} Aramak istedigin parcayi cercevele',manualPh:'Opsiyonel: ne aradigini yaz',find:'\u{1F50D} Bu Parcayi Bul',cancel:'\u2190 Vazgec',loading:'Parcalar tespit ediliyor...',loadingManual:'AI analiz ediyor...',noResult:'Sonuc bulunamadi',noProd:'Urun bulunamadi',retry:'\u{2702}\u{FE0F} Kendim Seceyim ile Tekrar Dene',another:'\u{2702}\u{FE0F} Baska Parca Sec',selected:'Sectigin Parca',lensMatch:'gorsel eslesme',recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} AI Eslesmesi',goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',alts:'\u{1F4B8} Alternatifler \u{1F449}',navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme',matchExact:'\u2705 Birebir Eslesme',matchClose:'\u{1F7E1} Yakin Eslesme',matchSimilar:'\u{1F7E0} Benzer Urunler',step_detect:'AI parcalari tespit ediyor...',step_bg:'Gorsel hazirlaniyor...',step_lens:'AI magazalari tariyor...',step_ai:'AI urunleri karsilastiriyor...',step_verify:'Birebir eslesme kontrolu...',step_done:'Sonuclar hazirlaniyor...',piecesFound:'parca tespit edildi',pickPiece:'Aramak istedigin parcaya tikla',searchingPiece:'Parca araniyor...',backToPieces:'\u2190 Diger Parcalar',noDetect:'Parca tespit edilemedi. Kendim Seceyim ile deneyin.'},
-  en:{flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',heroSub:'Upload a photo, AI detects each piece<br>tap any piece to find it instantly.',upload:'Upload Photo',uploadSub:'Gallery or screenshot',auto:'\u{1F916} Auto Scan',manual:'\u{2702}\u{FE0F} Select Myself',feat1:'Auto Scan',feat1d:'AI detects pieces, you pick one to search',feat2:'Select Myself',feat2d:'Select the piece with your finger, find exact match',back:'\u2190 Back',cropHint:'\u{1F447} Frame the piece you want to find',manualPh:'Optional: describe what you\'re looking for',find:'\u{1F50D} Find This Piece',cancel:'\u2190 Cancel',loading:'Detecting pieces...',loadingManual:'AI analyzing...',noResult:'No results found',noProd:'No products found',retry:'\u{2702}\u{FE0F} Try Select Myself',another:'\u{2702}\u{FE0F} Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} AI Match',goStore:'Go to Store \u2197',noPrice:'Click for price',alts:'\u{1F4B8} Alternatives \u{1F449}',navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match',matchExact:'\u2705 Exact Match',matchClose:'\u{1F7E1} Close Match',matchSimilar:'\u{1F7E0} Similar Items',step_detect:'AI detecting pieces...',step_lens:'AI scanning stores...',step_match:'Matching products...',step_done:'Preparing results...',step_bg:'Preparing image...',step_search:'Scanning global stores...',step_ai:'AI comparing products...',step_verify:'Verifying exact match...',piecesFound:'pieces detected',pickPiece:'Tap a piece to search for it',searchingPiece:'Searching for piece...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces detected. Try Select Myself.'}
+  tr:{flag:"\u{1F1F9}\u{1F1F7}",heroTitle:'Gorseldeki outfiti<br><span style="color:var(--accent)">birebir</span> bul.',heroSub:'Fotograf yukle, AI parcalari tespit etsin<br>istedigin parcaya tikla, birebir bulsun.',upload:'Fotograf Yukle',uploadSub:'Galeri veya screenshot',auto:'\u{1F916} Otomatik Tara',manual:'\u{2702}\u{FE0F} Kendim Seceyim',feat1:'Otomatik Tara',feat1d:'AI parcalari tespit eder, sen sec',feat2:'Kendim Seceyim',feat2d:'Parmaginla parcayi sec, birebir bul',back:'\u2190 Geri',cropHint:'\u{1F447} Aramak istedigin parcayi cercevele',manualPh:'Opsiyonel: ne aradigini yaz',find:'\u{1F50D} Bu Parcayi Bul',cancel:'\u2190 Vazgec',loading:'Parcalar tespit ediliyor...',loadingManual:'AI analiz ediyor...',noResult:'Sonuc bulunamadi',noProd:'Urun bulunamadi',retry:'\u{2702}\u{FE0F} Kendim Seceyim ile Tekrar Dene',another:'\u{2702}\u{FE0F} Baska Parca Sec',selected:'Sectigin Parca',lensMatch:'gorsel eslesme',recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} AI Eslesmesi',goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',alts:'\u{1F4B8} Alternatifler \u{1F449}',navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme',matchExact:'\u2705 Birebir Eslesme',matchClose:'\u{1F7E1} Yakin Eslesme',matchSimilar:'\u{1F7E0} Benzer Urunler',step_detect:'AI parcalari tespit ediyor...',step_bg:'Gorsel hazirlaniyor...',step_lens:'AI magazalari tariyor...',step_ai:'AI urunleri karsilastiriyor...',step_verify:'Birebir eslesme kontrolu...',step_done:'Sonuclar hazirlaniyor...',piecesFound:'parca tespit edildi',pickPiece:'Aramak istedigin parcaya tikla',searchingPiece:'Parca araniyor...',backToPieces:'\u2190 Diger Parcalar',noDetect:'Parca tespit edilemedi. Kendim Seceyim ile deneyin.',loadMore:'\u{1F50E} Daha Fazla Sonuc',loadingMore:'Ek sonuclar araniyor...'},
+  en:{flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',heroSub:'Upload a photo, AI detects each piece<br>tap any piece to find it instantly.',upload:'Upload Photo',uploadSub:'Gallery or screenshot',auto:'\u{1F916} Auto Scan',manual:'\u{2702}\u{FE0F} Select Myself',feat1:'Auto Scan',feat1d:'AI detects pieces, you pick one to search',feat2:'Select Myself',feat2d:'Select the piece with your finger, find exact match',back:'\u2190 Back',cropHint:'\u{1F447} Frame the piece you want to find',manualPh:'Optional: describe what you\'re looking for',find:'\u{1F50D} Find This Piece',cancel:'\u2190 Cancel',loading:'Detecting pieces...',loadingManual:'AI analyzing...',noResult:'No results found',noProd:'No products found',retry:'\u{2702}\u{FE0F} Try Select Myself',another:'\u{2702}\u{FE0F} Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} AI Match',goStore:'Go to Store \u2197',noPrice:'Click for price',alts:'\u{1F4B8} Alternatives \u{1F449}',navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match',matchExact:'\u2705 Exact Match',matchClose:'\u{1F7E1} Close Match',matchSimilar:'\u{1F7E0} Similar Items',step_detect:'AI detecting pieces...',step_lens:'AI scanning stores...',step_match:'Matching products...',step_done:'Preparing results...',step_bg:'Preparing image...',step_search:'Scanning global stores...',step_ai:'AI comparing products...',step_verify:'Verifying exact match...',piecesFound:'pieces detected',pickPiece:'Tap a piece to search for it',searchingPiece:'Searching for piece...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces detected. Try Select Myself.',loadMore:'\u{1F50E} More Results',loadingMore:'Loading more results...'}
 };
 var L_fallback=L.en;
 function t(key){var lg=CC_LANG[CC]||'en';return(L[lg]||L_fallback)[key]||(L.en)[key]||key}
@@ -1968,6 +1962,7 @@ function showScreen(){document.getElementById('home').style.display='none';docum
 function goHome(){if(_busy)return;document.getElementById('home').style.display='block';document.getElementById('rScreen').style.display='none';if(cropper){cropper.destroy();cropper=null}cF=null;cPrev=null;_detectId='';_detectedPieces=[]}
 
 var _detectId='',_detectedPieces=[];
+var _lastSearchQuery='',_lastShownLinks=[];
 
 function autoScan(){
   if(_busy)return;
@@ -2009,6 +2004,8 @@ function searchPiece(idx){
   fetch('/api/search-piece',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){
     hideLoading();
     if(!d.success)return showErr(d.message||'Error');
+    _lastSearchQuery=d._search_query||'';
+    _lastShownLinks=(d.piece&&d.piece.products||[]).map(function(p){return p.link});
     renderPieceResult(d.piece);
   }).catch(function(e){hideLoading();showErr(e.message)})
 }
@@ -2028,6 +2025,7 @@ function renderPieceResult(p){
   if(!hero){h+='<div style="background:var(--card);border-radius:10px;padding:16px;text-align:center;color:var(--dim);font-size:12px">'+t('noProd')+'</div>'}
   else{h+=heroHTML(hero,lc>0);if(alts.length>0)h+=altsHTML(alts)}
   h+='</div>';
+  if(_lastSearchQuery)h+='<button id="loadMoreBtn" class="btn-main" style="margin-top:12px;background:var(--card);color:var(--accent);border:1px solid var(--border)" onclick="loadMoreResults()">'+t('loadMore')+'</button>';
   h+='<button class="btn-main btn-green" onclick="backToPieces()" style="margin-top:16px">'+t('backToPieces')+'</button>';
   h+='<button class="btn-main btn-outline" onclick="startManualFromPicker()" style="margin-top:8px">'+t('manual')+'</button>';
   ra.innerHTML=h;
@@ -2129,6 +2127,34 @@ function showFavs(){if(_busy)return;document.getElementById('home').style.displa
     h+='<div onclick="toggleFav(event,\''+f.link+'\',\''+(f.img||'')+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\');showFavs()" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;padding:5px;border-radius:50%;cursor:pointer;font-size:12px;line-height:1">\u2764\uFE0F</div></div>';
   }
   ra.innerHTML=h+'</div><button class="btn-main btn-outline" onclick="goHome()" style="margin-top:20px">'+t('back')+'</button>';
+}
+
+function loadMoreResults(){
+  if(_busy||!_lastSearchQuery)return;
+  var btn=document.getElementById('loadMoreBtn');
+  if(btn){btn.innerHTML=t('loadingMore');btn.style.opacity='0.5';btn.onclick=null}
+  var fd=new FormData();fd.append('query',_lastSearchQuery);fd.append('country',getCC());fd.append('exclude',JSON.stringify(_lastShownLinks));
+  fetch('/api/load-more',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){
+    if(btn)btn.remove();
+    if(!d.success||!d.products||!d.products.length)return;
+    var ra=document.getElementById('res');
+    var container=document.createElement('div');
+    container.innerHTML='<div style="font-size:11px;color:var(--dim);margin:12px 0">\u{1F50E} '+t('loadMore')+'</div><div class="scroll">'+d.products.map(function(a){
+      var img=a.thumbnail||a.image||'';var isFav=_hasFav(a.link);
+      var safeT=(a.title||'').replace(/'/g,"\\'");var safeP=(a.price||'').replace(/'/g,"\\'");var safeB=(a.brand||a.source||'').replace(/'/g,"\\'");
+      var h='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' local':'')+'" style="position:relative">';
+      if(img)h+='<img src="'+img+'" onerror="this.hidden=true">';
+      h+='<div class="ci"><div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div>';
+      h+='<div onclick="toggleFav(event,\''+a.link+'\',\''+img+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\')" style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.6);color:#fff;padding:4px;border-radius:50%;cursor:pointer;font-size:10px;z-index:10;line-height:1">'+(isFav?'\u2764\uFE0F':'\u{1F90D}')+'</div></a>';
+      return h;
+    }).join('')+'</div>';
+    // Insert before the back/manual buttons
+    var buttons=ra.querySelectorAll('.btn-main');
+    if(buttons.length>0)ra.insertBefore(container,buttons[0]);
+    else ra.appendChild(container);
+    // Track these new links too
+    d.products.forEach(function(p){_lastShownLinks.push(p.link)});
+  }).catch(function(){if(btn){btn.innerHTML=t('loadMore');btn.style.opacity='1';btn.onclick=loadMoreResults}})
 }
 </script>
 </body>
