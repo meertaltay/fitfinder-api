@@ -318,7 +318,10 @@ async def upload_img(img_bytes):
         except Exception: pass
     return None
 
+REMOVEBG_KEY = os.environ.get("REMOVEBG_KEY", "")
+
 def remove_bg(img_bytes):
+    """Local rembg — manual mode fallback."""
     if not HAS_REMBG: return img_bytes
     try:
         result = rembg_remove(img_bytes, session=rembg_session)
@@ -332,6 +335,26 @@ def remove_bg(img_bytes):
         bg.convert("RGB").save(buf, format="JPEG", quality=95)
         return buf.getvalue()
     except Exception: return img_bytes
+
+async def remove_bg_api(img_bytes):
+    """remove.bg API — hızlı, 0 CPU yükü, auto mode için."""
+    if not REMOVEBG_KEY:
+        print("  remove.bg: NO API KEY, using raw crop")
+        return img_bytes
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post("https://api.remove.bg/v1.0/removebg",
+                headers={"X-Api-Key": REMOVEBG_KEY},
+                files={"image_file": ("img.jpg", img_bytes, "image/jpeg")},
+                data={"size": "auto", "bg_color": "FFFFFF", "format": "jpg", "type": "product"})
+            if r.status_code == 200 and len(r.content) > 1000:
+                print(f"  remove.bg OK ({len(r.content)//1024}KB)")
+                return r.content
+            else:
+                print(f"  remove.bg FAIL: status={r.status_code}")
+    except Exception as e:
+        print(f"  remove.bg ERR: {e}")
+    return img_bytes
 
 # ─── 🌟 THE MAGIC FIX: KUSURSUZ MATEMATİK MOTORU ───
 def crop_piece(img_obj, box):
@@ -544,9 +567,9 @@ def _shop(q, cc="tr", limit=6):
     return res
 
 # ─── Auto Piece Pipeline ───
-# 🔥 rembg AUTO MODDA: REMBG_SEM(2) paralel + 10s timeout
-# Railway 8GB RAM → 2 paralel rembg güvenli (~500MB each = 1GB peak)
-# 4 parça / 2 paralel = 2 batch × ~5s = ~10s rembg toplam
+# 🔥 remove.bg API ile arka plan silme (0 CPU, 0 RAM, ~1-2s per piece)
+# Local rembg Railway'de CPU timeout yapıyordu (4/4 TIMEOUT)
+# remove.bg API: HTTP call → temiz JPEG → Lens'e gönder → doğru sonuç
 REMBG_CATS = {"jacket", "top", "bottom", "dress", "shoes", "bag", "scarf", "hat"}
 
 async def process_auto_piece(p, img_obj, cc):
@@ -574,20 +597,10 @@ async def process_auto_piece(p, img_obj, cc):
         ocr_q = build_ocr_query(brand, visible_text, color, cat, get_country_config(cc)) if has_real_ocr else ""
 
         async def do_rembg():
-            if HAS_REMBG and cat in REMBG_CATS:
-                try:
-                    async with REMBG_SEM:
-                        clean = await asyncio.wait_for(
-                            asyncio.to_thread(remove_bg, cropped_bytes),
-                            timeout=10.0
-                        )
-                        print(f"  [{cat}] rembg OK ({len(clean)//1024}KB)")
-                        return clean
-                except asyncio.TimeoutError:
-                    print(f"  [{cat}] rembg TIMEOUT 10s, using raw crop")
-                except Exception as e:
-                    print(f"  [{cat}] rembg ERR: {e}")
-            return cropped_bytes  # fallback: ham crop
+            """remove.bg API ile arka plan sil (0 CPU, 0 RAM)."""
+            if cat in REMBG_CATS:
+                return await remove_bg_api(cropped_bytes)
+            return cropped_bytes  # aksesuar/saat → crop olduğu gibi
 
         async def do_shop():
             if q:
@@ -787,9 +800,12 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     except Exception:
         optimized = contents
 
-    # Manual mode: rembg is safe here (single piece, no parallel lock contention)
-    async with REMBG_SEM:
-        clean_bytes = await asyncio.to_thread(remove_bg, optimized)
+    # Manual mode: remove.bg API first, local rembg fallback
+    clean_bytes = await remove_bg_api(optimized)
+    if clean_bytes is optimized and HAS_REMBG:
+        # API failed, try local rembg (tek parça, safe)
+        async with REMBG_SEM:
+            clean_bytes = await asyncio.to_thread(remove_bg, optimized)
 
     crop_b64 = ""
     try:
@@ -828,7 +844,7 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q, "country": cc, "bg_removed": HAS_REMBG, "crop_image": crop_b64}
 
 @app.get("/api/health")
-async def health(): return {"status": "ok"}
+async def health(): return {"status": "ok", "removebg": bool(REMOVEBG_KEY), "rembg": HAS_REMBG, "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY)}
 @app.get("/favicon.ico")
 async def favicon(): return Response(content=b"", media_type="image/x-icon")
 @app.get("/api/countries")
