@@ -139,22 +139,17 @@ def filter_rival_brands(results, piece_brand):
         if not is_rival: filtered.append(r)
     return filtered if filtered else results
 
-# 🛡️ DEMİR KUBBE: KATEGORİ KALKANI (Kapı ve Çatı Önleyici)
+# 🛡️ DEMİR KUBBE: KATEGORİ KALKANI (v33 usulü — basit, çalışan)
 def filter_by_category(results, cat):
-    """Lens sonucu objenin kategorisine uymuyorsa acımasızca çöpe at!"""
+    """Lens sonucu kategoriye uymuyorsa çöpe at — ama asla hepsini öldürme!"""
     if not cat or cat not in PIECE_KEYWORDS: return results
-    keywords = PIECE_KEYWORDS[cat]
+    kws = PIECE_KEYWORDS[cat]
     filtered = []
     for r in results:
-        title_lower = r.get("title", "").lower()
-        matched = False
-        for kw in keywords:
-            if len(kw) <= 4:
-                if re.search(rf'\b{re.escape(kw)}\b', title_lower): matched = True; break
-            else:
-                if kw in title_lower: matched = True; break
-        if matched: filtered.append(r)
-    return filtered
+        tl = r.get("title", "").lower()
+        if any(kw in tl for kw in kws):  # v33 usulü: basit substring, word boundary YOK
+            filtered.append(r)
+    return filtered if filtered else results  # Fallback: hiçbiri eşleşmediyse hepsini koru
 
 # 🕵️ STRATEJİ 1: PARMAK İZİ PUANLAMA (Fingerprint Scoring)
 def score_by_fingerprint(results, fingerprint, brand="", visible_text=""):
@@ -460,7 +455,7 @@ For each item return:
 - visible_text: ALL readable text, logos, numbers on this item (be aggressive, zoom in!)
 - fingerprint: exactly 3 unique distinguishing micro-details in English (e.g. ["asymmetric silver zipper", "quilted diamond shoulders", "snap-button mandarin collar"])
 - box_2d: [ymin, xmin, ymax, xmax] as PERCENTAGES (0.0-100.0). MUST cover the WHOLE item generously!
-- search_query: 6-8 word ULTRA-SPECIFIC {lang} shopping query. MUST include: gender + brand (if known) + color + material + distinguishing detail. Example: "erkek Nike siyah deri asimetrik fermuarlı bomber ceket"
+- search_query: 4-6 word SPECIFIC {lang} shopping query. Include: gender + brand (if known) + color + key detail. Example: "erkek Nike siyah bomber ceket"
 
 Return ONLY valid JSON array:
 [{{"category":"","short_title":"","color":"","brand":"","visible_text":"","fingerprint":["","",""],"box_2d":[0.0,0.0,100.0,100.0],"search_query":""}}]"""}
@@ -551,9 +546,12 @@ async def process_auto_piece(p, img_obj, cc):
                 crop_b64 = "data:image/jpeg;base64," + base64.b64encode(t_buf.getvalue()).decode()
             except Exception: pass
 
-        # Step 2: Upload crop + Shopping + OCR Shopping → ALL PARALLEL
-        # 🔍 STRATEJİ 4: OCR Agresif Arama (visible_text varsa 2. sorgu)
-        ocr_q = build_ocr_query(brand, visible_text, color, cat, get_country_config(cc))
+        # Step 2: Upload crop + Shopping → PARALLEL
+        # 🔍 OCR araması: SADECE gerçek marka/logo okunduysa 2. arama yap
+        # brand="?" veya visible_text="None" ise gereksiz — Semaphore'u boğar, Lens'i geciktirir
+        has_real_ocr = (brand and brand != "?" and len(brand) > 1) or \
+                       (visible_text and visible_text.lower() not in ["none", "?", "", "yok", "-"])
+        ocr_q = build_ocr_query(brand, visible_text, color, cat, get_country_config(cc)) if has_real_ocr else ""
 
         async def do_upload():
             return await upload_img(cropped_bytes) if cropped_bytes else None
@@ -563,7 +561,8 @@ async def process_auto_piece(p, img_obj, cc):
                     return await asyncio.to_thread(_shop, q, cc, 8)
             return []
         async def do_ocr_shop():
-            if ocr_q and ocr_q != q:  # Farklı bir sorgu ise 2. arama yap
+            # SADECE gerçek OCR bilgisi varsa VE ana sorgudan farklıysa
+            if ocr_q and ocr_q != q and has_real_ocr:
                 async with API_SEM:
                     return await asyncio.to_thread(_shop, ocr_q, cc, 4)
             return []
@@ -579,7 +578,7 @@ async def process_auto_piece(p, img_obj, cc):
                 shop_res.append(r)
                 shop_links.add(r["link"])
 
-        print(f"  [{cat}] Shop:{len(shop_res)} (ocr_q='{ocr_q}')")
+        print(f"  [{cat}] Shop:{len(shop_res)} OCR:{len(ocr_shop_res)} (ocr_q='{ocr_q}' real={has_real_ocr})")
 
         # Step 3: Lens on cropped image
         lens_res = []
@@ -587,48 +586,99 @@ async def process_auto_piece(p, img_obj, cc):
             try:
                 async with API_SEM:
                     lens_res = await asyncio.to_thread(_lens, url, cc)
-                # 🛡️ DEMİR KUBBE AKTİF!
+                raw_lens = len(lens_res)
+                # 🛡️ DEMİR KUBBE (basit substring, asla hepsini öldürmez)
                 lens_res = filter_by_category(lens_res, cat)
-                print(f"  [{cat}] Lens:{len(lens_res)} (after filter)")
-            except Exception: pass
+                print(f"  [{cat}] Lens: {raw_lens} raw → {len(lens_res)} after filter")
+            except Exception as e:
+                print(f"  [{cat}] Lens ERROR: {e}")
 
         # Step 4: Brand filter
         if brand and brand != "?":
             lens_res = filter_rival_brands(lens_res, brand)
             shop_res = filter_rival_brands(shop_res, brand)
 
-        # 🎯 STRATEJİ 2: VENN ŞEMASI — Çapraz doğrulama
-        venn_matches, lens_only = venn_intersect_boost(shop_res, lens_res)
-        if venn_matches:
-            print(f"  [{cat}] 🎯 VENN: {len(venn_matches)} cross-validated matches!")
-
-        # 🕵️ STRATEJİ 1: PARMAK İZİ PUANLAMA
-        # Shop sonuçlarını parmak izine göre puanla
-        shop_scored = score_by_fingerprint(shop_res, fingerprint, brand, visible_text)
-        lens_scored = score_by_fingerprint(lens_only, fingerprint, brand, visible_text)
-
-        # Step 5: Akıllı birleştirme — Venn > Fingerprint-Shop > Fingerprint-Lens
+        # Step 5: AKILLI BİRLEŞTİRME
+        # Tüm sonuçları tek havuza al, akıllıca puanla, en iyiyi üste koy
         seen, combined = set(), []
 
-        # Önce: Çapraz doğrulanmış ürünler (HEM Lens HEM Shopping'de)
-        for x in venn_matches:
-            if x["link"] not in seen:
-                seen.add(x["link"]); combined.append(x)
+        # Lens link'lerini set'e al (Venn tespiti için)
+        lens_links = {r.get("link", "") for r in lens_res}
+        shop_links = {r.get("link", "") for r in shop_res}
 
-        # Sonra: Parmak izi puanına göre sıralı Shop sonuçları
-        for x in shop_scored:
-            if x["link"] not in seen:
-                seen.add(x["link"]); combined.append(x)
+        # Tüm sonuçları birleştir (shop önce, lens sonra — dedup)
+        all_results = []
+        for r in shop_res:
+            if r["link"] not in seen:
+                seen.add(r["link"])
+                r_copy = r.copy()
+                r_copy["_source"] = "shop"
+                all_results.append(r_copy)
+        for r in lens_res:
+            if r["link"] not in seen:
+                seen.add(r["link"])
+                r_copy = r.copy()
+                r_copy["_source"] = "lens"
+                all_results.append(r_copy)
 
-        # En son: Parmak izi puanına göre sıralı Lens sonuçları
-        for x in lens_scored:
-            if x["link"] not in seen:
-                seen.add(x["link"]); combined.append(x)
+        # Her sonuca akıllı puan ver
+        for r in all_results:
+            smart_score = 0
+            title_lower = r.get("title", "").lower()
+            link_lower = (r.get("link", "") + " " + r.get("source", "")).lower()
+            combined_text = title_lower + " " + link_lower
 
-        # Cleanup: _fp_score'u kaldır (frontend'e gitmemeli)
-        for x in combined:
-            x.pop("_fp_score", None)
-            x.pop("_venn_match", None)
+            # 🎯 VENN BONUS: Hem Shop HEM Lens'te varsa (+20 puan — BİREBİR EŞLEŞME!)
+            if r["link"] in lens_links and r["link"] in shop_links:
+                smart_score += 20
+                r["ai_verified"] = True
+
+            # Shop bonus YOK — Lens ve Shop eşit rekabet etsin!
+            # v33'te shop önce geliyordu ama bu Lens eşleşmelerini gömmüyordu
+            # çünkü sıralama yoktu. Şimdi sıralama var, eşit olmalılar.
+
+            # 🕵️ PARMAK İZİ BONUS
+            if fingerprint:
+                for detail in fingerprint:
+                    if not detail: continue
+                    words = [w.strip().lower() for w in detail.split() if len(w) > 2]
+                    matched = sum(1 for w in words if w in combined_text)
+                    if matched >= 1: smart_score += 3
+                    if matched >= 2: smart_score += 2
+
+            # 🔍 OCR BONUS: visible_text eşleşmesi (+10)
+            if visible_text and visible_text.lower() not in ["none", "?", ""]:
+                for vt in visible_text.lower().split():
+                    if len(vt) > 2 and vt in combined_text:
+                        smart_score += 10
+                        break
+
+            # Marka eşleşmesi (+8)
+            if brand and brand != "?" and len(brand) > 2:
+                if brand.lower() in combined_text:
+                    smart_score += 8
+
+            # Fiyat varsa bonus (+2)
+            if r.get("price"): smart_score += 2
+
+            # Yerel mağaza bonusu (+3)
+            if r.get("is_local"): smart_score += 3
+
+            r["_smart_score"] = smart_score
+
+        # En yüksek puandan en düşüğe sırala
+        all_results.sort(key=lambda x: -x.get("_smart_score", 0))
+
+        # Debug log: top 3 results
+        for i, r in enumerate(all_results[:3]):
+            print(f"  [{cat}] #{i+1}: score={r.get('_smart_score',0)} src={r.get('_source','')} title={r.get('title','')[:50]}")
+
+        # Cleanup: internal fields'ı kaldır
+        for r in all_results:
+            r.pop("_smart_score", None)
+            r.pop("_source", None)
+
+        combined = all_results
 
         return {
             "category": cat, "short_title": short_title, "color": color,
