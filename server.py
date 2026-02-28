@@ -1057,9 +1057,12 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 score = base_score
                 combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
 
-                # 🏆 EXACT LENS MATCH — same photo found on web (like Google Lens "Tam eşleşmeler")
+                # 🏆 EXACT LENS MATCH — same photo found on web
                 if r.get("_exact"):
-                    score += 50
+                    if r.get("is_local"):
+                        score += 50  # Exact + local = best possible
+                    else:
+                        score += 15  # Exact but foreign = still useful but don't dominate
                     r["ai_verified"] = True
 
                 # Cross-channel bonus (aynı ürün birden fazla kanalda = güvenilir)
@@ -1077,7 +1080,7 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                         if len(vt) > 2 and vt in combined: score += 10; break
                 # Price & local bonus
                 if r.get("price"): score += 2
-                if r.get("is_local"): score += 3
+                if r.get("is_local"): score += 20
                 return score
 
             seen = set()
@@ -1475,7 +1478,9 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
         def score_result(r, base_score=0):
             score = base_score
             combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
-            if r.get("_exact"): score += 50; r["ai_verified"] = True
+            if r.get("_exact"):
+                score += 50 if r.get("is_local") else 15
+                r["ai_verified"] = True
             link = r.get("link", "")
             channels_found = sum([link in shop_links, link in lens_links, link in google_links])
             if channels_found >= 3: score += 30; r["ai_verified"] = True
@@ -1485,7 +1490,7 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
                 for vt in visible_text.lower().replace(",", " ").split():
                     if len(vt) > 2 and vt in combined: score += 10; break
             if r.get("price"): score += 2
-            if r.get("is_local"): score += 3
+            if r.get("is_local"): score += 20
             return score
 
         seen = set()
