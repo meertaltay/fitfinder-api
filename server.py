@@ -561,7 +561,14 @@ For each item return:
 - style_type: specific style in English (e.g. "varsity bomber", "slim fit chino", "chelsea boot")
 - search_query_specific: 5-8 word {lang} shopping query. MUST include: gender + brand (if found) + ALL key visible text + color + style. Example: "erkek Bershka Timeless yeşil varsity bomber ceket". The visible text words are CRITICAL for finding the exact product!
 - search_query_generic: 3-5 word {lang} fallback: gender + color + style. Example: "erkek yeşil bomber ceket"
-- box_2d: [ymin, xmin, ymax, xmax] on a 1000x1000 grid. Draw a TIGHT box around ONLY this item. Be precise — the box will be used to crop this piece for visual search.
+- box_2d: [ymin, xmin, ymax, xmax] on a 1000x1000 grid.
+  ⚠️ CRITICAL BOX RULES:
+  - jacket/top: box should END at the waist/belt line. Do NOT include legs/pants.
+  - bottom/pants: box should START at the waist/belt line. Do NOT include the torso/jacket above.
+  - shoes: box should only cover feet area, starting below the ankle.
+  - dress: can cover full body from shoulders to hem.
+  - Boxes must NOT significantly overlap each other. Each piece gets its OWN region.
+  - Be TIGHT — include only the garment, minimize background.
 
 Return ONLY valid JSON array:
 [{{"category":"","short_title":"","color":"","brand":"","visible_text":"","style_type":"","search_query_specific":"","search_query_generic":"","box_2d":[0,0,1000,1000]}}]"""}
@@ -1235,7 +1242,7 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
     return {"success": True, "products": combined[:10], "lens_count": len(lens_res), "query_used": search_q, "country": cc, "bg_removed": HAS_REMBG, "crop_image": crop_b64}
 
 @app.get("/api/health")
-async def health(): return {"status": "ok", "version": "v41-piece-picker", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
+async def health(): return {"status": "ok", "version": "v41-auto-stacked", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
 
 # ─── SESSION STORE (detect → search-piece) ───
 DETECT_SESSIONS = {}  # detect_id → {pieces, img_url, crop_data, cc, created_at}
@@ -1736,14 +1743,12 @@ var _detectId='',_detectedPieces=[];
 function autoScan(){
   if(_busy)return;
   document.getElementById('actionBtns').style.display='none';
-  showLoading(t('loading'),[t('step_detect')]);
+  showLoading(t('loading'),[t('step_detect'),t('step_lens'),t('step_verify'),t('step_done')]);
   var fd=new FormData();fd.append('file',cF);fd.append('country',getCC());
-  fetch('/api/detect',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){
+  fetch('/api/full-analyze',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){
     hideLoading();
     if(!d.success)return showErr(d.message||'Error');
-    if(!d.pieces||!d.pieces.length)return showErr(t('noDetect'));
-    _detectId=d.detect_id;_detectedPieces=d.pieces;
-    showPiecePicker(d.pieces);
+    renderAuto(d);
   }).catch(function(e){hideLoading();showErr(e.message)})
 }
 
@@ -1809,7 +1814,7 @@ function startManualFromPicker(){
   startManual();
 }
 function startManual(){document.getElementById('actionBtns').style.display='none';document.getElementById('prev').style.display='none';document.getElementById('cropMode').style.display='block';document.getElementById('cropImg').src=cPrev;document.getElementById('manualQ').value='';setTimeout(function(){if(cropper)cropper.destroy();cropper=new Cropper(document.getElementById('cropImg'),{viewMode:1,dragMode:'move',autoCropArea:0.5,responsive:true,background:false,guides:true,highlight:true,cropBoxMovable:true,cropBoxResizable:true})},100)}
-function cancelManual(){if(cropper){cropper.destroy();cropper=null}document.getElementById('cropMode').style.display='none';document.getElementById('prev').style.display='block';if(_detectedPieces&&_detectedPieces.length>0){showPiecePicker(_detectedPieces)}else{document.getElementById('actionBtns').style.display='flex'}}
+function cancelManual(){if(cropper){cropper.destroy();cropper=null}document.getElementById('cropMode').style.display='none';document.getElementById('prev').style.display='block';document.getElementById('actionBtns').style.display='flex'}
 function cropAndSearch(){if(!cropper)return;var canvas=cropper.getCroppedCanvas({maxWidth:800,maxHeight:800});if(!canvas)return;document.getElementById('cropMode').style.display='none';document.getElementById('prev').style.display='block';showLoading(t('loadingManual'),[t('step_bg'),t('step_lens'),t('step_ai'),t('step_verify')]);canvas.toBlob(function(blob){var q=document.getElementById('manualQ').value.trim();var fd=new FormData();fd.append('file',blob,'crop.jpg');fd.append('query',q);fd.append('country',getCC());fetch('/api/manual-search',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(d){hideLoading();if(!d.success)return showErr('Error');renderManual(d,canvas.toDataURL('image/jpeg',0.7))}).catch(function(e){hideLoading();showErr(e.message)})},'image/jpeg',0.85);if(cropper){cropper.destroy();cropper=null}}
 var _ldTimer=null,_busy=false;
 function showLoading(txt,steps){_busy=true;var l=document.getElementById('ld');l.style.display='block';var msgs=steps||[txt];var idx=0;function render(){l.innerHTML='<div style="display:flex;align-items:center;gap:12px;background:var(--card);border-radius:12px;padding:16px;border:1px solid var(--border);margin:14px 0"><div style="width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite"></div><div><div style="font-size:13px;font-weight:600">'+msgs[idx]+'</div>'+(msgs.length>1?'<div style="font-size:10px;color:var(--dim);margin-top:3px">'+(idx+1)+'/'+msgs.length+'</div>':'')+'</div></div>'}render();if(msgs.length>1){if(_ldTimer)clearInterval(_ldTimer);_ldTimer=setInterval(function(){idx=(idx+1)%msgs.length;render()},3500)}}
