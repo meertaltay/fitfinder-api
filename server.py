@@ -139,15 +139,27 @@ def filter_rival_brands(results, piece_brand):
         if not is_rival: filtered.append(r)
     return filtered if filtered else results
 
-# 🛡️ DEMİR KUBBE: KATEGORİ KALKANI (v33 usulü — basit, çalışan)
+# 🛡️ KALKAN BUG FIX: Claude "Watch" (büyük W) dönerse → "watch" olarak map'e
+def get_category_key(cat):
+    """Claude'un döndüğü kategoriyi normalize et (büyük/küçük harf, typo vs.)"""
+    cat_lower = cat.lower().strip()
+    if cat_lower in PIECE_KEYWORDS: return cat_lower
+    for k, v in PIECE_KEYWORDS.items():
+        if k in cat_lower: return k
+        for kw in v[:5]:
+            if kw in cat_lower: return k
+    return None
+
+# 🛡️ DEMİR KUBBE: KATEGORİ KALKANI
 def filter_by_category(results, cat):
     """Lens sonucu kategoriye uymuyorsa çöpe at — ama asla hepsini öldürme!"""
-    if not cat or cat not in PIECE_KEYWORDS: return results
-    kws = PIECE_KEYWORDS[cat]
+    cat_key = get_category_key(cat) if cat else None
+    if not cat_key: return results
+    kws = PIECE_KEYWORDS[cat_key]
     filtered = []
     for r in results:
         tl = r.get("title", "").lower()
-        if any(kw in tl for kw in kws):  # v33 usulü: basit substring, word boundary YOK
+        if any(kw in tl for kw in kws):  # Basit substring, word boundary YOK
             filtered.append(r)
     return filtered if filtered else results  # Fallback: hiçbiri eşleşmediyse hepsini koru
 
@@ -341,9 +353,16 @@ def crop_piece(img_obj, box):
         top, left = int(top_pct * h), int(left_pct * w)
         bottom, right = int(bottom_pct * h), int(right_pct * w)
 
-        # Hata Güvenliği: Eğer AI mikroskobik bir nokta çizdiyse iptal et!
-        if (right - left) < (w * 0.05) or (bottom - top) < (h * 0.05):
-            return None
+        # Hata Güvenliği: Kutu çok küçükse %20 minimum'a genişlet
+        min_dim = int(max(w, h) * 0.20)
+        if (right - left) < min_dim:
+            cx = (left + right) // 2
+            left = max(0, cx - min_dim // 2)
+            right = min(w, cx + min_dim // 2)
+        if (bottom - top) < min_dim:
+            cy = (top + bottom) // 2
+            top = max(0, cy - min_dim // 2)
+            bottom = min(h, cy + min_dim // 2)
 
         # %10 Nefes payı
         pad_y, pad_x = int((bottom - top) * 0.10), int((right - left) * 0.10)
@@ -421,7 +440,9 @@ Explain visual reasoning BEFORE scoring. Return ONLY valid JSON array:
                         if score >= 8: item["ai_verified"] = True; reranked.append(item); used.add(idx)
                         elif score >= 5: item["ai_verified"] = False; similar.append(item); used.add(idx)
                 if reranked or similar: return reranked + similar
-                return results[:4]
+                # Jüri her şeyi çöp buldu → kapı/çatı göstermektense hiç gösterme
+                print(f"  Reranker: tüm sonuçlar <5 puan, çöp elendi")
+                return []
     except Exception as e: print(f"Reranker err: {e}")
     return results
 
@@ -448,17 +469,17 @@ RULES:
 🕵️ FINGERPRINT: For each item, identify 3 UNIQUE details that distinguish it from similar items (zipper style, collar type, pattern, stitching, button shape, pocket design, sole pattern, buckle type etc.)
 
 For each item return:
-- category: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
+- category: MUST be lowercase, exactly one of: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
 - short_title: 2-4 word {lang} name
 - color: in {lang}
 - brand: Read logos/text carefully. Guess if obvious. Else "?"
 - visible_text: ALL readable text, logos, numbers on this item (be aggressive, zoom in!)
 - fingerprint: exactly 3 unique distinguishing micro-details in English (e.g. ["asymmetric silver zipper", "quilted diamond shoulders", "snap-button mandarin collar"])
-- box_2d: [ymin, xmin, ymax, xmax] as PERCENTAGES (0.0-100.0). MUST cover the WHOLE item generously!
-- search_query: 4-6 word SPECIFIC {lang} shopping query. Include: gender + brand (if known) + color + key detail. Example: "erkek Nike siyah bomber ceket"
+- box_2d: [ymin, xmin, ymax, xmax]. Imagine the image is 1000x1000 pixels. Provide integer coordinates (0-1000).
+- search_query: MAX 3-4 word {lang} shopping query. ONLY: gender + brand (if known) + color + category. Example: "erkek siyah ceket" or "kadın Nike beyaz sneaker". DO NOT write long sentences!
 
 Return ONLY valid JSON array:
-[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","fingerprint":["","",""],"box_2d":[0.0,0.0,100.0,100.0],"search_query":""}}]"""}
+[{{"category":"","short_title":"","color":"","brand":"","visible_text":"","fingerprint":["","",""],"box_2d":[0,0,1000,1000],"search_query":""}}]"""}
                     ]}]})
             data = r.json()
             if "error" in data:
@@ -524,7 +545,7 @@ def _shop(q, cc="tr", limit=6):
 REMBG_CATS = {"jacket", "top", "bottom", "dress"}  # Only cloth items get rembg (manual mode)
 
 async def process_auto_piece(p, img_obj, cc):
-    cat, box, q, brand = p.get("category", ""), p.get("box_2d"), p.get("search_query", ""), p.get("brand", "")
+    cat, box, q, brand = p.get("category", "").lower(), p.get("box_2d"), p.get("search_query", ""), p.get("brand", "")
     color, short_title = p.get("color", ""), p.get("short_title", cat.title())
     visible_text = p.get("visible_text", "")
     fingerprint = p.get("fingerprint", [])  # 🕵️ Mikro-detay parmak izi
@@ -747,8 +768,11 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
         print(f"Claude: {len(pieces)} pieces detected")
 
         # Process up to 5 pieces in parallel (no rembg/rerank = stays well under 30s)
-        tasks = [process_auto_piece(p, img_obj, cc) for p in pieces[:5]]
+        tasks = [process_auto_piece(p, img_obj, cc) for p in pieces[:4]]
         results = list(await asyncio.gather(*tasks))
+
+        # Ürün bulunamayan parçaları ekranda gösterme (UX iyileştirme)
+        results = [r for r in results if r.get("products") and len(r["products"]) > 0]
 
         return {"success": True, "pieces": results, "country": cc}
     except Exception as e:
