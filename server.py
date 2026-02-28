@@ -139,7 +139,7 @@ def localize_url(url, cc="tr"):
     return url
 
 BRAND_MAP = {"trendyol.com": "Trendyol", "hepsiburada.com": "Hepsiburada", "boyner.com.tr": "Boyner", "defacto.com": "DeFacto", "lcwaikiki.com": "LC Waikiki", "koton.com": "Koton", "beymen.com": "Beymen", "zara.com": "Zara", "bershka.com": "Bershka", "pullandbear.com": "Pull&Bear", "hm.com": "H&M", "mango.com": "Mango", "asos.com": "ASOS", "stradivarius.com": "Stradivarius", "massimodutti.com": "Massimo Dutti", "nike.com": "Nike", "adidas.": "Adidas"}
-BLOCKED = ["pinterest.", "instagram.", "facebook.", "twitter.", "x.com/", "tiktok.", "youtube.", "aliexpress.", "wish.com", "dhgate.", "alibaba.", "shein.", "temu.", "cider.", "romwe.", "patpat.", "rightmove.", "zillow.", "realtor.", "ikea.", "wayfair."]
+BLOCKED = ["pinterest.", "instagram.", "facebook.", "twitter.", "x.com/", "tiktok.", "youtube.", "aliexpress.", "wish.com", "dhgate.", "alibaba.", "shein.", "temu.", "cider.", "romwe.", "patpat.", "rightmove.", "zillow.", "realtor.", "ikea.", "wayfair.", "reddit.", "quora.", "medium.com", "wordpress.com", "blogspot.", "tumblr.", "buzzfeed.", "cosmopolitan.", "vogue.", "glamour.", "harpersbazaar.", "elle.", "gq.", "esquire.", "whowhatwear.", "refinery29.", "popsugar.", "insider.", "bustle.", "allure.", "fashionista.", "hypebeast.", "highsnobiety.", "complex.", "wikipedia.", "wikihow.", "wikiHow.", "lookastic.", "outfittrends.", "fashionbeans.", "themodestman.", "realmenrealstyle.", "stylesofman.", "brantano.", "lyst.com", "polyvore.", "chictopia.", "lookbook.nu", "wear.jp", "chicisimo.", "/blog/", "/blogs/", "/article/", "/magazin/", "/dergi/", "wattpad.", "booking.com", "tripadvisor.", "hotels.", "airbnb.", "shutterstock.", "gettyimages.", "alamy.", "istockphoto.", "123rf.", "dreamstime.", "stock.", "wallpaper.", "freepik.", "unsplash.", "pexels.", "pixabay.", "sahibinden.", "hepsiemlak.", "letgo.", "ebay.", "etsy.", "mercari.", "vinted.", "depop.", "grailed.", "stockx.", "goat."]
 FASHION_DOMAINS = ["trendyol.", "hepsiburada.", "boyner.", "beymen.", "defacto.", "lcwaikiki.", "koton.", "flo.", "zara.com", "bershka.com", "pullandbear.com", "hm.com", "mango.com", "asos.com", "stradivarius.com", "massimodutti.com", "nike.com", "adidas.", "puma.com", "dolap.com", "gardrops.com", "morhipo.", "lidyana.", "n11.com", "amazon.", "network.", "derimod.", "ipekyol.", "vakko.", "tommy.", "lacoste.", "uniqlo.", "gap.com", "nordstrom.", "farfetch.", "ssense.", "zalando.", "aboutyou."]
 FASHION_KW = ["ceket", "kazak", "shirt", "dress", "ayakkabi", "sneaker", "shoe", "canta", "bag", "gozluk", "saat", "giyim", "fashion", "jacket", "hoodie", "sweatshirt", "jeans", "pantolon", "elbise", "bot", "mont", "kaban", "sapka", "hat", "watch", "clothing", "wear", "kolye", "kemer", "fiyat", "satin al", "urun", "modelleri"]
 
@@ -164,6 +164,14 @@ def get_brand(link, src):
     return src if src else ""
 
 def is_local(link, src, country_config): return any(d in (link + " " + src).lower() for d in country_config.get("local_stores", []))
+# Non-fashion domains that should NEVER appear (even in exact matches)
+NON_FASHION_DOMAINS = ["butor", "furniture", "hotel", "booking", "travel", "realty", "estate", "kitchen", "dental", "clinic", "hospital", "lawyer", "plumber", "electric", "repair", "auto.", "car.", "motor", "food", "recipe", "cook", "restaurant", "cafe", "gym.", "fitness.", "sport.", "game.", "play.", "casino", "bet.", "crypto.", "bitcoin", "forex", "trade.", "invest", "bank.", "loan", "mortgage", "insurance", "news.", "press", "journal"]
+
+def is_non_fashion_domain(link, title, source):
+    """Quick check if URL/title contains obviously non-fashion keywords."""
+    c = (link + " " + title + " " + source).lower()
+    return any(nf in c for nf in NON_FASHION_DOMAINS)
+
 def is_blocked(link): return any(d in link.lower() for d in BLOCKED)
 def is_fashion(link, title, src):
     c = (link + " " + src).lower()
@@ -606,6 +614,7 @@ def _lens(url, cc="tr", lens_type="all"):
             src = m.get("source", "")
             if not lnk or lnk in seen: continue
             if is_blocked(lnk): continue
+            if is_non_fashion_domain(lnk, ttl, src): continue
             seen.add(lnk)
             if not ttl: ttl = src or lnk
             original_lnk = lnk
@@ -1109,6 +1118,14 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             # Sort by score
             all_items.sort(key=lambda x: -x.get("_score", 0))
 
+            # 🇹🇷 TR-FIRST: Local results first, foreign only fills remaining slots
+            local_items = [r for r in all_items if r.get("is_local")]
+            foreign_items = [r for r in all_items if not r.get("is_local")]
+            # Local first (by score), then foreign (by score) — but exact matches always on top
+            foreign_exact = [r for r in foreign_items if r.get("_exact")]
+            foreign_rest = [r for r in foreign_items if not r.get("_exact")]
+            all_items = foreign_exact + local_items + foreign_rest
+
             # ── Match confidence ──
             top_score = all_items[0].get("_score", 0) if all_items else 0
             has_brand_match = any(
@@ -1256,12 +1273,12 @@ TRENDING = {
             {"name": "Pull&Bear", "initial": "P", "bg": "#384030"},
         ],
         "products": [
-            {"title": "Oversize Suni Deri Ceket", "brand": "Zara", "img": "https://cdn.dsmcdn.com/ty1640/prod/QC/20250130/08/5c0b8b1d-6c3a-33f5-8afb-3e63dc2ad40b/1_org_zoom.jpg", "price": "₺2.599", "link": "https://www.trendyol.com/sr?q=zara+oversize+deri+ceket&qt=zara+oversize+deri+ceket&st=zara+oversize+deri+ceket"},
-            {"title": "Varsity Bomber Ceket", "brand": "Bershka", "img": "https://cdn.dsmcdn.com/ty1590/prod/QC/20250107/13/19c6b236-e43b-3bb4-b1e3-ad2c1c31e7f5/1_org_zoom.jpg", "price": "₺1.799", "link": "https://www.trendyol.com/sr?q=bershka+varsity+ceket&qt=bershka+varsity+ceket&st=bershka+varsity+ceket"},
-            {"title": "Air Force 1 '07", "brand": "Nike", "img": "https://cdn.dsmcdn.com/ty583/product/media/images/20221024/18/201548498/259498851/1/1_org_zoom.jpg", "price": "₺3.499", "link": "https://www.trendyol.com/sr?q=nike+air+force+1&qt=nike+air+force+1&st=nike+air+force+1"},
-            {"title": "Samba OG", "brand": "Adidas", "img": "https://cdn.dsmcdn.com/ty814/product/media/images/20230417/11/328087498/136498498/1/1_org_zoom.jpg", "price": "₺3.199", "link": "https://www.trendyol.com/sr?q=adidas+samba+og&qt=adidas+samba+og&st=adidas+samba+og"},
-            {"title": "Wide Leg Jean Pantolon", "brand": "Mango", "img": "https://cdn.dsmcdn.com/ty1574/prod/QC/20241224/15/0bda2e98-6b6b-34c1-a39c-da7a03093285/1_org_zoom.jpg", "price": "₺1.299", "link": "https://www.trendyol.com/sr?q=mango+wide+leg+jean&qt=mango+wide+leg+jean&st=mango+wide+leg+jean"},
-            {"title": "Basic Oversize Tişört", "brand": "Koton", "img": "https://cdn.dsmcdn.com/ty1095/product/media/images/20230711/19/389814855/963082498/1/1_org_zoom.jpg", "price": "₺349", "link": "https://www.trendyol.com/sr?q=koton+oversize+tisort&qt=koton+oversize+tisort&st=koton+oversize+tisort"},
+            {"title": "Oversize Suni Deri Ceket", "brand": "Zara", "img": "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300&h=400&fit=crop", "price": "₺2.599", "link": "https://www.trendyol.com/sr?q=zara+oversize+deri+ceket"},
+            {"title": "Varsity Bomber Ceket", "brand": "Bershka", "img": "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=300&h=400&fit=crop", "price": "₺1.799", "link": "https://www.trendyol.com/sr?q=bershka+varsity+ceket"},
+            {"title": "Air Force 1 '07", "brand": "Nike", "img": "https://images.unsplash.com/photo-1600269452121-4f2416e55c28?w=300&h=400&fit=crop", "price": "₺3.499", "link": "https://www.trendyol.com/sr?q=nike+air+force+1"},
+            {"title": "Samba OG", "brand": "Adidas", "img": "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=300&h=400&fit=crop", "price": "₺3.199", "link": "https://www.trendyol.com/sr?q=adidas+samba+og"},
+            {"title": "Wide Leg Jean", "brand": "Mango", "img": "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=300&h=400&fit=crop", "price": "₺1.299", "link": "https://www.trendyol.com/sr?q=mango+wide+leg+jean"},
+            {"title": "Basic Oversize Tişört", "brand": "Koton", "img": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&h=400&fit=crop", "price": "₺349", "link": "https://www.trendyol.com/sr?q=koton+oversize+tisort"},
         ],
         "section_brands": "🏷️ Popüler Markalar",
         "section_trending": "🔥 Bu Hafta Trend",
@@ -1278,12 +1295,12 @@ TRENDING = {
             {"name": "ASOS", "initial": "A", "bg": "#2d2d2d"},
         ],
         "products": [
-            {"title": "Oversize Leather Jacket", "brand": "Zara", "img": "https://static.zara.net/assets/public/1f0f/0f3d/0e0e4d43af98/a7fdb2a79f60/05479318800-e1/05479318800-e1.jpg", "price": "$129", "link": "https://www.zara.com/us/"},
-            {"title": "Air Force 1 '07", "brand": "Nike", "img": "https://static.nike.com/a/images/t_PDP_936_v1/f_auto,q_auto:eco/b7d9211c-26e7-431a-ac24-b0540fb3c00f/AIR+FORCE+1+%2707.png", "price": "$115", "link": "https://www.nike.com/"},
-            {"title": "Samba OG", "brand": "Adidas", "img": "https://assets.adidas.com/images/h_840,f_auto,q_auto,fl_lossy,c_fill,g_auto/fbaf991a78bc4896a3e9a7e8025b396c_9366/Samba_OG_Ayakkabi_Beyaz_B75806_01_standard.jpg", "price": "$100", "link": "https://www.adidas.com/"},
-            {"title": "Wide Leg Jeans", "brand": "Mango", "img": "https://st.mango.com/second/phones/he/67084043_01_D.jpg", "price": "$59", "link": "https://shop.mango.com/us/"},
-            {"title": "Relaxed Fit Tee", "brand": "Uniqlo", "img": "https://image.uniqlo.com/UQ/ST3/WesternCommon/imagesgoods/422992/item/goods_09_422992.jpg", "price": "$15", "link": "https://www.uniqlo.com/us/"},
-            {"title": "Varsity Bomber", "brand": "H&M", "img": "https://lp2.hm.com/hmgoepprod?set=format%5Bwebp%5D&source=url%5Bhttps://assets.hm.com/content/dam/global_digitalassets/2024_12/men_2a_trending-now_16_9.jpg%5D", "price": "$49", "link": "https://www2.hm.com/en_us/"},
+            {"title": "Oversize Leather Jacket", "brand": "Zara", "img": "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300&h=400&fit=crop", "price": "$129", "link": "https://www.zara.com/us/"},
+            {"title": "Air Force 1 '07", "brand": "Nike", "img": "https://images.unsplash.com/photo-1600269452121-4f2416e55c28?w=300&h=400&fit=crop", "price": "$115", "link": "https://www.nike.com/"},
+            {"title": "Samba OG", "brand": "Adidas", "img": "https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=300&h=400&fit=crop", "price": "$100", "link": "https://www.adidas.com/"},
+            {"title": "Wide Leg Jeans", "brand": "Mango", "img": "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=300&h=400&fit=crop", "price": "$59", "link": "https://shop.mango.com/us/"},
+            {"title": "Relaxed Fit Tee", "brand": "Uniqlo", "img": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&h=400&fit=crop", "price": "$15", "link": "https://www.uniqlo.com/us/"},
+            {"title": "Varsity Bomber", "brand": "H&M", "img": "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=300&h=400&fit=crop", "price": "$49", "link": "https://www2.hm.com/en_us/"},
         ],
         "section_brands": "🏷️ Popular Brands",
         "section_trending": "🔥 Trending This Week",
@@ -1572,6 +1589,13 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
                 all_items.append(r)
 
         all_items.sort(key=lambda x: -x.get("_score", 0))
+
+        # 🇹🇷 TR-FIRST: Local results first, foreign only fills remaining slots
+        local_items = [r for r in all_items if r.get("is_local")]
+        foreign_items = [r for r in all_items if not r.get("is_local")]
+        foreign_exact = [r for r in foreign_items if r.get("_exact")]
+        foreign_rest = [r for r in foreign_items if not r.get("_exact")]
+        all_items = foreign_exact + local_items + foreign_rest
 
         # Match confidence
         top_score = all_items[0].get("_score", 0) if all_items else 0
