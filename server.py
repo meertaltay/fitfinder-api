@@ -531,8 +531,11 @@ async def claude_detect(img_b64, cc="tr"):
 Gender: "{g_m}" (male) or "{g_f}" (female).
 
 RULES:
-1. ONLY items the person is CLEARLY wearing (30%+ visible).
-2. A collar/lining peeking under a jacket is NOT a separate piece.
+1. ONLY detect MAIN clothing pieces: jacket/top/bottom/dress/shoes. These are the PRIORITY.
+2. ALSO detect bag or watch ONLY if clearly visible and prominent (taking up significant space in the photo).
+3. Do NOT detect: hats, caps, sunglasses, scarves, belts, jewelry, socks, small accessories — they are too small to search reliably.
+4. A collar/lining peeking under a jacket is NOT a separate piece.
+5. Maximum 4 pieces total. Focus on quality over quantity.
 
 ⚠️ TEXT READING IS YOUR #1 PRIORITY:
 - Zoom into EVERY patch, logo, label, tag, embroidery, print, badge on each item
@@ -550,12 +553,12 @@ If you see ANY text matching these brands (even partially), mark it as the brand
 Also check: zipper pulls, collar tags, sole stamps, button engravings.
 
 For each item return:
-- category: exactly one of: hat|sunglasses|scarf|jacket|top|bottom|dress|shoes|bag|watch|accessory
+- category: exactly one of: jacket|top|bottom|dress|shoes|bag|watch
 - short_title: 2-4 word {lang} name
 - color: in {lang}
 - brand: The brand name if detected. Check ALL text/patches/logos/tags. "?" ONLY if truly unreadable.
 - visible_text: EVERY readable text on this item, separated by commas. Be exhaustive. Example: "Timeless, Rebel Spirit, 66, Athletics"
-- style_type: specific style in English (e.g. "varsity bomber", "slim fit chino", "bucket hat")
+- style_type: specific style in English (e.g. "varsity bomber", "slim fit chino", "chelsea boot")
 - search_query_specific: 5-8 word {lang} shopping query. MUST include: gender + brand (if found) + ALL key visible text + color + style. Example: "erkek Bershka Timeless yeşil varsity bomber ceket". The visible text words are CRITICAL for finding the exact product!
 - search_query_generic: 3-5 word {lang} fallback: gender + color + style. Example: "erkek yeşil bomber ceket"
 - box_2d: [ymin, xmin, ymax, xmax] on a 1000x1000 grid. Draw a TIGHT box around ONLY this item. Be precise — the box will be used to crop this piece for visual search.
@@ -818,8 +821,9 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
 
         if not pieces:
             return {"success": True, "pieces": [], "country": cc}
-        pieces = pieces[:5]
-        print(f"Claude: {len(pieces)} pieces")
+        ALLOWED_CATS = {"jacket", "top", "bottom", "dress", "shoes", "bag", "watch"}
+        pieces = [p for p in pieces if p.get("category", "") in ALLOWED_CATS][:4]
+        print(f"Claude: {len(pieces)} pieces (filtered)")
         for p in pieces:
             print(f"  → {p.get('category')} | brand={p.get('brand')} | text='{p.get('visible_text','')}' | style={p.get('style_type','')}")
             print(f"    q_spec: {p.get('search_query_specific','')}")
@@ -1276,8 +1280,12 @@ async def detect_pieces(file: UploadFile = File(...), country: str = Form("tr"))
 
         if not pieces:
             return {"success": True, "detect_id": "", "pieces": [], "country": cc}
-        pieces = pieces[:6]
-        print(f"Claude: {len(pieces)} pieces")
+        # Only keep main searchable categories
+        ALLOWED_CATS = {"jacket", "top", "bottom", "dress", "shoes", "bag", "watch"}
+        pieces = [p for p in pieces if p.get("category", "") in ALLOWED_CATS][:4]
+        if not pieces:
+            return {"success": True, "detect_id": "", "pieces": [], "country": cc}
+        print(f"Claude: {len(pieces)} pieces (filtered)")
 
         # Crop each piece + generate thumbnails
         crop_data = {}  # piece_idx → crop_bytes
