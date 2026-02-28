@@ -98,6 +98,44 @@ def make_affiliate(url):
     if SKIMLINKS_ID: return f"https://go.skimresources.com/?id={SKIMLINKS_ID}&url={urllib.parse.quote(url, safe='')}"
     return url
 
+# ─── URL Localization: yabancı marka linklerini hedef ülkeye çevir ───
+# Inditex (Bershka, Zara, Pull&Bear, Stradivarius, Massimo Dutti, Oysho):
+#   bershka.com/eg/product → bershka.com/tr/product
+# H&M: hm.com/en_us/product → hm.com/tr_tr/product
+# Mango: shop.mango.com/us/product → shop.mango.com/tr/product
+
+INDITEX_DOMAINS = ["bershka.com", "zara.com", "pullandbear.com", "stradivarius.com", "massimodutti.com", "oysho.com"]
+# 2-letter country codes used in Inditex URL paths
+INDITEX_CC = ["ae","al","am","at","au","az","ba","be","bg","bh","ca","ch","cl","cn","co","cr","cy","cz","de","dk","dz","ec","ee","eg","es","fi","fr","gb","ge","gr","gt","hk","hr","hu","id","ie","il","in","is","it","jo","jp","kr","kw","kz","lb","lt","lu","lv","ma","me","mk","mt","mx","my","nl","no","nz","om","pa","pe","ph","pk","pl","pt","qa","ro","rs","sa","se","sg","si","sk","sv","th","tn","tr","tw","ua","us","uy","vn","za"]
+
+def localize_url(url, cc="tr"):
+    """Yabancı marka linklerini hedef ülkeye çevir."""
+    if not url: return url
+    url_lower = url.lower()
+    cc_lower = cc.lower()
+
+    # Inditex brands: /XX/ → /tr/
+    for domain in INDITEX_DOMAINS:
+        if domain in url_lower:
+            # Pattern: bershka.com/XX/... where XX is 2-letter country code
+            pattern = re.compile(r'(https?://(?:www\.)?[^/]*' + re.escape(domain) + r'/)([a-z]{2})(/.*)', re.IGNORECASE)
+            m = pattern.match(url)
+            if m and m.group(2).lower() in INDITEX_CC:
+                return m.group(1) + cc_lower + m.group(3)
+            return url
+
+    # H&M: /XX_XX/ → /tr_tr/
+    if "hm.com" in url_lower:
+        hm_map = {"tr": "tr_tr", "us": "en_us", "de": "de_de", "fr": "fr_fr", "gb": "en_gb"}
+        target = hm_map.get(cc_lower, cc_lower + "_" + cc_lower)
+        return re.sub(r'(/)[a-z]{2}_[a-z]{2}(/)', r'\g<1>' + target + r'\2', url)
+
+    # Mango: shop.mango.com/XX/ → shop.mango.com/tr/
+    if "mango.com" in url_lower:
+        return re.sub(r'(mango\.com/)([a-z]{2})(/)', r'\g<1>' + cc_lower + r'\3', url)
+
+    return url
+
 BRAND_MAP = {"trendyol.com": "Trendyol", "hepsiburada.com": "Hepsiburada", "boyner.com.tr": "Boyner", "defacto.com": "DeFacto", "lcwaikiki.com": "LC Waikiki", "koton.com": "Koton", "beymen.com": "Beymen", "zara.com": "Zara", "bershka.com": "Bershka", "pullandbear.com": "Pull&Bear", "hm.com": "H&M", "mango.com": "Mango", "asos.com": "ASOS", "stradivarius.com": "Stradivarius", "massimodutti.com": "Massimo Dutti", "nike.com": "Nike", "adidas.": "Adidas"}
 BLOCKED = ["pinterest.", "instagram.", "facebook.", "twitter.", "tiktok.", "youtube.", "aliexpress.", "wish.com", "dhgate.", "alibaba.", "shein.", "temu.", "cider.", "romwe.", "patpat.", "rightmove.", "zillow.", "realtor.", "ikea.", "wayfair."]
 FASHION_DOMAINS = ["trendyol.", "hepsiburada.", "boyner.", "beymen.", "defacto.", "lcwaikiki.", "koton.", "flo.", "zara.com", "bershka.com", "pullandbear.com", "hm.com", "mango.com", "asos.com", "stradivarius.com", "massimodutti.com", "nike.com", "adidas.", "puma.com", "dolap.com", "gardrops.com", "morhipo.", "lidyana.", "n11.com", "amazon.", "network.", "derimod.", "ipekyol.", "vakko.", "tommy.", "lacoste.", "uniqlo.", "gap.com", "nordstrom.", "farfetch.", "ssense.", "zalando.", "aboutyou."]
@@ -558,10 +596,14 @@ def _lens(url, cc="tr", lens_type="all"):
             if is_blocked(lnk): continue
             seen.add(lnk)
             if not ttl: ttl = src or lnk
+            original_lnk = lnk
+            lnk = localize_url(lnk, cc)  # bershka.com/eg → bershka.com/tr
+            url_changed = (lnk != original_lnk)
             pr = m.get("price", {})
+            # Yabancı ülkeden gelen fiyatı temizle (E£, $, € → yanlış para birimi)
+            price_val = "" if url_changed else (pr.get("value", "") if isinstance(pr, dict) else str(pr) if pr else "")
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
-                "link": make_affiliate(lnk),
-                "price": pr.get("value", "") if isinstance(pr, dict) else str(pr) if pr else "",
+                "link": make_affiliate(lnk), "price": price_val,
                 "thumbnail": m.get("thumbnail", ""), "image": m.get("image", ""),
                 "is_local": is_local(lnk, src, cfg), "ai_verified": True, "_exact": True})
         exact_count = len(res)
@@ -576,10 +618,13 @@ def _lens(url, cc="tr", lens_type="all"):
             if not lnk or not ttl or lnk in seen: continue
             if is_blocked(lnk) or not is_fashion(lnk, ttl, src): continue
             seen.add(lnk)
+            original_lnk = lnk
+            lnk = localize_url(lnk, cc)  # yabancı linkleri yerelleştir
+            url_changed = (lnk != original_lnk)
             pr = m.get("price", {})
+            price_val = "" if url_changed else (pr.get("value", "") if isinstance(pr, dict) else str(pr) if pr else "")
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
-                "link": make_affiliate(lnk),
-                "price": pr.get("value", "") if isinstance(pr, dict) else str(pr) if pr else "",
+                "link": make_affiliate(lnk), "price": price_val,
                 "thumbnail": m.get("thumbnail", ""), "image": m.get("image", ""),
                 "is_local": is_local(lnk, src, cfg)})
             if len(res) >= 25: break
@@ -612,6 +657,7 @@ def _shop(q, cc="tr", limit=6):
             ttl, src = item.get("title", ""), item.get("source", "")
             if not lnk or not ttl or lnk in seen or is_blocked(lnk): continue
             seen.add(lnk)
+            lnk = localize_url(lnk, cc)
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src, "link": make_affiliate(lnk), "price": item.get("price", str(item.get("extracted_price", ""))), "thumbnail": item.get("thumbnail", ""), "image": "", "is_local": is_local(lnk, src, cfg)})
             if len(res) >= limit: break
     except Exception as e: print(f"Shop err: {e}")
@@ -638,6 +684,7 @@ def _google_organic(q, cc="tr", limit=8):
             if not lnk or not ttl or lnk in seen or is_blocked(lnk): continue
             if not is_fashion(lnk, ttl, src): continue
             seen.add(lnk)
+            lnk = localize_url(lnk, cc)
             pr = item.get("price", item.get("extracted_price", ""))
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
                 "link": make_affiliate(lnk), "price": str(pr) if pr else "",
@@ -653,6 +700,7 @@ def _google_organic(q, cc="tr", limit=8):
             if not lnk or not ttl or lnk in seen or is_blocked(lnk): continue
             if not is_fashion(lnk, ttl, src): continue
             seen.add(lnk)
+            lnk = localize_url(lnk, cc)
             # Organic'te fiyat snippet'den çekilebilir
             snippet = item.get("snippet", "")
             price = ""
