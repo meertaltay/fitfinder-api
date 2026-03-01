@@ -2717,6 +2717,180 @@ async def sponsored_search(request: Request):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
+# ─── FIT-CHECK: AI Outfit Roast & Score ───
+FITCHECK_PROMPT = """Sen fitchy.'nin efsanevi, acımasız ama sevilen moda yargıcısın. Instagram'da herkes senin yorumlarını SS alıp paylaşıyor çünkü çok komiksin.
+
+Kullanıcı kendi kombinini çekip sana gönderdi. Artık sahnede sen varsın.
+
+GÖREV:
+1) Kombine 0-100 arası "Drip Score" ver (çoğu kişi 45-85 arası alır, 90+ efsane, 30- felaket)
+2) Acımasız ama sevecen bir roast yaz (4-5 cümle). Spesifik parçalara değin! "O ceket", "o ayakkabı", "o pantolon" gibi. Genel konuşma. Twitter/X'te viral olacak tarzda yaz.
+3) 2-3 somut öneri ver (hangi parça değişmeli, ne eklenmeli)
+
+ROAST STİLİ ÖRNEKLERİ:
+- "Deri ceket efsane, tam bir dark academia vibes... AMA o altındaki beyaz spor ayakkabılar bütün büyüyü bozuyor bestie. Chelsea bot diyorum, Chelsea bot. 🔥"
+- "Bu oversized kazak sevdayla giyilmiş belli ama altındaki skinny jean 2017'den kalma mı? Loose fit veya wide leg dene bi, silüetin bambaşka olur 💀"
+- "Old money energy'yi yakalamışsın sayılır ama o kemer... o kemer her şeyi ele veriyor. Minimalist bir deri kemer ve bu kombin Paris Fashion Week 🇫🇷"
+
+ÖNEMLİ:
+- Z kuşağı dili: emoji bol, "bestie", "slay", "ate", "serve", "it girl/boy", "main character" gibi slang
+- Türkçe-İngilizce karışık (Türk Z kuşağının gerçek dili)
+- ASLA kırıcı olma, dalga geç ama sev
+- Fotoğrafta gördüğün GERÇEK parçalara referans ver
+- Mevsim, renk uyumu, silüet, ayakkabı-kombin uyumu, aksesuar eksikliği değerlendir
+
+YANIT FORMATI (sadece JSON, başka hiçbir şey yazma):
+{"score": 72, "emoji": "💅", "roast": "...", "tips": ["...", "...", "..."]}"""
+
+FITCHECK_PROMPT_EN = """You are fitchy.'s legendary, brutally honest but beloved fashion judge. People screenshot your reviews and share them on social media because you're hilarious.
+
+The user sent their own outfit photo. The stage is yours.
+
+TASK:
+1) Give a "Drip Score" out of 100 (most people get 45-85, 90+ is legendary, 30- is a disaster)
+2) Write a savage but loving roast (4-5 sentences). Reference SPECIFIC pieces! "That jacket", "those shoes", "that belt". Be specific. Write like it could go viral on Twitter/X.
+3) Give 2-3 concrete tips (what to swap, what to add)
+
+ROAST STYLE EXAMPLES:
+- "The leather jacket is giving main character energy... BUT those white sneakers underneath? They're committing treason against the whole fit bestie. Chelsea boots. I said what I said. 🔥"
+- "The oversized blazer is clearly worn with love but that skinny jean is giving 2017 flashbacks. Try wide-leg or straight fit, the silhouette would be *chef's kiss* 💀"
+
+IMPORTANT:
+- Gen-Z language: lots of emojis, "bestie", "slay", "ate", "serve", "it girl/boy", "main character" slang
+- NEVER be mean-spirited, roast with love
+- Reference ACTUAL pieces you see in the photo
+- Evaluate season, color harmony, silhouette, shoe-outfit match, accessories
+
+RESPONSE FORMAT (JSON only, nothing else):
+{"score": 72, "emoji": "💅", "roast": "...", "tips": ["...", "...", "..."]}"""
+
+@app.post("/api/fit-check")
+async def fit_check(request: Request):
+    try:
+        body = await request.json()
+        image_data = body.get("image", "")
+        lang = body.get("lang", "tr")
+
+        if not image_data:
+            return {"success": False, "message": "No image"}
+
+        # Strip data URI prefix
+        if "," in image_data:
+            image_data = image_data.split(",", 1)[1]
+
+        prompt = FITCHECK_PROMPT if lang == "tr" else FITCHECK_PROMPT_EN
+
+        resp = httpx.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+            json={
+                "model": CLAUDE_MODEL,
+                "max_tokens": 800,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_data}},
+                        {"type": "text", "text": prompt}
+                    ]
+                }]
+            },
+            timeout=30.0
+        )
+        data = resp.json()
+        text = data.get("content", [{}])[0].get("text", "")
+
+        # Parse JSON from response
+        text = text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        result = json.loads(text)
+        return {"success": True, **result}
+    except Exception as e:
+        return {"success": False, "message": str(e), "score": 50, "emoji": "🤔", "roast": "Fotoğrafı analiz edemedim ama eminim harika görünüyorsundur bestie! 💅", "tips": []}
+
+# ─── VIRTUAL TRY-ON (Sanal Kabin) ───
+VTON_STORE = {}
+
+@app.post("/api/vton-save-body")
+async def vton_save_body(request: Request):
+    """Save user's body photo for VTON sessions"""
+    try:
+        body = await request.json()
+        image = body.get("image", "")
+        session_id = body.get("session", "default")
+        if not image:
+            return {"success": False, "message": "No image"}
+        VTON_STORE[session_id] = image
+        return {"success": True, "message": "Body photo saved"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.post("/api/vton-tryon")
+async def vton_tryon(request: Request):
+    """Virtual try-on: analyze how garment would look on user"""
+    try:
+        body = await request.json()
+        garment_title = body.get("title", "")
+        garment_img = body.get("garment_img", "")
+        session_id = body.get("session", "default")
+        lang = body.get("lang", "tr")
+
+        body_img = VTON_STORE.get(session_id, "")
+        if not body_img:
+            return {"success": False, "message": "No body photo saved", "need_body": True}
+
+        # Strip data URI prefix for body
+        body_b64 = body_img.split(",", 1)[-1] if "," in body_img else body_img
+
+        # Strip data URI prefix for garment if base64
+        garment_b64 = None
+        if garment_img and garment_img.startswith("data:"):
+            garment_b64 = garment_img.split(",", 1)[-1]
+
+        vton_prompt_tr = f"""Sen bir sanal giyinme kabini asistanısın. Kullanıcının fotoğrafı ve "{garment_title}" adlı kıyafet var.
+
+GÖREV: Bu kıyafetin kullanıcıda nasıl duracağını analiz et.
+
+YANIT FORMATI (sadece JSON):
+{{"fit_score": 85, "emoji": "💃", "analysis": "Bu parça sende harika durur! Vücut tipine çok uygun...", "size_tip": "M beden tam olur", "style_note": "Bu parçayı yüksek bel jean ile kombinle"}}"""
+
+        vton_prompt_en = f"""You are a virtual fitting room assistant. The user's photo and a garment called "{garment_title}" are provided.
+
+TASK: Analyze how this garment would look on the user.
+
+RESPONSE FORMAT (JSON only):
+{{"fit_score": 85, "emoji": "💃", "analysis": "This piece would look amazing on you! Great fit for your body type...", "size_tip": "Size M would be perfect", "style_note": "Pair this with high-waist jeans"}}"""
+
+        prompt = vton_prompt_tr if lang == "tr" else vton_prompt_en
+
+        content = [
+            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": body_b64}},
+            {"type": "text", "text": prompt}
+        ]
+        # If garment image is base64, include it
+        if garment_b64:
+            content.insert(1, {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": garment_b64}})
+
+        resp = httpx.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+            json={
+                "model": CLAUDE_MODEL,
+                "max_tokens": 500,
+                "messages": [{"role": "user", "content": content}]
+            },
+            timeout=30.0
+        )
+        data = resp.json()
+        text = data.get("content", [{}])[0].get("text", "")
+        text = text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        result = json.loads(text)
+        return {"success": True, **result}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
 @app.get("/", response_class=HTMLResponse)
 async def home(): return HTML_PAGE
 
@@ -2861,6 +3035,22 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .refitch-btn{position:absolute;bottom:60px;right:8px;background:rgba(0,0,0,.8);border:1px solid rgba(255,32,121,.3);color:var(--accent);padding:6px 10px;border-radius:10px;font:700 10px 'Outfit',sans-serif;cursor:pointer;backdrop-filter:blur(4px);display:flex;align-items:center;gap:4px;transition:all .2s}
 .refitch-btn:active{background:var(--accent);color:#fff}
 .vis-toggle{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);padding:6px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;backdrop-filter:blur(4px)}
+
+/* Fit-Check Score */
+.fitcheck-result{text-align:center;padding:24px 0}
+.drip-score{font-size:72px;font-weight:900;letter-spacing:-3px;line-height:1}
+.drip-label{font-size:13px;font-weight:700;color:var(--muted);margin-top:4px;letter-spacing:2px;text-transform:uppercase}
+.drip-bar{width:100%;height:8px;border-radius:4px;background:rgba(255,255,255,.06);margin:16px 0;overflow:hidden}
+.drip-bar-fill{height:100%;border-radius:4px;transition:width 1.5s cubic-bezier(.22,1,.36,1)}
+.roast-text{font-size:15px;line-height:1.6;color:var(--text);margin:16px 0;padding:0 8px}
+.tip-card{padding:10px 14px;border-radius:12px;background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.15);font-size:12px;color:var(--cyan);margin:8px 0;text-align:left}
+.share-fitcheck{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;font:700 13px 'Outfit',sans-serif;border:none;cursor:pointer;margin:12px 6px 0;box-shadow:0 4px 20px rgba(255,32,121,.3)}
+.vton-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(77,0,255,.1));border:1px solid rgba(0,229,255,.25);color:var(--cyan);font:700 10px 'Outfit',sans-serif;cursor:pointer;margin-top:6px;transition:all .2s}
+.vton-btn:active{background:var(--cyan);color:#000}
+
+/* VTON Modal */
+.vton-modal{position:fixed;inset:0;z-index:1000;background:rgba(5,2,10,.95);backdrop-filter:blur(30px);display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.vton-modal.show{display:flex}
 </style>
 </head>
 <body>
@@ -2896,6 +3086,17 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
       </div>
     </div>
 
+    <!-- FIT-CHECK BUTTON -->
+    <div onclick="startFitCheck()" style="margin:16px 0 0;padding:18px 20px;border-radius:20px;background:linear-gradient(135deg,rgba(255,32,121,.12),rgba(77,0,255,.08));border:1px solid rgba(255,32,121,.25);cursor:pointer;display:flex;align-items:center;gap:14px;transition:all .2s;box-shadow:0 4px 20px rgba(255,32,121,.08)" id="fitCheckCard">
+      <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 4px 16px rgba(255,32,121,.3)">🔥</div>
+      <div style="flex:1">
+        <div id="fitCheckTitle" style="font-size:15px;font-weight:800;color:var(--text)"></div>
+        <div id="fitCheckSub" style="font-size:12px;color:var(--muted);margin-top:3px"></div>
+      </div>
+      <div style="font-size:18px;color:var(--accent)">→</div>
+    </div>
+    <input type="file" id="fitCheckInput" accept="image/*" capture="environment" style="display:none" onchange="handleFitCheck(event)">
+
     <div id="trendingSection" style="margin-top:24px;padding-bottom:20px"></div>
   </div>
 
@@ -2928,6 +3129,18 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
     </div>
   </div>
 
+  <!-- VTON Modal -->
+  <div class="vton-modal" id="vtonModal">
+    <div style="width:100%;max-width:400px;text-align:center">
+      <div style="font-size:28px;margin-bottom:8px">🪞</div>
+      <div class="text-gradient" style="font-size:22px;font-weight:800;margin-bottom:6px" id="vtonModalTitle">Sanal Kabin</div>
+      <div id="vtonModalBody" style="color:var(--muted);font-size:13px;margin-bottom:20px"></div>
+      <div id="vtonModalContent"></div>
+      <button onclick="closeVton()" style="margin-top:16px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);padding:12px 28px;border-radius:14px;font:600 13px 'Outfit',sans-serif;cursor:pointer">✕ Kapat</button>
+    </div>
+  </div>
+  <input type="file" id="vtonBodyInput" accept="image/*" capture="environment" style="display:none" onchange="handleVtonBody(event)">
+
   <div class="bnav">
     <div class="bnav-item active" onclick="goHome()"><div class="icon">✧</div><div id="navHome" class="lbl"></div></div>
     <div class="bnav-item" onclick="showFavs()"><div class="icon">♡</div><div id="navFav" class="lbl"></div></div>
@@ -2939,8 +3152,8 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 var IC={hat:"\uD83E\uDDE2",sunglasses:"\uD83D\uDD76\uFE0F",top:"\uD83D\uDC55",jacket:"\uD83E\uDDE5",bag:"\uD83D\uDC5C",accessory:"\uD83D\uDC8D",watch:"\u231A",bottom:"\uD83D\uDC56",dress:"\uD83D\uDC57",shoes:"\uD83D\uDC5F",scarf:"\uD83E\uDDE3"};
 var cF=null,cPrev=null,cropper=null,CC='us';
 var L={
-  tr:{heroTitle:'G\u00f6rseldeki kombini<br><span class="text-gradient">birebir</span> bul.',heroSub:'Instagram\'da, TikTok\'ta veya sokakta k\u0131skand\u0131\u011f\u0131n o kombini an\u0131nda bul.<br>Ekran g\u00f6r\u00fcnt\u00fcs\u00fcn\u00fc y\u00fckle, gerisini fitchy\'ye b\u0131rak.',upload:'\u2728 Kombini Tarat',auto:'\u2728 Ak\u0131ll\u0131 Tarama (\u00d6nerilen)',manual:'\u2702\uFE0F Sadece Bir Par\u00e7a Se\u00e7',trustBadge:'\uD83D\uDD0D ZARA, NIKE, TRENDYOL ve 500+ markada aran\u0131yor...',trendTitle:'\uD83D\uDD25 \u015eu An Trend Olanlar',back:'\u2190 Geri',cropHint:'\uD83D\uDC47 Aramak istedi\u011fin par\u00e7ay\u0131 \u00e7er\u00e7evele',manualPh:'Ne ar\u0131yorsun? (Opsiyonel)',find:'\uD83D\uDD0D Par\u00e7ay\u0131 Bul',cancel:'\u0130ptal',loading:'Siber a\u011fa ba\u011flan\u0131l\u0131yor...',loadingManual:'AI e\u015fle\u015ftiriyor...',noResult:'Par\u00e7a tespit edilemedi.',noProd:'Bu par\u00e7a i\u00e7in e\u015fle\u015fme bulunamad\u0131.',retry:'\u2702\uFE0F Manuel Se\u00e7imi Dene',another:'\u2702\uFE0F Ba\u015fka Par\u00e7a Se\u00e7',selected:'Se\u00e7imin',lensMatch:'g\u00f6rsel e\u015fle\u015fme',recommended:'\u2728 \u00d6nerilen',lensLabel:'\uD83C\uDFAF AI E\u015fle\u015fmesi',goStore:'Sat\u0131n Al \u2197',noPrice:'Fiyat\u0131 G\u00f6r',alts:'\uD83D\uDCB8 Alternatifler \u2192',navHome:'Ke\u015ffet',navFav:'Dolap\u0131m',aiMatch:'AI Onayl\u0131',matchExact:'\u2705 Birebir E\u015fle\u015fme',matchClose:'\uD83D\uDD25 Y\u00fcksek Benzerlik',matchSimilar:'\u2728 Benzer \u00dcr\u00fcnler',step_detect:'K\u0131yafetler tespit ediliyor...',step_bg:'G\u00f6rsel haz\u0131rlan\u0131yor...',step_lens:'Ma\u011fazalar taran\u0131yor...',step_ai:'AI \u00fcr\u00fcnleri k\u0131yasl\u0131yor...',step_verify:'E\u015fle\u015fmeler do\u011frulan\u0131yor...',step_done:'Sonu\u00e7lar haz\u0131r!',piecesFound:'par\u00e7a bulundu',pickPiece:'Aramak istedi\u011fin par\u00e7aya dokun',searchingPiece:'\u00dcr\u00fcn aran\u0131yor...',backToPieces:'\u2190 Di\u011fer Par\u00e7alar',noDetect:'Par\u00e7a bulunamad\u0131. Manuel se\u00e7imi deneyin.',loadMore:'A\u011f\u0131 Geni\u015flet \u2193',loadingMore:'Taran\u0131yor...',linkPaste:'Link Yap\u0131\u015ft\u0131r & Tarat',linkGo:'Tarat',linkLoading:'Link taran\u0131yor...',comboBtn:'\u2728 Bunu Neyle Giyerim?',comboLoading:'AI kombin \u00f6nerisi haz\u0131rl\u0131yor...',comboTitle:'\uD83D\uDC57 AI Kombin \u00d6nerisi',verified:'Resmi Ma\u011faza',sponsored:'Sponsorlu Muadil'},
-  en:{heroTitle:'Find the outfit<br>in the photo, <span class="text-gradient">exactly</span>.',heroSub:'Spot a fire outfit on Instagram, TikTok or IRL?<br>Screenshot it, let fitchy find every piece.',upload:'\u2728 Scan Outfit',auto:'\u2728 Auto Scan (Recommended)',manual:'\u2702\uFE0F Select Manually',trustBadge:'\uD83D\uDD0D Searching ZARA, NIKE, H&M and 500+ brands...',trendTitle:'\uD83D\uDD25 Trending Now',back:'\u2190 Back',cropHint:'\uD83D\uDC47 Frame the piece you want to search',manualPh:'What are you looking for?',find:'\uD83D\uDD0D Find Piece',cancel:'Cancel',loading:'Analyzing image...',loadingManual:'AI matching...',noResult:'No pieces detected.',noProd:'No exact match found.',retry:'\u2702\uFE0F Try Manual Selection',another:'\u2702\uFE0F Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u2728 Recommended',lensLabel:'\uD83C\uDFAF AI Match',goStore:'Shop \u2197',noPrice:'Check Price',alts:'\uD83D\uDCB8 Alternatives \u2192',navHome:'Explore',navFav:'Closet',aiMatch:'AI Verified',matchExact:'\u2705 Exact Match',matchClose:'\uD83D\uDD25 Close Match',matchSimilar:'\u2728 Similar Items',step_detect:'Detecting garments...',step_lens:'Scanning global stores...',step_match:'Matching products...',step_done:'Ready!',step_bg:'Preparing image...',step_search:'Scanning...',step_ai:'AI comparing details...',step_verify:'Verifying matches...',piecesFound:'pieces found',pickPiece:'Tap a piece to search',searchingPiece:'Searching...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces found. Try manual selection.',loadMore:'Expand Search \u2193',loadingMore:'Scanning...',linkPaste:'Paste Link & Scan',linkGo:'Scan',linkLoading:'Scanning link...',comboBtn:'\u2728 What Goes With This?',comboLoading:'AI building outfit...',comboTitle:'\uD83D\uDC57 AI Outfit Suggestion',verified:'Official Store',sponsored:'Sponsored Dupe'}
+  tr:{heroTitle:'G\u00f6rseldeki kombini<br><span class="text-gradient">birebir</span> bul.',heroSub:'Instagram\'da, TikTok\'ta veya sokakta k\u0131skand\u0131\u011f\u0131n o kombini an\u0131nda bul.<br>Ekran g\u00f6r\u00fcnt\u00fcs\u00fcn\u00fc y\u00fckle, gerisini fitchy\'ye b\u0131rak.',upload:'\u2728 Kombini Tarat',auto:'\u2728 Ak\u0131ll\u0131 Tarama (\u00d6nerilen)',manual:'\u2702\uFE0F Sadece Bir Par\u00e7a Se\u00e7',trustBadge:'\uD83D\uDD0D ZARA, NIKE, TRENDYOL ve 500+ markada aran\u0131yor...',trendTitle:'\uD83D\uDD25 \u015eu An Trend Olanlar',back:'\u2190 Geri',cropHint:'\uD83D\uDC47 Aramak istedi\u011fin par\u00e7ay\u0131 \u00e7er\u00e7evele',manualPh:'Ne ar\u0131yorsun? (Opsiyonel)',find:'\uD83D\uDD0D Par\u00e7ay\u0131 Bul',cancel:'\u0130ptal',loading:'Siber a\u011fa ba\u011flan\u0131l\u0131yor...',loadingManual:'AI e\u015fle\u015ftiriyor...',noResult:'Par\u00e7a tespit edilemedi.',noProd:'Bu par\u00e7a i\u00e7in e\u015fle\u015fme bulunamad\u0131.',retry:'\u2702\uFE0F Manuel Se\u00e7imi Dene',another:'\u2702\uFE0F Ba\u015fka Par\u00e7a Se\u00e7',selected:'Se\u00e7imin',lensMatch:'g\u00f6rsel e\u015fle\u015fme',recommended:'\u2728 \u00d6nerilen',lensLabel:'\uD83C\uDFAF AI E\u015fle\u015fmesi',goStore:'Sat\u0131n Al \u2197',noPrice:'Fiyat\u0131 G\u00f6r',alts:'\uD83D\uDCB8 Alternatifler \u2192',navHome:'Ke\u015ffet',navFav:'Dolap\u0131m',aiMatch:'AI Onayl\u0131',matchExact:'\u2705 Birebir E\u015fle\u015fme',matchClose:'\uD83D\uDD25 Y\u00fcksek Benzerlik',matchSimilar:'\u2728 Benzer \u00dcr\u00fcnler',step_detect:'K\u0131yafetler tespit ediliyor...',step_bg:'G\u00f6rsel haz\u0131rlan\u0131yor...',step_lens:'Ma\u011fazalar taran\u0131yor...',step_ai:'AI \u00fcr\u00fcnleri k\u0131yasl\u0131yor...',step_verify:'E\u015fle\u015fmeler do\u011frulan\u0131yor...',step_done:'Sonu\u00e7lar haz\u0131r!',piecesFound:'par\u00e7a bulundu',pickPiece:'Aramak istedi\u011fin par\u00e7aya dokun',searchingPiece:'\u00dcr\u00fcn aran\u0131yor...',backToPieces:'\u2190 Di\u011fer Par\u00e7alar',noDetect:'Par\u00e7a bulunamad\u0131. Manuel se\u00e7imi deneyin.',loadMore:'A\u011f\u0131 Geni\u015flet \u2193',loadingMore:'Taran\u0131yor...',linkPaste:'Link Yap\u0131\u015ft\u0131r & Tarat',linkGo:'Tarat',linkLoading:'Link taran\u0131yor...',comboBtn:'\u2728 Bunu Neyle Giyerim?',comboLoading:'AI kombin \u00f6nerisi haz\u0131rl\u0131yor...',comboTitle:'\uD83D\uDC57 AI Kombin \u00d6nerisi',verified:'Resmi Ma\u011faza',sponsored:'Sponsorlu Muadil',fitCheck:'\uD83D\uDD25 AI Fit-Check',fitCheckSub:'Kombinin ka\u00e7 puan? AI yargilat!',fitCheckLoading:'AI stilist inceliyor...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 \u00d6neriler',fitCheckShare:'Sonucu Payla\u015f',fitCheckAnother:'Ba\u015fka Kombin Dene',vtonBtn:'\u2728 \u00dczerimde G\u00f6r',vtonSaveBody:'Tam boy foto\u011fraf\u0131n\u0131 y\u00fckle',vtonLoading:'Sanal kabin haz\u0131rlan\u0131yor...',vtonResult:'AI Fit Analizi',vtonNoBody:'\u00d6nce foto\u011fraf\u0131n\u0131 y\u00fckle'},
+  en:{heroTitle:'Find the outfit<br>in the photo, <span class="text-gradient">exactly</span>.',heroSub:'Spot a fire outfit on Instagram, TikTok or IRL?<br>Screenshot it, let fitchy find every piece.',upload:'\u2728 Scan Outfit',auto:'\u2728 Auto Scan (Recommended)',manual:'\u2702\uFE0F Select Manually',trustBadge:'\uD83D\uDD0D Searching ZARA, NIKE, H&M and 500+ brands...',trendTitle:'\uD83D\uDD25 Trending Now',back:'\u2190 Back',cropHint:'\uD83D\uDC47 Frame the piece you want to search',manualPh:'What are you looking for?',find:'\uD83D\uDD0D Find Piece',cancel:'Cancel',loading:'Analyzing image...',loadingManual:'AI matching...',noResult:'No pieces detected.',noProd:'No exact match found.',retry:'\u2702\uFE0F Try Manual Selection',another:'\u2702\uFE0F Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u2728 Recommended',lensLabel:'\uD83C\uDFAF AI Match',goStore:'Shop \u2197',noPrice:'Check Price',alts:'\uD83D\uDCB8 Alternatives \u2192',navHome:'Explore',navFav:'Closet',aiMatch:'AI Verified',matchExact:'\u2705 Exact Match',matchClose:'\uD83D\uDD25 Close Match',matchSimilar:'\u2728 Similar Items',step_detect:'Detecting garments...',step_lens:'Scanning global stores...',step_match:'Matching products...',step_done:'Ready!',step_bg:'Preparing image...',step_search:'Scanning...',step_ai:'AI comparing details...',step_verify:'Verifying matches...',piecesFound:'pieces found',pickPiece:'Tap a piece to search',searchingPiece:'Searching...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces found. Try manual selection.',loadMore:'Expand Search \u2193',loadingMore:'Scanning...',linkPaste:'Paste Link & Scan',linkGo:'Scan',linkLoading:'Scanning link...',comboBtn:'\u2728 What Goes With This?',comboLoading:'AI building outfit...',comboTitle:'\uD83D\uDC57 AI Outfit Suggestion',verified:'Official Store',sponsored:'Sponsored Dupe',fitCheck:'\uD83D\uDD25 Fit-Check',fitCheckSub:'Rate your outfit!',fitCheckLoading:'AI stylist analyzing...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 Tips',fitCheckShare:'Share Result',fitCheckAnother:'Try Another Outfit',vtonBtn:'\u2728 Try On Me',vtonSaveBody:'Upload your full-body photo',vtonLoading:'Virtual fitting room loading...',vtonResult:'AI Fit Analysis',vtonNoBody:'Upload your photo first'}
 };
 var CC_LANG={tr:'tr',us:'en',uk:'en',de:'en',fr:'en',sa:'en',ae:'en',eg:'en'};
 function t(key){var lg=CC_LANG[CC]||'en';return(L[lg]||L.en)[key]||(L.en)[key]||key}
@@ -2967,6 +3180,8 @@ function applyLang(){
   document.getElementById('navFav').textContent=t('navFav');
   document.getElementById('linkTitle').textContent=t('linkPaste');
   document.getElementById('linkGoBtn').textContent=t('linkGo');
+  document.getElementById('fitCheckTitle').textContent=t('fitCheck');
+  document.getElementById('fitCheckSub').textContent=t('fitCheckSub');
   loadTrending();
 }
 applyLang();
@@ -3392,6 +3607,8 @@ function heroHTML(p,isLens){
   else if(p._sponsored)h+='<div style="position:absolute;top:12px;right:12px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;font-size:9px;font-weight:800;padding:4px 10px;border-radius:8px;backdrop-filter:blur(4px);letter-spacing:.3px">\u2728 '+t('sponsored')+'</div>';
   else if(score>=7)h+='<div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,.8);color:var(--cyan);font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;border:1px solid rgba(0,229,255,.3);backdrop-filter:blur(4px)">'+score+'/10</div>';
   h+='<div class="info"><div class="t">'+p.title+'</div><div class="s">'+(p.brand||p.source||'')+'</div><div class="row"><span class="price">'+(p.price||t('noPrice'))+'</span><button class="btn">'+t('goStore')+'</button></div></div></div></a>';
+  // VTON button
+  h+='<div onclick="event.stopPropagation();openVton(\''+safeT+'\',\''+imgUrl+'\')" style="position:absolute;bottom:80px;left:12px;background:linear-gradient(135deg,rgba(77,0,255,.85),rgba(255,32,121,.85));color:#fff;padding:8px 14px;border-radius:12px;cursor:pointer;font:700 11px Outfit,sans-serif;z-index:10;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;gap:5px;box-shadow:0 4px 16px rgba(77,0,255,.4)"><span>🪞</span>'+t('vtonBtn')+'</div>';
   h+='<div onclick="toggleFav(event,\''+p.link+'\',\''+img+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\')" style="position:absolute;top:12px;right:'+(score>=7?'60px':'12px')+';background:rgba(0,0,0,.7);color:'+(isFav?'var(--accent)':'var(--text)')+';padding:8px;border-radius:50%;cursor:pointer;font-size:18px;z-index:10;line-height:1;backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.1)">'+(isFav?'\u2665':'\u2661')+'</div></div>';
   return h;
 }
@@ -3414,6 +3631,137 @@ function altsHTML(list){
 }
 
 // ─── FAVORITES PAGE (see social profile system above) ───
+
+// ─── FIT-CHECK: AI Outfit Roast & Score ───
+function startFitCheck(){
+  document.getElementById('fitCheckInput').click();
+}
+function handleFitCheck(e){
+  var file=e.target.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var imgData=ev.target.result;
+    // Show loading in result screen
+    document.getElementById('home').style.display='none';
+    document.getElementById('rScreen').style.display='block';
+    var ra=document.getElementById('res');ra.style.display='block';
+    ra.innerHTML='<div style="text-align:center;padding:40px 20px"><img src="'+imgData+'" style="width:160px;height:220px;object-fit:cover;border-radius:24px;border:2px solid var(--border);box-shadow:0 0 30px rgba(255,32,121,.2);margin-bottom:24px"><div class="loader-orb" style="width:48px;height:48px;margin:0 auto 16px"></div><div style="font-size:16px;font-weight:800;color:var(--text)">'+t('fitCheckLoading')+'</div><div style="font-size:13px;color:var(--muted);margin-top:8px">'+(CC_LANG[CC]==='tr'?'AI stilist kombinine bakıyor... 👀<br><span style="font-size:11px;opacity:.6">Acımasız olabilir, hazır ol bestie 💅</span>':'AI stylist is judging... 👀<br><span style="font-size:11px;opacity:.6">Might be savage, brace yourself bestie 💅</span>')+'</div></div>';
+    fetch('/api/fit-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:imgData,lang:CC_LANG[CC]||'tr'})})
+    .then(function(r){return r.json()})
+    .then(function(d){showFitCheckResult(d,imgData)})
+    .catch(function(){showFitCheckResult({success:false,score:50,emoji:'🤔',roast:'Bir sorun oluştu ama eminim harika görünüyorsun bestie! 💅',tips:[]},imgData)});
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
+}
+function showFitCheckResult(d,imgData){
+  var ra=document.getElementById('res');
+  var score=d.score||50;var emoji=d.emoji||'🔥';
+  // Score color + label
+  var col,label;
+  if(score>=90){col='#00e5ff';label='LEGENDARY 👑';}
+  else if(score>=80){col='#00e5ff';label='SLAY 💅';}
+  else if(score>=70){col='var(--accent)';label='FIRE 🔥';}
+  else if(score>=60){col='var(--accent)';label='DECENT ✨';}
+  else if(score>=40){col='#ff9800';label='MID 😐';}
+  else{col='#f44336';label='HELP 💀';}
+  var h='<div class="fitcheck-result" id="fitCheckResultCard">';
+  // fitchy branding for screenshots
+  h+='<div style="font-family:Outfit,sans-serif;font-size:16px;font-weight:800;margin-bottom:16px"><span class="text-gradient">fitchy.</span> <span style="color:var(--muted);font-weight:500;font-size:12px">fit-check</span></div>';
+  // Photo with glow border
+  h+='<div style="position:relative;display:inline-block"><img src="'+imgData+'" style="width:160px;height:220px;object-fit:cover;border-radius:24px;border:3px solid '+col+';box-shadow:0 0 40px '+col+'50,0 0 80px '+col+'20">';
+  h+='<div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);font-size:36px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">'+emoji+'</div></div>';
+  // Score display
+  h+='<div style="margin-top:24px"><div class="drip-score" style="color:'+col+';font-size:80px">'+score+'</div>';
+  h+='<div class="drip-label" style="color:'+col+';letter-spacing:3px">'+label+'</div></div>';
+  h+='<div class="drip-bar"><div class="drip-bar-fill" style="width:0%;background:linear-gradient(90deg,'+col+',var(--purple))"></div></div>';
+  // Roast text
+  if(d.roast)h+='<div class="roast-text" style="font-size:16px;line-height:1.7;padding:4px 12px">'+d.roast+'</div>';
+  // Tips
+  if(d.tips&&d.tips.length){
+    h+='<div style="margin-top:16px;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px">'+t('fitCheckTips')+'</div>';
+    for(var i=0;i<d.tips.length;i++){h+='<div class="tip-card" style="font-size:13px;line-height:1.5">'+d.tips[i]+'</div>'}
+  }
+  // Buttons
+  h+='<div style="margin-top:20px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">';
+  h+='<button class="share-fitcheck" onclick="shareFitCheck('+score+')">📸 '+t('fitCheckShare')+'</button>';
+  h+='<button class="share-fitcheck" style="background:rgba(255,255,255,.06);box-shadow:none;border:1px solid var(--border)" onclick="startFitCheck()">🔄 '+t('fitCheckAnother')+'</button>';
+  h+='</div>';
+  h+='<button class="btn-main" onclick="goHome()" style="margin-top:16px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:#fff">'+t('back')+'</button>';
+  h+='</div>';
+  ra.innerHTML=h;
+  // Animate the bar fill with delay
+  setTimeout(function(){var bar=document.querySelector('.drip-bar-fill');if(bar)bar.style.width=score+'%'},200);
+}
+function shareFitCheck(score){
+  var emoji=score>=90?'👑':score>=80?'💅':score>=70?'🔥':score>=50?'✨':'💀';
+  var text=(CC_LANG[CC]==='tr'?
+    emoji+' fitchy. bana '+score+'/100 Drip Score verdi!\n\nSen de kombinini yargılat → fitchy.app':
+    emoji+' fitchy. gave me '+score+'/100 on my Drip Score!\n\nGet your outfit roasted → fitchy.app');
+  if(navigator.share){navigator.share({title:'fitchy. Fit-Check '+emoji,text:text}).catch(function(){})}
+  else{navigator.clipboard.writeText(text).then(function(){alert('Copied! 📋')}).catch(function(){})}
+}
+
+// ─── VIRTUAL TRY-ON (Sanal Kabin) ───
+var _vtonSession='vton_'+Math.random().toString(36).slice(2,8);
+var _vtonBodySaved=false;
+function openVton(title,garmentImg){
+  var modal=document.getElementById('vtonModal');
+  modal.classList.add('show');
+  var isTr=CC_LANG[CC]==='tr';
+  document.getElementById('vtonModalTitle').textContent=isTr?'🪞 Sanal Kabin':'🪞 Virtual Fitting Room';
+  if(!_vtonBodySaved){
+    document.getElementById('vtonModalBody').textContent=t('vtonSaveBody');
+    document.getElementById('vtonModalContent').innerHTML='<div style="margin:20px 0"><div style="font-size:48px;margin-bottom:12px">📸</div><div style="font-size:12px;color:var(--muted);margin-bottom:16px">'+(isTr?'Tam boy, düz duruşlu bir fotoğraf yükle':'Upload a full-body, straight-on photo')+'</div><button onclick="document.getElementById(\'vtonBodyInput\').click()" style="background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">'+(isTr?'📷 Fotoğraf Yükle':'📷 Upload Photo')+'</button></div>';
+    modal._pendingTitle=title;modal._pendingGarment=garmentImg;
+  }else{
+    runVtonAnalysis(title,garmentImg);
+  }
+}
+function handleVtonBody(e){
+  var file=e.target.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var imgData=ev.target.result;
+    // Save body photo
+    fetch('/api/vton-save-body',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:imgData,session:_vtonSession})})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(d.success){
+        _vtonBodySaved=true;
+        var modal=document.getElementById('vtonModal');
+        if(modal._pendingTitle)runVtonAnalysis(modal._pendingTitle,modal._pendingGarment);
+      }
+    });
+  };
+  reader.readAsDataURL(file);e.target.value='';
+}
+function runVtonAnalysis(title,garmentImg){
+  var isTr=CC_LANG[CC]==='tr';
+  document.getElementById('vtonModalBody').textContent='';
+  document.getElementById('vtonModalContent').innerHTML='<div style="padding:30px"><div class="loader-orb" style="width:40px;height:40px;margin:0 auto 16px"></div><div style="font-size:13px;color:var(--muted)">'+t('vtonLoading')+'</div></div>';
+  fetch('/api/vton-tryon',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:title,garment_img:garmentImg||'',session:_vtonSession,lang:CC_LANG[CC]||'tr'})})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(!d.success){document.getElementById('vtonModalContent').innerHTML='<div style="color:var(--muted);padding:20px;font-size:13px">'+d.message+'</div>';return}
+    var col=d.fit_score>=80?'#00e5ff':d.fit_score>=60?'var(--accent)':'#ff9800';
+    var h='<div style="padding:10px">';
+    h+='<div style="font-size:40px;margin:8px 0">'+(d.emoji||'👗')+'</div>';
+    h+='<div style="font-size:48px;font-weight:900;color:'+col+';letter-spacing:-2px">'+d.fit_score+'</div>';
+    h+='<div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:4px 0 12px">FIT SCORE</div>';
+    h+='<div class="drip-bar"><div class="drip-bar-fill" style="width:'+d.fit_score+'%;background:'+col+'"></div></div>';
+    if(d.analysis)h+='<div style="font-size:14px;line-height:1.6;color:var(--text);margin:12px 0;padding:0 4px">'+d.analysis+'</div>';
+    if(d.size_tip)h+='<div class="tip-card">📏 '+d.size_tip+'</div>';
+    if(d.style_note)h+='<div class="tip-card">💡 '+d.style_note+'</div>';
+    h+='</div>';
+    document.getElementById('vtonModalContent').innerHTML=h;
+    document.getElementById('vtonModalTitle').textContent=t('vtonResult')+' — '+title;
+  })
+  .catch(function(err){document.getElementById('vtonModalContent').innerHTML='<div style="color:var(--muted);padding:20px;font-size:13px">Hata: '+err+'</div>'});
+}
+function closeVton(){
+  document.getElementById('vtonModal').classList.remove('show');
+}
 
 // ─── OUTFIT COMBO ("Bunu Neyle Giyerim?") ───
 function loadCombo(){
