@@ -149,6 +149,17 @@ BLOCKED = ["pinterest.", "instagram.", "facebook.", "twitter.", "x.com/", "tikto
     "ozon.ru", "wildberries.", "lamoda.",
     "/stil/", "/moda/", "/trendy/", "/outfit/", "/look/", "/style-guide/",
     "/fashion-tips/", "/what-to-wear/", "lookbook", "streetstyle",
+    # v42: Celebrity / gossip / entertainment / news magazines
+    "diezminutos.", "diez minutos", "hola.com", "revistavanityfair.",
+    "who.com", "people.com", "tmz.", "eonline.", "justjared.",
+    "dailymail.", "thesun.", "mirror.co.uk", "express.co.uk",
+    "marca.com", "as.com", "abc.es", "elpais.", "elmundo.",
+    "hurriyet.", "milliyet.", "sabah.com", "sozcu.", "haberturk.",
+    "ensonhaber.", "ntv.", "cnn.", "bbc.", "foxnews.", "reuters.",
+    "imdb.", "kinopoisk.", "rottentomatoes.", "letterboxd.",
+    "celebrity", "paparazzi", "gossip", "tabloid",
+    "/haber/", "/news/", "/noticias/", "/celebrit/", "/famous/",
+    "/dizi/", "/series/", "/tv-show/", "/actress/", "/actor/",
 ]
 FASHION_DOMAINS = ["trendyol.", "hepsiburada.", "boyner.", "beymen.", "defacto.", "lcwaikiki.", "koton.", "flo.", "zara.com", "bershka.com", "pullandbear.com", "hm.com", "mango.com", "asos.com", "stradivarius.com", "massimodutti.com", "nike.com", "adidas.", "puma.com", "dolap.com", "gardrops.com", "morhipo.", "lidyana.", "n11.com", "amazon.", "network.", "derimod.", "ipekyol.", "vakko.", "tommy.", "lacoste.", "uniqlo.", "gap.com", "nordstrom.", "farfetch.", "ssense.", "zalando.", "aboutyou."]
 FASHION_KW = ["ceket", "kazak", "shirt", "dress", "ayakkabi", "sneaker", "shoe", "canta", "bag", "gozluk", "saat", "giyim", "fashion", "jacket", "hoodie", "sweatshirt", "jeans", "pantolon", "elbise", "bot", "mont", "kaban", "sapka", "hat", "watch", "clothing", "wear", "kolye", "kemer", "fiyat", "satin al", "urun", "modelleri"]
@@ -269,6 +280,14 @@ NON_CLOTHING_PRODUCTS = [
     # v42: Lifestyle / blog content — site içeriği, ürün değil
     "lifestyle", "blog", "trend alert", "style tip", "outfit idea",
     "what to wear", "how to style", "fashion tip",
+    # v42: Celebrity / news / entertainment — ürün değil, haber
+    "embajador", "actress", "actor", "actriz", "estrena", "villana",
+    "celebrity", "famous", "paparazzi", "gossip", "premiere", "gala",
+    "red carpet", "kırmızı halı", "ödül", "award", "festival",
+    "dizi", "serie", "tv show", "film", "movie", "trailer",
+    "interview", "röportaj", "entrevista", "haber", "news", "noticia",
+    "oyuncu", "şarkıcı", "singer", "manken",
+    "instagram", "tiktok", "youtube", "influencer",
 ]
 
 # v42: Dropshipping / scam / spam site patterns
