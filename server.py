@@ -4147,7 +4147,6 @@ function loadHOF(){
     window._hofData=d.entries;
   }).catch(function(){})
 }
-}
 
 function showHofDetail(idx){
   var e=window._hofData[idx];if(!e)return;
