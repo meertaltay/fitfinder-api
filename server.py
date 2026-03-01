@@ -233,7 +233,51 @@ NON_CLOTHING_PRODUCTS = [
     "mutfak", "kitchen", "tabak", "plate", "çatal", "fork", "bıçak", "knife",
     "mum", "candle", "dekor", "decor", "vazo", "vase", "çerçeve", "frame",
     "halı", "carpet", "perde", "curtain", "yastık", "pillow", "battaniye", "blanket",
+    # v42: Beauty / nail / hair — moda değil
+    "nail", "tırnak", "manicure", "manikür", "pedicure", "pedikür", "gel polish",
+    "oje", "nail art", "nail design", "cuticle", "acrylic nail",
+    "saç", "hair", "peruk", "wig", "shampoo", "şampuan", "conditioner",
+    "makeup", "makyaj", "foundation", "mascara", "lipstick", "ruj", "eyeliner",
+    "skincare", "cilt bakım", "serum", "moisturizer", "cream", "krem ",
+    # v42: Home / garden
+    "mobilya", "furniture", "sandalye", "chair", "masa ", "table", "dolap",
+    "bahçe", "garden", "pot ", "saksı",
+    # v42: Lifestyle / blog content — site içeriği, ürün değil
+    "lifestyle", "blog", "trend alert", "style tip", "outfit idea",
+    "what to wear", "how to style", "fashion tip",
 ]
+
+# v42: Dropshipping / scam / spam site patterns
+SPAM_DOMAINS = [
+    "niobe", "rica™", "rica-", "onlineshopzone", "shopee", "banggood",
+    "lightinthebox", "sammydress", "rosegal", "zaful", "newchic",
+    "tidebuy", "ericdress", "tbdress", "dressily", "stylewe",
+    "floryday", "noracora", "roselinlin", "justfashionnow",
+    "modlily", "rotita", "liligal", "bellelily", "soinyou",
+    "chicme", "chiquedoll", "ivrose", "enyopro", "tinstree",
+    # Genel spam patterns
+    "discount-", "cheap-", "replica-", "wholesale-", "buy-online-",
+]
+
+# v42: Foreign clothing words (non-TR, non-EN) → dropshipping/yabancı site göstergesi
+FOREIGN_CLOTHING_WORDS = [
+    "broek", "jurk", "jas", "trui", "rok",       # Hollandaca
+    "pantalon", "chemise", "veste", "robe",        # Fransızca (pantalon hariç TR'de de var)
+    "hose", "kleid", "jacke", "hemd", "anzug",     # Almanca
+    "vestito", "gonna", "camicia", "giacca",        # İtalyanca
+    "falda", "camisa", "vestido", "abrigo",         # İspanyolca
+    "брюки", "куртка", "платье", "рубашка",         # Rusça
+]
+
+def is_spam_domain(link, source):
+    """Dropshipping / scam site mi?"""
+    c = (link + " " + source).lower()
+    return any(sd in c for sd in SPAM_DOMAINS)
+
+def has_foreign_clothing_word(title):
+    """Başlıkta yabancı dilde giyim kelimesi var mı? (broek, jurk, Kleid vs.)"""
+    tl = title.lower()
+    return any(fw in tl for fw in FOREIGN_CLOTHING_WORDS)
 
 def is_non_clothing_product(title):
     """Ürün başlığı moda-dışı bir ürün mü? (bardak, telefon, mutfak vs.)"""
@@ -698,6 +742,14 @@ def _lens(url, cc="tr", lens_type="all"):
             if is_non_clothing_product(ttl):
                 print(f"    ⛔ NON-CLOTHING: {ttl[:60]}")
                 continue
+            # v42: Dropshipping / spam domain filter
+            if is_spam_domain(lnk, src):
+                print(f"    ⛔ SPAM DOMAIN: {src} | {ttl[:50]}")
+                continue
+            # v42: Foreign clothing vocabulary (broek, jurk, Kleid etc.)
+            if cc == "tr" and has_foreign_clothing_word(ttl):
+                print(f"    ⛔ FOREIGN CLOTHING WORD: {ttl[:60]}")
+                continue
             seen.add(lnk)
             if not ttl: ttl = src or lnk
             original_lnk = lnk
@@ -727,6 +779,9 @@ def _lens(url, cc="tr", lens_type="all"):
             # v42: Non-clothing product filter
             if is_non_clothing_product(ttl):
                 continue
+            # v42: Spam domain + foreign clothing word
+            if is_spam_domain(lnk, src): continue
+            if cc == "tr" and has_foreign_clothing_word(ttl): continue
             seen.add(lnk)
             original_lnk = lnk
             lnk = localize_url(lnk, cc)  # yabancı linkleri yerelleştir
@@ -776,6 +831,9 @@ def _shop(q, cc="tr", limit=6):
             # v42: Non-clothing product filter (Starbucks bardak vs.)
             if is_non_clothing_product(ttl): continue
             if cc == "tr" and has_foreign_script(ttl): continue
+            # v42: Spam domain + foreign clothing word
+            if is_spam_domain(lnk, src): continue
+            if cc == "tr" and has_foreign_clothing_word(ttl): continue
             seen.add(lnk)
             lnk = localize_url(lnk, cc)
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src, "link": make_affiliate(lnk), "price": item.get("price", str(item.get("extracted_price", ""))), "thumbnail": item.get("thumbnail", ""), "image": "", "is_local": is_local(lnk, src, cfg)})
