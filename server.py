@@ -3107,42 +3107,15 @@ async def arena_top(limit: int = 10):
         })
     return {"success": True, "entries": results}
 
-# ─── 📡 RADAR FEED ───
+# ─── 📡 RADAR FEED — Dijital Moda Dergisi ───
 import random as _rand
 
-# Simulated user names for demo feed
 _DEMO_USERS = [
-    ("Ece", "ece.style"), ("Berk", "berk.drip"), ("Selin", "selin.vogue"),
-    ("Can", "can.kaya"), ("Zeynep", "zey.combo"), ("Deniz", "deniz.fit"),
-    ("Mert", "mert.icon"), ("Ayşe", "ayse.chic"), ("Burak", "burak.mode"),
+    ("Ece", "ece.drip"), ("Berk", "berk.mode"), ("Selin", "selin.vogue"),
+    ("Can", "can.kaya"), ("Zeynep", "zey.combo"), ("Deniz", "deniz.lux"),
+    ("Mert", "mert.icon"), ("Ayşe", "ayse.chic"), ("Burak", "burak.couture"),
     ("Elif", "elif.trend"), ("Kaan", "kaan.drp"), ("Defne", "defne.lux"),
-]
-_DEMO_ITEMS = [
-    ("Vintage Deri Ceket", "1.200 TL", "zara.com", "🧥", "#8B4513"),
-    ("Oversized Blazer", "2.450 TL", "massimodutti.com", "🧥", "#2C3E50"),
-    ("Cargo Pantolon", "899 TL", "pullandbear.com", "👖", "#556B2F"),
-    ("Chunky Sneaker", "3.200 TL", "nike.com", "👟", "#E8E8E8"),
-    ("Minimalist Kemer", "450 TL", "hm.com", "👜", "#1A1A1A"),
-    ("Old Money Triko", "1.800 TL", "ralphlauren.com", "🧶", "#8B0000"),
-    ("Wide-Leg Jean", "1.100 TL", "levis.com", "👖", "#4169E1"),
-    ("Chelsea Bot", "2.900 TL", "drmartens.com", "👢", "#2F1B14"),
-    ("Saten Gömlek", "1.650 TL", "mango.com", "👔", "#D4AF37"),
-    ("Puffer Yelek", "1.950 TL", "uniqlo.com", "🧥", "#191970"),
-]
-_DEMO_FOLDERS = ["🍷 Date Night", "🏋️ Gym Stili", "💼 Ofis Gücü", "🌙 İlk Buluşma", "💰 Old Money", "🖤 All Black", "🌴 Tatil Modu"]
-_DEMO_ROASTS_LOW = [
-    "Old Money denemişsin ama cüzdan No Money diye bağırıyor dostum 💀",
-    "Bu kombin hangi yüzyıldan geldi tam anlayamadım, zaman yolcusu musun? 😭",
-    "Üst kış alt yaz, ayakkabılar sonbahar... Mevsim konferansı mı? 🤔",
-    "Renk uyumu diye bir şey duydun mu hiç? Google'la bi 😅",
-    "O çoraplarla anca liseler arası maça gidersin 🧦💀",
-    "Influencer olmak istemiş ama GPS yanlış yere götürmüş 📍😭",
-]
-_DEMO_ROASTS_TIPS = [
-    "Öneri: Ayakkabıları değiştir, gerisi kurtarılabilir 👟",
-    "Alternatif: Üstü tek renk yap, alt zaten yeterince konuşuyor 🎨",
-    "Kemer ekle, silüet anında düzelir ✨",
-    "Renk paletini daralt: max 3 renk kuralı 🎯",
+    ("Mira", "mira.vogue"), ("Ada", "ada.noir"), ("Sinan", "sinan.fit"),
 ]
 _DEMO_AVATARS = [
     "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100",
@@ -3157,21 +3130,66 @@ _DEMO_AVATARS = [
     "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=100",
     "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=100",
     "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100",
+    "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=100",
+    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100",
+    "https://images.unsplash.com/photo-1463453091185-61582044d556?w=100",
 ]
 _DEMO_FIT_IMGS = [
     "https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=600",
     "https://images.unsplash.com/photo-1551028719-0c124a4234c4?w=600",
     "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600",
-    "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=600",
     "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=600",
     "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=600",
+    "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=600",
 ]
+_DEMO_ITEMS = [
+    ("Kaşe Kaban", "4.200 TL", "massimodutti.com", "🧥", "#8B4513"),
+    ("Oversized Blazer", "2.450 TL", "massimodutti.com", "🧥", "#2C3E50"),
+    ("Cargo Pantolon", "899 TL", "pullandbear.com", "👖", "#556B2F"),
+    ("Chunky Sneaker", "3.200 TL", "nike.com", "👟", "#E8E8E8"),
+    ("Saten Gömlek", "1.650 TL", "mango.com", "👔", "#D4AF37"),
+    ("Bordo Süet Sneaker", "2.800 TL", "adidas.com", "👟", "#722F37"),
+    ("Wide-Leg Keten", "1.100 TL", "cos.com", "👖", "#F5F0E8"),
+    ("Chelsea Bot", "2.900 TL", "drmartens.com", "👢", "#2F1B14"),
+    ("Merino Triko", "1.800 TL", "ralphlauren.com", "🧶", "#8B0000"),
+    ("Puffer Yelek", "1.950 TL", "uniqlo.com", "🧥", "#191970"),
+    ("Keten Blazer", "3.100 TL", "arket.com", "🧥", "#C4B9A0"),
+    ("Pleated Etek", "1.400 TL", "zara.com", "👗", "#4A4A4A"),
+]
+_DEMO_CAPSULES = [
+    ("Paris Seyahati", "🗼", ["Kaşe Kaban", "Saten Gömlek", "Chelsea Bot"]),
+    ("Quiet Luxury", "🤍", ["Merino Triko", "Wide-Leg Keten", "Keten Blazer"]),
+    ("90s Grunge Revival", "🎸", ["Oversized Blazer", "Cargo Pantolon", "Chunky Sneaker"]),
+    ("Akdeniz Yazı", "🌊", ["Wide-Leg Keten", "Saten Gömlek", "Chunky Sneaker"]),
+    ("Ofis Couture", "💼", ["Oversized Blazer", "Pleated Etek", "Chelsea Bot"]),
+    ("İlk Buluşma", "🍷", ["Saten Gömlek", "Pleated Etek", "Chelsea Bot"]),
+    ("Weekend Minimal", "☕", ["Merino Triko", "Wide-Leg Keten", "Chunky Sneaker"]),
+]
+_DEMO_TRENDS = [
+    ("Bordo Süet Sneaker", "👟", "+%400", "#722F37", 247),
+    ("Oversized Kaşe Kaban", "🧥", "+%280", "#8B4513", 189),
+    ("Keten Blazer", "🧥", "+%190", "#C4B9A0", 156),
+    ("Pleated Midi Etek", "👗", "+%320", "#4A4A4A", 203),
+    ("Chunky Altın Zincir", "📿", "+%150", "#D4AF37", 98),
+]
+_DEMO_STYLE_TAGS = ["Quiet Luxury", "Old Money", "Minimalist", "Y2K", "Dark Academia", "Coastal Grandma", "Soft Goth", "Parisian Chic"]
+
+def _get_avatar(idx):
+    return _DEMO_AVATARS[idx % len(_DEMO_AVATARS)]
+
+def _get_items_for_capsule(capsule_items):
+    result = []
+    for name in capsule_items:
+        for item in _DEMO_ITEMS:
+            if item[0] == name:
+                result.append({"name": item[0], "price": item[1], "store": item[2], "emoji": item[3], "color": item[4]})
+                break
+    return result
 
 @app.get("/api/radar-stories")
 async def radar_stories():
-    """Return story bar data with avatars and arena info."""
+    """Story bar: arena entries + demo profiles."""
     stories = []
-    # Real arena entries first
     for e in ARENA_POOL[:6]:
         if e["reported"] < 3:
             total = e["ups"] + e["downs"]
@@ -3179,7 +3197,7 @@ async def radar_stories():
             stories.append({
                 "id": e["id"], "handle": e["nickname"],
                 "avatar": _DEMO_AVATARS[idx],
-                "fit_img": "data:image/jpeg;base64," + e["image"][:200] if e.get("image") else "",
+                "fit_img": ("data:image/jpeg;base64," + e["image"][:200]) if e.get("image") else "",
                 "has_image": bool(e.get("image")),
                 "score": e["ai_score"], "emoji": e["emoji"],
                 "roast": e.get("roast", "")[:100],
@@ -3187,136 +3205,130 @@ async def radar_stories():
                 "total_votes": total,
                 "seen": False, "is_live": True,
             })
-    # Fill with demo stories
-    demo_stories = [
-        {"handle": "can.kaya", "score": 45, "emoji": "💀", "roast": "Eşofmanla sokağa çıkmak cesaret ister. Hele o renk uyumu..."},
+    demo = [
         {"handle": "ece.drip", "score": 94, "emoji": "🔥", "roast": "Deri ceket ve çizmeler efsane. Milano sokakları ağlıyor!"},
-        {"handle": "berk.mode", "score": 62, "emoji": "😐", "roast": "Basic bir kombin. Kötü değil ama dönüp ikinci kez bakmam."},
-        {"handle": "selin.vip", "score": 88, "emoji": "💅", "roast": "Minimalist ama şık. Renk paleti harika ama kemer lazım."},
-        {"handle": "deniz.fit", "score": 37, "emoji": "💀", "roast": "Bunu giyip dışarı çıkan adama helal olsun. Cesaret puanı: 100."},
+        {"handle": "can.kaya", "score": 45, "emoji": "💀", "roast": "Eşofmanla sokağa çıkmak cesaret ister."},
+        {"handle": "berk.mode", "score": 88, "emoji": "💅", "roast": "Minimalist ama şık. Renk paleti harika."},
+        {"handle": "selin.vogue", "score": 62, "emoji": "😐", "roast": "Basic bir kombin. Kötü değil ama wow değil."},
+        {"handle": "deniz.lux", "score": 91, "emoji": "👑", "roast": "Old money tarzını tutturmuş. Jüri alkışlıyor!"},
     ]
-    for i, ds in enumerate(demo_stories):
+    for i, ds in enumerate(demo):
         if len(stories) >= 8: break
         stories.append({
             "id": f"demo_{i}", "handle": ds["handle"],
             "avatar": _DEMO_AVATARS[i % len(_DEMO_AVATARS)],
             "fit_img": _DEMO_FIT_IMGS[i % len(_DEMO_FIT_IMGS)],
             "has_image": True,
-            "score": ds["score"], "emoji": ds["emoji"],
-            "roast": ds["roast"],
-            "fire_pct": _rand.randint(25, 75),
-            "total_votes": _rand.randint(5, 80),
+            "score": ds["score"], "emoji": ds["emoji"], "roast": ds["roast"],
+            "fire_pct": _rand.randint(30, 75), "total_votes": _rand.randint(5, 80),
             "seen": i > 2, "is_live": i < 3,
         })
     return {"success": True, "stories": stories}
 
 @app.get("/api/radar-feed")
 async def radar_feed(page: int = 0, limit: int = 10):
-    """Generate a dynamic social feed with 5 card types."""
+    """Premium Radar Feed — 5 Dijital Moda Dergisi kart tipi."""
     cards = []
-    _rand.seed(int(time.time() / 300) + page)  # Refresh every 5min
+    _rand.seed(int(time.time() / 300) + page)
 
-    # Card Type 1: Drip Hırsızlığı (Re-fitch)
+    # 🍷 Card Type 1: Koleksiyon Sızıntısı (Moodboard Drop)
+    for _ in range(2):
+        u = _rand.choice(_DEMO_USERS)
+        ui = _DEMO_USERS.index(u) % len(_DEMO_AVATARS)
+        capsule = _rand.choice(_DEMO_CAPSULES)
+        items = _get_items_for_capsule(capsule[2])
+        total_val = sum(int(it["price"].replace(".", "").replace(" TL", "")) for it in items)
+        cards.append({
+            "type": "moodboard_drop",
+            "user": u[0], "handle": u[1], "avatar": _DEMO_AVATARS[ui],
+            "capsule_name": capsule[0], "capsule_emoji": capsule[1],
+            "items": items,
+            "total_value": f"{total_val:,} TL".replace(",", "."),
+            "palette_tags": _rand.sample(_DEMO_STYLE_TAGS, 2),
+            "saves": _rand.randint(12, 180),
+            "ago": f"{_rand.randint(1, 180)}dk önce",
+        })
+
+    # 🤝 Card Type 2: Küratör Onayı (Premium Re-fitch)
     for _ in range(2):
         u1, u2 = _rand.sample(_DEMO_USERS, 2)
-        item = _rand.choice(_DEMO_ITEMS)
         i1 = _DEMO_USERS.index(u1) % len(_DEMO_AVATARS)
         i2 = _DEMO_USERS.index(u2) % len(_DEMO_AVATARS)
-        refitch_count = _rand.randint(2, 18)
+        item = _rand.choice(_DEMO_ITEMS)
         cards.append({
-            "type": "refitch",
+            "type": "premium_refitch",
             "user": u1[0], "handle": u1[1], "avatar": _DEMO_AVATARS[i1],
-            "target": u2[0], "target_handle": u2[1], "target_avatar": _DEMO_AVATARS[i2],
+            "curator": u2[0], "curator_handle": u2[1], "curator_avatar": _DEMO_AVATARS[i2],
             "item_name": item[0], "item_price": item[1], "item_store": item[2],
             "item_emoji": item[3], "item_color": item[4],
-            "refitch_count": refitch_count,
+            "refitch_count": _rand.randint(3, 24),
             "ts": time.time() - _rand.randint(60, 7200),
         })
 
-    # Card Type 2: Gladyatör Sahada (Live Arena)
-    arena_entries = [e for e in ARENA_POOL if e["reported"] < 3 and (e["ups"] + e["downs"]) > 0]
+    # 🏆 Card Type 3: Vitrin Başarısı (Runway Milestone)
+    arena_entries = [e for e in ARENA_POOL if e["reported"] < 3 and e["ai_score"] >= 80]
     if arena_entries:
         for e in arena_entries[:2]:
             total = e["ups"] + e["downs"]
+            idx = hash(e["nickname"]) % len(_DEMO_AVATARS)
             cards.append({
-                "type": "arena_live",
-                "id": e["id"], "nickname": e["nickname"],
-                "image": e["image"][:200] + "..." if len(e.get("image","")) > 200 else "",  # Truncate for feed
+                "type": "runway_milestone",
+                "user": e["nickname"], "handle": e["nickname"],
+                "avatar": _DEMO_AVATARS[idx],
+                "score": e["ai_score"], "emoji": e["emoji"],
                 "has_image": bool(e.get("image")),
-                "ai_score": e["ai_score"], "emoji": e["emoji"],
-                "fire_pct": round(e["ups"] / total * 100) if total > 0 else 50,
-                "meh_pct": round(e["downs"] / total * 100) if total > 0 else 50,
+                "image": e["image"][:200] + "..." if len(e.get("image", "")) > 200 else "",
+                "fire_pct": round(e["ups"] / total * 100) if total > 0 else 70,
                 "total_votes": total,
+                "is_hof": e["ai_score"] >= 90,
                 "ago": _time_ago(e["ts"]),
             })
     else:
-        # Demo arena cards
         for _ in range(2):
             u = _rand.choice(_DEMO_USERS)
-            fire = _rand.randint(20, 80)
+            ui = _DEMO_USERS.index(u) % len(_DEMO_AVATARS)
+            score = _rand.randint(82, 98)
             cards.append({
-                "type": "arena_live",
-                "id": "demo", "nickname": u[0],
+                "type": "runway_milestone",
+                "user": u[0], "handle": u[1],
+                "avatar": _DEMO_AVATARS[ui],
+                "fit_img": _rand.choice(_DEMO_FIT_IMGS),
+                "score": score, "emoji": "👑" if score >= 90 else "🔥",
                 "has_image": False,
-                "ai_score": _rand.randint(40, 88), "emoji": _rand.choice(["🔥","💅","😬","💀"]),
-                "fire_pct": fire, "meh_pct": 100-fire,
-                "total_votes": _rand.randint(5, 50),
-                "ago": f"{_rand.randint(1,45)}dk önce",
+                "fire_pct": _rand.randint(55, 85),
+                "total_votes": _rand.randint(8, 60),
+                "is_hof": score >= 90,
+                "ago": f"{_rand.randint(1, 90)}dk önce",
             })
 
-    # Card Type 3: Utanç Duvarı (Low Fit-Check scores)
-    for _ in range(2):
-        u = _rand.choice(_DEMO_USERS)
-        ui = _DEMO_USERS.index(u) % len(_DEMO_AVATARS)
-        score = _rand.randint(32, 55)
-        cards.append({
-            "type": "shame_wall",
-            "user": u[0], "handle": u[1], "avatar": _DEMO_AVATARS[ui],
-            "score": score, "emoji": "💀" if score < 40 else "😬",
-            "roast": _rand.choice(_DEMO_ROASTS_LOW),
-            "tip": _rand.choice(_DEMO_ROASTS_TIPS),
-            "reactions": _rand.randint(5, 120),
-            "ago": f"{_rand.randint(1,120)}dk önce",
-        })
-
-    # Card Type 4: Gatekeep (Premium tease)
-    u = _rand.choice(_DEMO_USERS)
-    ui = _DEMO_USERS.index(u) % len(_DEMO_AVATARS)
-    item = _rand.choice(_DEMO_ITEMS)
-    orig_num = _rand.choice([15000, 25000, 35000, 48000])
-    dupe_num = _rand.choice([450, 800, 1200, 650])
-    savings_pct = round((1 - dupe_num / orig_num) * 100)
+    # 📈 Card Type 4: Mikro-Trend Alarmları (Network Intelligence)
+    trend = _rand.choice(_DEMO_TRENDS)
     cards.append({
-        "type": "gatekeep",
-        "user": u[0], "handle": u[1], "avatar": _DEMO_AVATARS[ui],
-        "original_price": f"{orig_num:,} TL".replace(",", "."),
-        "dupe_price": f"{dupe_num:,} TL".replace(",", "."),
-        "savings_pct": savings_pct,
-        "brand": _rand.choice(["Prada", "Gucci", "Louis Vuitton", "Balenciaga", "Dior", "Bottega Veneta"]),
-        "brand_emoji": _rand.choice(["👜", "👛", "🕶️", "👠", "🧥"]),
-        "gatekeep_count": _rand.randint(12, 200),
-        "ago": f"{_rand.randint(1,60)}dk önce",
+        "type": "trend_alert",
+        "trend_name": trend[0], "trend_emoji": trend[1],
+        "trend_pct": trend[2], "trend_color": trend[3],
+        "search_count": trend[4],
+        "related_items": _rand.sample(_DEMO_ITEMS, 3),
+        "network_size": _rand.randint(40, 200),
     })
 
-    # Card Type 5: Dolap Röntgenciliği (Folder update)
-    for _ in range(2):
-        u = _rand.choice(_DEMO_USERS)
-        ui = _DEMO_USERS.index(u) % len(_DEMO_AVATARS)
-        folder = _rand.choice(_DEMO_FOLDERS)
-        count = _rand.randint(2, 5)
-        items = _rand.sample(_DEMO_ITEMS, min(count, len(_DEMO_ITEMS)))
-        total_val = sum(int(i[1].replace(".", "").replace(" TL", "")) for i in items)
-        cards.append({
-            "type": "folder_update",
-            "user": u[0], "handle": u[1], "avatar": _DEMO_AVATARS[ui],
-            "folder_name": folder, "item_count": count,
-            "items": [{"name": i[0], "price": i[1], "emoji": i[3], "color": i[4]} for i in items],
-            "total_value": f"{total_val:,} TL".replace(",", "."),
-            "folder_followers": _rand.randint(3, 45),
-            "ago": f"{_rand.randint(1,180)}dk önce",
-        })
+    # 👯 Card Type 5: Stil İkizi (Style Twin)
+    u1, u2 = _rand.sample(_DEMO_USERS, 2)
+    i1 = _DEMO_USERS.index(u1) % len(_DEMO_AVATARS)
+    i2 = _DEMO_USERS.index(u2) % len(_DEMO_AVATARS)
+    match_pct = _rand.randint(72, 95)
+    shared_tags = _rand.sample(_DEMO_STYLE_TAGS, _rand.randint(2, 3))
+    cards.append({
+        "type": "style_twin",
+        "user1": u1[0], "handle1": u1[1], "avatar1": _DEMO_AVATARS[i1],
+        "user2": u2[0], "handle2": u2[1], "avatar2": _DEMO_AVATARS[i2],
+        "match_pct": match_pct,
+        "shared_tags": shared_tags,
+        "shared_items": _rand.randint(4, 12),
+        "fit_img1": _rand.choice(_DEMO_FIT_IMGS),
+        "fit_img2": _rand.choice(_DEMO_FIT_IMGS),
+    })
 
-    # Shuffle for natural feel
     _rand.shuffle(cards)
     return {"success": True, "cards": cards[page*limit:(page+1)*limit]}
 
@@ -3606,13 +3618,14 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .vton-btn:active{background:var(--cyan);color:#000}
 .rcard{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:16px;position:relative;overflow:hidden;animation:fadeUp .3s ease both}
 .rcard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:20px 20px 0 0}
+.rcard.type-moodboard::before{background:linear-gradient(90deg,#D4AF37,#8B6914)}
 .rcard.type-refitch::before{background:linear-gradient(90deg,var(--accent),var(--purple))}
-.rcard.type-arena::before{background:linear-gradient(90deg,var(--cyan),#4d00ff)}
-.rcard.type-shame::before{background:linear-gradient(90deg,#f44336,#ff9800)}
-.rcard.type-gatekeep::before{background:linear-gradient(90deg,#ffd700,#ff8c00)}
-.rcard.type-folder::before{background:linear-gradient(90deg,#00e5ff,#00bcd4)}
+.rcard.type-runway::before{background:linear-gradient(90deg,#ffd700,var(--accent))}
+.rcard.type-trend::before{background:linear-gradient(90deg,var(--cyan),#4d00ff)}
+.rcard.type-twin::before{background:linear-gradient(90deg,#e040fb,var(--cyan))}
 .rcard-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.rcard-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+.rcard-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0;object-fit:cover}
+img.rcard-avatar{border:1px solid var(--border)}
 .rcard-user{font-size:13px;font-weight:700;color:var(--text);line-height:1.4}
 .rcard-user .handle{color:var(--cyan);font-weight:600}
 .rcard-user .ago{font-size:10px;color:var(--muted);font-weight:500}
@@ -3623,83 +3636,88 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .rcard-action .rbtn:active{transform:scale(.96)}
 .rcard-action .rbtn-primary{background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;box-shadow:0 4px 15px rgba(255,32,121,.2)}
 .rcard-action .rbtn-secondary{background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--border)}
-.rcard-action .rbtn-fire{background:rgba(0,229,255,.12);color:var(--cyan);border:1px solid rgba(0,229,255,.3)}
-.rcard-action .rbtn-meh{background:rgba(244,67,54,.1);color:#f44336;border:1px solid rgba(244,67,54,.3)}
 .rcard-action .rbtn-gold{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;box-shadow:0 4px 15px rgba(255,215,0,.3)}
-.rcard-score{font-size:36px;font-weight:900;text-align:center;margin:8px 0}
-.rcard-roast{font-size:13px;font-style:italic;line-height:1.5;color:var(--text);padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);margin-bottom:12px}
-.rcard-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.06);margin:10px 0;overflow:hidden;display:flex}
-.rcard-bar .fire-fill{background:linear-gradient(90deg,var(--cyan),#4d00ff);height:100%;transition:width .5s}
-.rcard-bar .meh-fill{background:rgba(244,67,54,.4);height:100%;transition:width .5s}
-.rcard-blur{filter:blur(12px);pointer-events:none;user-select:none}
-.rcard-lock{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2;padding:20px}
-.rcard-items{display:flex;gap:8px;margin-bottom:10px}
-.rcard-items .ritem{flex:1;padding:8px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--border);text-align:center;font-size:11px;line-height:1.3}
-.rcard-items .ritem .ritem-name{font-weight:700;color:var(--text);margin-bottom:2px}
-.rcard-items .ritem .ritem-price{color:var(--cyan);font-weight:800;font-size:12px}
+.rcard-action .rbtn-cyan{background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid rgba(0,229,255,.3)}
 
-/* 📡 Story Bar */
-.radar-stories{display:flex;gap:16px;padding:16px 20px;overflow-x:auto;border-bottom:1px solid rgba(255,255,255,0.05)}
+/* 📡 STORY BAR */
+.radar-stories{display:flex;gap:16px;padding:16px 20px;overflow-x:auto;border-bottom:1px solid rgba(255,255,255,.05)}
 .radar-story{width:72px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;position:relative;transition:transform .2s}
 .radar-story:active{transform:scale(.95)}
 .story-ring{width:72px;height:72px;border-radius:50%;padding:3px;position:relative;background:linear-gradient(45deg,var(--gold),var(--accent),var(--cyan),var(--purple));background-size:300% 300%;animation:rotateRing 3s ease infinite;box-shadow:0 0 15px rgba(255,32,121,.3)}
-.story-ring.seen{background:rgba(255,255,255,.2);animation:none;box-shadow:none}
+.story-ring.seen{background:rgba(255,255,255,.15);animation:none;box-shadow:none}
 .story-ring img{width:100%;height:100%;border-radius:50%;object-fit:cover;border:3px solid var(--bg);background:#1a1a2e}
 .story-name{font-size:11px;font-weight:600;color:var(--text);width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
 .live-badge-mini{position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);background:var(--cyan);color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px;border:2px solid var(--bg);box-shadow:0 2px 8px rgba(0,229,255,.4);white-space:nowrap}
 @keyframes rotateRing{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 
-/* 🥷 Drip Hırsızlığı - Product Visual */
-.rcard-product{display:flex;gap:12px;margin-bottom:14px;padding:12px;border-radius:14px;background:rgba(255,255,255,.02);border:1px solid var(--border)}
+/* 🍷 MOODBOARD DROP — Koleksiyon Sızıntısı */
+.rcard-collage{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;border-radius:14px;overflow:hidden}
+.rcard-collage-item{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;position:relative}
+.rcard-collage-item::after{content:'';position:absolute;inset:0;border:1px solid rgba(255,255,255,.06)}
+.rcard-collage-item .col-emoji{font-size:28px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3))}
+.rcard-collage-item .col-name{font-size:8px;font-weight:700;color:rgba(255,255,255,.8);text-align:center;line-height:1.2}
+.rcard-collage-item .col-price{font-size:10px;font-weight:900;color:var(--cyan)}
+.rcard-capsule-name{font-size:16px;font-weight:900;color:var(--text);margin-bottom:4px}
+.rcard-palette-tags{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.rcard-palette-tag{font-size:9px;font-weight:700;padding:3px 8px;border-radius:6px;background:rgba(212,175,55,.08);color:#D4AF37;border:1px solid rgba(212,175,55,.2)}
+.rcard-capsule-meta{display:flex;align-items:center;gap:12px;font-size:11px;color:var(--muted);margin-bottom:12px}
+.rcard-capsule-val{font-weight:800;color:var(--accent)}
+
+/* 🤝 PREMIUM RE-FITCH — Küratör Onayı */
+.rcard-product{display:flex;gap:12px;margin-bottom:14px;padding:14px;border-radius:14px;background:rgba(255,255,255,.02);border:1px solid var(--border)}
 .rcard-product-img{width:72px;height:72px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0;position:relative;overflow:hidden}
 .rcard-product-img::after{content:'';position:absolute;inset:0;border-radius:12px;border:1px solid rgba(255,255,255,.08)}
 .rcard-product-info{flex:1;display:flex;flex-direction:column;justify-content:center;gap:3px}
 .rcard-product-name{font-size:14px;font-weight:800;color:var(--text)}
 .rcard-product-price{font-size:16px;font-weight:900;color:var(--accent)}
 .rcard-product-store{font-size:10px;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:.5px}
-.rcard-chain{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:11px;color:var(--muted)}
-.rcard-chain-arrow{color:var(--accent);font-size:14px}
-.rcard-chain-user{font-weight:700;color:var(--text)}
+.rcard-curator-flow{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.02)}
+.rcard-curator-flow img{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border)}
+.rcard-curator-flow .flow-arrow{color:var(--accent);font-size:12px;font-weight:800}
+.rcard-curator-flow .flow-name{font-size:11px;font-weight:700;color:var(--text)}
 .rcard-refitch-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;background:rgba(255,32,121,.1);color:var(--accent);margin-left:auto}
 
-/* ⚔️ Arena Live - Outfit Preview */
-.rcard-arena-preview{position:relative;height:180px;border-radius:14px;overflow:hidden;margin-bottom:12px;background:linear-gradient(135deg,rgba(0,229,255,.05),rgba(77,0,255,.05))}
-.rcard-arena-preview img{width:100%;height:100%;object-fit:cover}
-.rcard-arena-preview .arena-live-dot{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);font-size:10px;font-weight:800;color:#ff4444}
-.rcard-arena-preview .arena-live-dot::before{content:'';width:6px;height:6px;border-radius:50%;background:#ff4444;animation:livePulse 1.5s ease infinite}
-@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.3)}}
-.rcard-arena-stats{display:flex;gap:8px;margin-bottom:10px}
-.rcard-arena-stat{flex:1;text-align:center;padding:8px 6px;border-radius:10px;background:rgba(255,255,255,.02);border:1px solid var(--border)}
-.rcard-arena-stat .stat-val{font-size:18px;font-weight:900;color:var(--text)}
-.rcard-arena-stat .stat-lbl{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
-.rcard-arena-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:64px;background:linear-gradient(135deg,rgba(0,229,255,.08),rgba(77,0,255,.12))}
+/* 🏆 RUNWAY MILESTONE — Vitrin Başarısı */
+.rcard-runway-hero{position:relative;height:200px;border-radius:14px;overflow:hidden;margin-bottom:14px}
+.rcard-runway-hero img{width:100%;height:100%;object-fit:cover}
+.rcard-runway-hero .hero-gradient{position:absolute;inset:0;background:linear-gradient(to top,rgba(5,2,10,.95) 0%,transparent 60%)}
+.rcard-runway-hero .hero-score{position:absolute;bottom:16px;left:16px;display:flex;align-items:center;gap:10px}
+.rcard-runway-hero .score-ring{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;border:3px solid}
+.rcard-runway-hero .score-ring .score-num{font-size:22px;font-weight:900;line-height:1}
+.rcard-runway-hero .score-ring .score-max{font-size:8px;color:var(--muted)}
+.rcard-runway-hero .hero-label{font-size:12px;font-weight:800;color:var(--text);line-height:1.3}
+.rcard-runway-hero .hero-sublabel{font-size:10px;color:var(--muted);margin-top:2px}
+.rcard-runway-hero .hof-badge{position:absolute;top:12px;right:12px;padding:6px 12px;border-radius:10px;background:linear-gradient(135deg,rgba(255,215,0,.2),rgba(255,140,0,.2));border:1px solid rgba(255,215,0,.4);font-size:10px;font-weight:900;color:#ffd700;backdrop-filter:blur(8px)}
+.rcard-runway-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:64px;background:linear-gradient(135deg,rgba(255,215,0,.05),rgba(255,32,121,.05))}
 
-/* 💀 Utanç Duvarı - Score Gauge */
-.rcard-shame-visual{text-align:center;padding:16px;margin-bottom:12px}
-.rcard-shame-gauge{position:relative;width:100px;height:100px;margin:0 auto 10px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column}
-.rcard-shame-gauge::before{content:'';position:absolute;inset:0;border-radius:50%;border:4px solid rgba(255,255,255,.05)}
-.rcard-shame-gauge .gauge-score{font-size:32px;font-weight:900;line-height:1}
-.rcard-shame-gauge .gauge-max{font-size:12px;color:var(--muted);font-weight:600}
-.rcard-roast-bubble{font-size:13px;font-style:italic;line-height:1.5;color:var(--text);padding:12px 16px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);margin-bottom:10px;position:relative}
-.rcard-roast-bubble::before{content:'💬';position:absolute;top:-10px;left:12px;font-size:16px}
-.rcard-shame-tip{font-size:11px;line-height:1.4;color:var(--cyan);padding:8px 12px;border-radius:10px;background:rgba(0,229,255,.05);border:1px solid rgba(0,229,255,.12);margin-bottom:12px}
-.rcard-reactions{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:10px}
+/* 📈 TREND ALERT — Mikro-Trend */
+.rcard-trend-hero{padding:20px;margin-bottom:14px;border-radius:14px;text-align:center;position:relative;overflow:hidden}
+.rcard-trend-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(0,229,255,.08) 0%,transparent 70%)}
+.rcard-trend-emoji{font-size:48px;margin-bottom:10px;filter:drop-shadow(0 4px 12px rgba(0,0,0,.3))}
+.rcard-trend-name{font-size:20px;font-weight:900;color:var(--text);margin-bottom:6px}
+.rcard-trend-pct{font-size:28px;font-weight:900;margin-bottom:4px}
+.rcard-trend-sub{font-size:11px;color:var(--muted)}
+.rcard-trend-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.06);margin:14px 0;overflow:hidden}
+.rcard-trend-bar-fill{height:100%;border-radius:2px;transition:width 1.5s cubic-bezier(.22,1,.36,1)}
+.rcard-trend-items{display:flex;gap:8px;margin-bottom:12px}
+.rcard-trend-item{flex:1;padding:10px 8px;border-radius:12px;background:rgba(255,255,255,.02);border:1px solid var(--border);text-align:center}
+.rcard-trend-item .ti-emoji{font-size:20px;margin-bottom:4px}
+.rcard-trend-item .ti-name{font-size:9px;font-weight:700;color:var(--text);line-height:1.2;margin-bottom:2px}
+.rcard-trend-item .ti-price{font-size:10px;font-weight:800;color:var(--cyan)}
 
-/* 🤫 Gatekeep - Premium Visual */
-.rcard-gatekeep-visual{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px}
-.rcard-gatekeep-blur{padding:24px;text-align:center;filter:blur(14px);pointer-events:none;user-select:none;background:linear-gradient(135deg,rgba(255,215,0,.08),rgba(255,140,0,.08))}
-.rcard-gatekeep-lock{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2;background:rgba(5,2,10,.3);backdrop-filter:blur(2px)}
-.rcard-savings{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:8px;background:rgba(0,229,255,.1);color:var(--cyan);font-size:11px;font-weight:800;margin-top:8px}
-.rcard-gatekeep-count{font-size:10px;color:var(--muted);margin-top:6px}
-
-/* 📂 Dolap Röntgenciliği - Collage Grid */
-.rcard-collage{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
-.rcard-collage-item{aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px;position:relative;overflow:hidden}
-.rcard-collage-item::after{content:'';position:absolute;inset:0;border-radius:10px;border:1px solid rgba(255,255,255,.06)}
-.rcard-collage-item .col-emoji{font-size:24px}
-.rcard-collage-item .col-price{font-size:9px;font-weight:800;color:var(--cyan)}
-.rcard-folder-meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin-bottom:10px}
-.rcard-folder-val{font-weight:800;color:var(--accent)}
+/* 👯 STYLE TWIN — Stil İkizi */
+.rcard-twin-split{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-bottom:14px;border-radius:14px;overflow:hidden;height:160px;position:relative}
+.rcard-twin-side{position:relative;overflow:hidden}
+.rcard-twin-side img{width:100%;height:100%;object-fit:cover}
+.rcard-twin-side .twin-gradient{position:absolute;inset:0;background:linear-gradient(to top,rgba(5,2,10,.85) 0%,transparent 50%)}
+.rcard-twin-side .twin-info{position:absolute;bottom:10px;left:10px;right:10px}
+.rcard-twin-side .twin-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;border:2px solid var(--bg);margin-bottom:4px}
+.rcard-twin-side .twin-name{font-size:11px;font-weight:800;color:#fff}
+.rcard-twin-match{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:5;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;flex-direction:column;border:3px solid var(--bg);box-shadow:0 4px 20px rgba(255,32,121,.4)}
+.rcard-twin-match .match-pct{font-size:16px;font-weight:900;color:#fff;line-height:1}
+.rcard-twin-match .match-lbl{font-size:6px;font-weight:800;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.5px}
+.rcard-twin-tags{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.rcard-twin-tag{font-size:9px;font-weight:700;padding:3px 8px;border-radius:6px;background:rgba(224,64,251,.08);color:#e040fb;border:1px solid rgba(224,64,251,.2)}
 
 /* VTON Modal */
 .vton-modal{position:fixed;inset:0;z-index:1000;background:rgba(5,2,10,.95);backdrop-filter:blur(30px);display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px}
@@ -4772,6 +4790,7 @@ function submitToHof(score,emoji,roast){
 
 // ─── 📡 RADAR FEED ───
 var _radarPage=0;
+var _radarStoryData=[];
 function openRadar(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
   document.querySelectorAll('.bnav-item')[1].classList.add('active');
@@ -4786,255 +4805,217 @@ function closeRadar(){
   document.getElementById('radarScreen').classList.remove('show');
   goHome();
 }
-
-// ── RADAR STORY BAR ──
-var _radarStoryData=[];
+/* ── Story Bar ── */
 function loadRadarStories(){
   var tray=document.getElementById('radarStoryTray');
-  if(!tray)return;
+  tray.innerHTML='';
+  var addBtn=document.createElement('div');
+  addBtn.className='radar-story';
+  addBtn.innerHTML='<div class="story-ring" style="background:rgba(255,255,255,.08);animation:none"><div style="font-size:28px;line-height:66px;text-align:center;width:66px;height:66px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.04);color:var(--cyan);cursor:pointer" onclick="startFitCheck();closeRadar()">+</div></div><div class="story-name" style="color:var(--cyan)">Fit-Check</div>';
+  tray.appendChild(addBtn);
   fetch('/api/radar-stories').then(function(r){return r.json()}).then(function(d){
-    if(!d.success)return;
+    if(!d.success) return;
     _radarStoryData=d.stories;
-    var h='';
-    // "+" button first
-    h+='<div class="radar-story" onclick="startFitCheck();closeRadar()">';
-    h+='<div class="story-ring" style="background:rgba(255,255,255,.05);border:1px dashed var(--muted);animation:none;padding:2px">';
-    h+='<div style="width:100%;height:100%;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)">+</div>';
-    h+='</div>';
-    h+='<div style="position:absolute;bottom:14px;right:0;width:22px;height:22px;background:var(--cyan);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;border:2px solid var(--bg)">+</div>';
-    h+='<div class="story-name" style="margin-top:2px">Sen</div>';
-    h+='</div>';
-    // Story items
     for(var i=0;i<d.stories.length;i++){
-      var s=d.stories[i];
-      var ringClass=s.seen?'story-ring seen':'story-ring';
-      h+='<div class="radar-story" onclick="openRadarStoryItem('+i+')">';
-      h+='<div class="'+ringClass+'">';
-      h+='<img src="'+s.avatar+'" onerror="this.style.background=\'var(--purple)\'">';
-      if(s.is_live&&!s.seen)h+='<div class="live-badge-mini">⚔️ ARENA</div>';
-      h+='</div>';
-      h+='<div class="story-name" style="margin-top:2px">'+s.handle.split('.')[0]+'</div>';
-      h+='</div>';
+      (function(idx){
+        var s=d.stories[idx];
+        var el=document.createElement('div');
+        el.className='radar-story';
+        el.onclick=function(){openRadarStoryItem(idx)};
+        var ring=s.seen?'story-ring seen':'story-ring';
+        var badge=(!s.seen && s.is_live)?'<div class="live-badge-mini">\u2694\uFE0F ARENA</div>':'';
+        el.innerHTML='<div class="'+ring+'"><img src="'+s.avatar+'" onerror="this.style.background=\'var(--accent)\';this.style.fontSize=\'20px\';this.textContent=\''+s.handle[0].toUpperCase()+'\'">'+badge+'</div><div class="story-name">'+s.handle.split('.')[0]+'</div>';
+        tray.appendChild(el);
+      })(i);
     }
-    tray.innerHTML=h;
   }).catch(function(){});
 }
-
 function openRadarStoryItem(idx){
   var s=_radarStoryData[idx];
-  if(!s)return;
-  _activeStoryEntry={id:s.id,nickname:s.handle};
-  document.getElementById('storyAvatarImg').src=s.avatar;
-  document.getElementById('storyHandle').textContent='@'+s.handle;
-  if(s.has_image&&s.fit_img){
-    document.getElementById('storyMainImg').src=s.fit_img;
-  }else{
-    document.getElementById('storyMainImg').src='';
+  if(!s) return;
+  var modal=document.getElementById('storyModal');
+  if(!modal) return;
+  document.getElementById('storyAvatar').src=s.avatar;
+  document.getElementById('storyNickname').textContent='@'+s.handle;
+  var scoreEl=document.getElementById('storyScore');
+  if(scoreEl)scoreEl.innerHTML=s.emoji+' '+s.score+'<span style="font-size:14px;color:var(--muted)">/100</span>';
+  var roastEl=document.getElementById('storyRoast');
+  if(roastEl)roastEl.textContent=s.roast;
+  var imgEl=document.getElementById('storyFitImg');
+  if(imgEl){
+    if(s.has_image && s.fit_img){imgEl.src=s.fit_img;imgEl.style.display='block'}
+    else{imgEl.style.display='none'}
   }
-  document.getElementById('storyScoreTxt').textContent='AI Skoru: '+s.emoji+' '+s.score;
-  document.getElementById('storyRoastTxt').textContent='"'+s.roast+'"';
-  var card=document.getElementById('storyArenaCard');
-  card.style.transition='none';
-  card.style.transform='translateX(0) rotate(0)';
-  card.style.opacity='1';
-  document.getElementById('storyLikeLabel').style.opacity='0';
-  document.getElementById('storyNopeLabel').style.opacity='0';
-  document.getElementById('storyModal').style.display='flex';
-  // Mark as seen
+  modal.classList.add('show');
   s.seen=true;
   loadRadarStories();
 }
-
+/* ── Premium Feed Rendering ── */
 function loadRadarFeed(){
   var feed=document.getElementById('radarFeed');
-  if(_radarPage===0)feed.innerHTML='<div style="text-align:center;padding:40px"><div class="loader-orb" style="width:40px;height:40px;margin:0 auto 12px"></div><div style="color:var(--muted);font-size:13px">Radar taranıyor...</div></div>';
+  if(_radarPage===0)feed.innerHTML='<div style="text-align:center;padding:40px"><div class="loader-orb" style="width:40px;height:40px;margin:0 auto 12px"></div><div style="color:var(--muted);font-size:13px">Dijital moda dergisi haz\u0131rlan\u0131yor...</div></div>';
   fetch('/api/radar-feed?page='+_radarPage+'&limit=10').then(function(r){return r.json()}).then(function(d){
     if(_radarPage===0)feed.innerHTML='';
     if(!d.success||!d.cards||!d.cards.length){
-      if(_radarPage===0)feed.innerHTML='<div style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">📡</div><div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:8px">Radar Boş</div><div style="font-size:13px;color:var(--muted)">Çevrende henüz aktivite yok.<br>Arkadaşlarını davet et!</div></div>';
+      if(_radarPage===0)feed.innerHTML='<div style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">\uD83D\uDCE1</div><div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:8px">Radar Sessiz</div><div style="font-size:13px;color:var(--muted)">Moda a\u011F\u0131nda hen\u00FCz hareket yok.<br>Arkada\u015Flar\u0131n\u0131 davet et!</div></div>';
       return;
     }
-    var isTr=CC_LANG[CC]==='tr';
-    var colors=['#ff2079','#4d00ff','#00e5ff','#ffbe0b','#f44336','#00bcd4','#e040fb','#ff6e40'];
+    var colors=['#ff2079','#4d00ff','#00e5ff','#D4AF37','#e040fb','#00bcd4','#ff6e40','#8B6914'];
     for(var i=0;i<d.cards.length;i++){
       var c=d.cards[i];
       var card=document.createElement('div');
       card.className='rcard';
-      var avatarColor=colors[(c.user||c.nickname||'X').charCodeAt(0)%colors.length];
-      var initial=(c.user||c.nickname||'?')[0].toUpperCase();
       var h='';
 
-      if(c.type==='refitch'){
-        // 🥷 DRIP HIRSIZLIĞI — Para Basan Kart
-        card.classList.add('type-refitch');
-        var tColor=colors[(c.target||'X').charCodeAt(0)%colors.length];
-        var tInit=(c.target||'?')[0].toUpperCase();
-        h+='<div class="rcard-tag" style="background:rgba(255,32,121,.15);color:var(--accent)">🥷 '+(isTr?'Drip Hırsızlığı':'Drip Theft')+'</div>';
-        // Chain: user → stole from → target
-        h+='<div class="rcard-chain">';
-        if(c.avatar){h+='<img src="'+c.avatar+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover">';}
-        else{h+='<div class="rcard-avatar" style="background:'+avatarColor+';width:28px;height:28px;font-size:11px">'+initial+'</div>';}
-        h+='<span class="rcard-chain-user">'+c.user+'</span>';
-        h+='<span class="rcard-chain-arrow">→ 🥷 →</span>';
-        if(c.target_avatar){h+='<img src="'+c.target_avatar+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover">';}
-        else{h+='<div class="rcard-avatar" style="background:'+tColor+';width:28px;height:28px;font-size:11px">'+tInit+'</div>';}
-        h+='<span class="rcard-chain-user">'+c.target+'</span>';
-        if(c.refitch_count>1)h+='<span class="rcard-refitch-badge">🔄 '+c.refitch_count+'x</span>';
+      /* === MOODBOARD DROP === */
+      if(c.type==='moodboard_drop'){
+        card.classList.add('type-moodboard');
+        h+='<div class="rcard-tag" style="background:rgba(212,175,55,.12);color:#D4AF37">\uD83C\uDF77 Koleksiyon S\u0131z\u0131nt\u0131s\u0131</div>';
+        h+=_avatarHead(c.avatar,c.user,c.handle,c.ago,colors);
+        h+='<div class="rcard-capsule-name">'+c.capsule_emoji+' '+c.capsule_name+'</div>';
+        h+='<div class="rcard-palette-tags">';
+        for(var t=0;t<c.palette_tags.length;t++) h+='<span class="rcard-palette-tag">'+c.palette_tags[t]+'</span>';
         h+='</div>';
-        // Product card with visual
+        h+='<div class="rcard-collage">';
+        for(var j=0;j<Math.min(c.items.length,3);j++){
+          var it=c.items[j];
+          h+='<div class="rcard-collage-item" style="background:'+it.color+'"><span class="col-emoji">'+it.emoji+'</span><span class="col-name">'+it.name+'</span><span class="col-price">'+it.price+'</span></div>';
+        }
+        h+='</div>';
+        h+='<div class="rcard-capsule-meta"><span class="rcard-capsule-val">'+c.total_value+'</span><span style="color:var(--muted)">\u00B7</span><span style="color:var(--muted)">'+c.saves+' kay\u0131t</span></div>';
+        h+='<div class="rcard-body">\u2728 <b>@'+c.handle+'</b>, <b>\''+c.capsule_name+'\'</b> kaps\u00FCl dolab\u0131na '+c.items.length+' yeni ikonik par\u00E7a ekledi. Kusursuz bir renk paleti.</div>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-primary" onclick="alert(\'Dolap \u00F6zelli\u011Fi yak\u0131nda!\')">\uD83D\uDC40 Dolab\u0131 Ke\u015Ffet</button><button class="rbtn rbtn-secondary">\uD83D\uDCCC Kaydet</button></div>';
+      }
+
+      /* === PREMIUM RE-FITCH === */
+      else if(c.type==='premium_refitch'){
+        card.classList.add('type-refitch');
+        h+='<div class="rcard-tag" style="background:rgba(255,32,121,.12);color:var(--accent)">\uD83E\uDD1D Re-fitch</div>';
+        h+=_avatarHead(c.avatar,c.user,c.handle,_formatAgo(c.ts),colors);
+        h+='<div class="rcard-curator-flow">';
+        h+='<img src="'+c.avatar+'" onerror="this.style.background=\'var(--accent)\'">';
+        h+='<span class="flow-name">@'+c.handle+'</span>';
+        h+='<span class="flow-arrow">\u2190 \uD83D\uDCA1 \u2190</span>';
+        h+='<img src="'+c.curator_avatar+'" onerror="this.style.background=\'var(--purple)\'">';
+        h+='<span class="flow-name">@'+c.curator_handle+'</span>';
+        if(c.refitch_count>1) h+='<span class="rcard-refitch-badge">\uD83D\uDD04 '+c.refitch_count+' Re-fitch</span>';
+        h+='</div>';
         h+='<div class="rcard-product">';
-        h+='<div class="rcard-product-img" style="background:'+(c.item_color||'#1a1a2e')+'">'+(c.item_emoji||'👕')+'</div>';
+        h+='<div class="rcard-product-img" style="background:'+c.item_color+'"><span style="font-size:32px">'+c.item_emoji+'</span></div>';
         h+='<div class="rcard-product-info"><div class="rcard-product-store">'+c.item_store+'</div><div class="rcard-product-name">'+c.item_name+'</div><div class="rcard-product-price">'+c.item_price+'</div></div>';
         h+='</div>';
-        // CTA buttons
-        h+='<div class="rcard-action"><button class="rbtn rbtn-primary" onclick="startFitCheck();closeRadar()">🔄 '+(isTr?'Sen de Çal':'Steal it too')+'</button><button class="rbtn rbtn-secondary" style="flex:.6">'+c.item_store+' →</button></div>';
+        h+='<div class="rcard-body">\uD83D\uDCA1 <b>@'+c.handle+'</b>, <b>@'+c.curator_handle+'</b>\'n\u0131n ke\u015Ffetti\u011Fi <b>'+c.item_name+'</b>\'dan ilham ald\u0131 ve kendi dolab\u0131na Re-fitch\'ledi.</div>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-primary">\uD83D\uDECD\uFE0F Par\u00E7ay\u0131 \u0130ncele</button><button class="rbtn rbtn-secondary">\uD83D\uDD04 Sen de Re-fitch</button></div>';
       }
-      else if(c.type==='arena_live'){
-        // ⚔️ GLADYATÖR SAHADA — Canlı Arena
-        card.classList.add('type-arena');
-        h+='<div class="rcard-tag" style="background:rgba(0,229,255,.15);color:var(--cyan)">⚔️ '+(isTr?'Canlı':'Live')+'</div>';
-        h+='<div class="rcard-head"><div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';
-        h+='<div class="rcard-user">'+c.nickname+' <span class="ago">'+c.ago+'</span></div></div>';
-        // Outfit preview area
-        h+='<div class="rcard-arena-preview">';
-        if(c.has_image){h+='<img src="data:image/jpeg;base64,'+c.image+'" alt="outfit">';}
-        else{h+='<div class="rcard-arena-placeholder">⚔️</div>';}
-        h+='<div class="arena-live-dot">'+(isTr?'CANLI':'LIVE')+'</div>';
+
+      /* === RUNWAY MILESTONE === */
+      else if(c.type==='runway_milestone'){
+        card.classList.add('type-runway');
+        h+='<div class="rcard-tag" style="background:rgba(255,215,0,.12);color:#ffd700">'+(c.is_hof?'\uD83D\uDC51 90+ Kul\u00FCb\u00FC':'\uD83C\uDFC6 Vitrin')+'</div>';
+        h+=_avatarHead(c.avatar,c.user,c.handle,c.ago,colors);
+        h+='<div class="rcard-runway-hero">';
+        if(c.has_image && c.image){
+          h+='<img src="data:image/jpeg;base64,'+c.image+'" onerror="this.outerHTML=\'<div class=rcard-runway-placeholder>'+c.emoji+'</div>\'">';
+        } else if(c.fit_img){
+          h+='<img src="'+c.fit_img+'" onerror="this.outerHTML=\'<div class=rcard-runway-placeholder>'+c.emoji+'</div>\'">';
+        } else {
+          h+='<div class="rcard-runway-placeholder">'+c.emoji+'</div>';
+        }
+        h+='<div class="hero-gradient"></div>';
+        var sCol=c.score>=90?'#ffd700':c.score>=75?'var(--cyan)':'var(--accent)';
+        h+='<div class="hero-score"><div class="score-ring" style="border-color:'+sCol+'"><span class="score-num" style="color:'+sCol+'">'+c.score+'</span><span class="score-max">/100</span></div>';
+        h+='<div><div class="hero-label">AI Stil Dan\u0131\u015Fman\u0131</div><div class="hero-sublabel">\uD83D\uDD25 %'+c.fire_pct+' \u00B7 '+c.total_votes+' oy</div></div></div>';
+        if(c.is_hof) h+='<div class="hof-badge">\uD83D\uDC51 Hall of Fame</div>';
         h+='</div>';
-        // Stats row
-        h+='<div class="rcard-arena-stats">';
-        h+='<div class="rcard-arena-stat"><div class="stat-val">'+c.emoji+' '+c.ai_score+'</div><div class="stat-lbl">AI '+(isTr?'Skor':'Score')+'</div></div>';
-        h+='<div class="rcard-arena-stat"><div class="stat-val" style="color:var(--cyan)">'+c.fire_pct+'%</div><div class="stat-lbl">🔥 '+(isTr?'Ateş':'Fire')+'</div></div>';
-        h+='<div class="rcard-arena-stat"><div class="stat-val" style="color:#f44336">'+c.meh_pct+'%</div><div class="stat-lbl">👎 Meh</div></div>';
-        h+='<div class="rcard-arena-stat"><div class="stat-val">'+c.total_votes+'</div><div class="stat-lbl">'+(isTr?'Oy':'Votes')+'</div></div>';
-        h+='</div>';
-        // Vote bar
-        h+='<div class="rcard-bar"><div class="fire-fill" style="width:'+c.fire_pct+'%"></div><div class="meh-fill" style="width:'+c.meh_pct+'%"></div></div>';
-        // CTA
-        h+='<div class="rcard-action"><button class="rbtn rbtn-fire" onclick="radarArenaVote(\''+c.id+'\',\'up\',this)">🔥 '+(isTr?'Kurtar':'Save')+'</button><button class="rbtn rbtn-meh" onclick="radarArenaVote(\''+c.id+'\',\'down\',this)">👎 '+(isTr?'Sen de Vur':'Roast')+'</button></div>';
+        h+='<div class="rcard-body">'+c.emoji+' <b>@'+c.handle+'</b>\'n\u0131n son g\u00F6r\u00FCn\u00FCm\u00FC AI Stil Dan\u0131\u015Fman\u0131ndan <b>'+c.score+' puan</b> alarak '+(c.is_hof?'<b>90+ Kul\u00FCb\u00FC</b>\'ne ad\u0131n\u0131 yazd\u0131rd\u0131. An itibariyle <b>Vitrin</b>\'de ilham veriyor.':'<b>Vitrin</b>\'de yerini ald\u0131.')+'</div>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-primary" onclick="startFitCheck();closeRadar()">\uD83D\uDCF8 Stilini Analiz Et</button><button class="rbtn rbtn-cyan">\uD83C\uDFDF\uFE0F Arena\'ya Git</button></div>';
       }
-      else if(c.type==='shame_wall'){
-        // 💀 UTANÇ DUVARI — Mizah Viraldir
-        card.classList.add('type-shame');
-        h+='<div class="rcard-tag" style="background:rgba(244,67,54,.15);color:#f44336">💀 '+(isTr?'Utanç Duvarı':'Wall of Shame')+'</div>';
-        h+='<div class="rcard-head">';
-        if(c.avatar){h+='<img src="'+c.avatar+'" class="rcard-avatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover">';}
-        else{h+='<div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';}
-        h+='<div class="rcard-user">'+c.user+' <span class="handle">@'+c.handle+'</span><br><span class="ago">'+c.ago+'</span></div></div>';
-        // Score gauge
-        var gaugeColor=c.score<40?'#f44336':'#ff9800';
-        h+='<div class="rcard-shame-visual">';
-        h+='<div class="rcard-shame-gauge" style="background:conic-gradient('+gaugeColor+' '+(c.score*3.6)+'deg, rgba(255,255,255,.05) 0deg)">';
-        h+='<div class="gauge-score" style="color:'+gaugeColor+'">'+c.score+'</div>';
-        h+='<div class="gauge-max">/100</div>';
+
+      /* === TREND ALERT === */
+      else if(c.type==='trend_alert'){
+        card.classList.add('type-trend');
+        h+='<div class="rcard-tag" style="background:rgba(0,229,255,.12);color:var(--cyan)">\uD83D\uDCC8 Trend Alarm\u0131</div>';
+        h+='<div class="rcard-trend-hero" style="background:linear-gradient(135deg,rgba('+_hexToRgb(c.trend_color)+',.08),rgba(0,229,255,.03))">';
+        h+='<div class="rcard-trend-emoji">'+c.trend_emoji+'</div>';
+        h+='<div class="rcard-trend-name">'+c.trend_name+'</div>';
+        h+='<div class="rcard-trend-pct" style="color:'+c.trend_color+'">'+c.trend_pct+'</div>';
+        h+='<div class="rcard-trend-sub">Moda a\u011F\u0131ndaki aramalara g\u00F6re \u00B7 '+c.search_count+' tarama</div>';
+        h+='<div class="rcard-trend-bar"><div class="rcard-trend-bar-fill" style="width:'+Math.min(95,Math.abs(parseInt(c.trend_pct))/5)+'%;background:linear-gradient(90deg,'+c.trend_color+',var(--cyan))"></div></div>';
         h+='</div>';
-        h+='<div style="font-size:28px">'+c.emoji+'</div>';
-        h+='</div>';
-        // AI Roast quote
-        h+='<div class="rcard-roast-bubble">'+c.roast+'</div>';
-        // AI tip
-        if(c.tip){h+='<div class="rcard-shame-tip">'+c.tip+'</div>';}
-        // Reactions + CTA
-        h+='<div class="rcard-reactions">😂 '+c.reactions+' '+(isTr?'kişi güldü':'laughed')+'</div>';
-        h+='<div class="rcard-action"><button class="rbtn rbtn-primary" onclick="startFitCheck();closeRadar()">📸 '+(isTr?'Sıra Sende: Kendi Drip\'ini Yargılat':'Your Turn: Rate Your Drip')+'</button></div>';
-      }
-      else if(c.type==='gatekeep'){
-        // 🤫 GATEKEEP — Premium Kancası
-        card.classList.add('type-gatekeep');
-        h+='<div class="rcard-tag" style="background:rgba(255,215,0,.15);color:#ffd700">🤫 Gatekeep</div>';
-        h+='<div class="rcard-head">';
-        if(c.avatar){h+='<img src="'+c.avatar+'" class="rcard-avatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover">';}
-        else{h+='<div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';}
-        h+='<div class="rcard-user">'+c.user+' <span class="handle">@'+c.handle+'</span><br><span class="ago">'+c.ago+'</span></div></div>';
-        // Blurred product visual
-        h+='<div class="rcard-gatekeep-visual">';
-        h+='<div class="rcard-gatekeep-blur">';
-        h+='<div style="font-size:48px;margin-bottom:10px">'+(c.brand_emoji||'👜')+'</div>';
-        h+='<div style="font-size:18px;font-weight:900">'+c.brand+'</div>';
-        h+='<div style="font-size:14px;margin-top:6px"><s style="color:var(--muted)">'+c.original_price+'</s> <span style="color:var(--cyan);font-weight:900">'+c.dupe_price+'</span></div>';
-        h+='</div>';
-        // Lock overlay
-        h+='<div class="rcard-gatekeep-lock">';
-        h+='<div style="font-size:40px;margin-bottom:8px">🔒</div>';
-        h+='<div style="font-size:13px;font-weight:800;color:var(--text);text-align:center;line-height:1.4">'+c.user+' '+(isTr?'bu muadili herkesten<br>gizledi!':'is gatekeeping<br>this dupe!')+'</div>';
-        h+='<div class="rcard-savings">💰 %'+(c.savings_pct||97)+' '+(isTr?'tasarruf':'savings')+'</div>';
-        if(c.gatekeep_count)h+='<div class="rcard-gatekeep-count">🔥 '+c.gatekeep_count+(isTr?' kişi kilidi açmak istiyor':' want to unlock')+'</div>';
-        h+='</div>';
-        h+='</div>';
-        // BLACK CTA
-        h+='<div class="rcard-action"><button class="rbtn rbtn-gold">🖤 '+(isTr?'Kilidi Aç — fitchy. BLACK':'Unlock — fitchy. BLACK')+'</button></div>';
-      }
-      else if(c.type==='folder_update'){
-        // 📂 DOLAP RÖNTGENCİLİĞİ — Klasör Güncellemeleri
-        card.classList.add('type-folder');
-        h+='<div class="rcard-tag" style="background:rgba(0,229,255,.1);color:#00bcd4">📂 '+(isTr?'Dolap Güncellemesi':'Closet Update')+'</div>';
-        h+='<div class="rcard-head">';
-        if(c.avatar){h+='<img src="'+c.avatar+'" class="rcard-avatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover">';}
-        else{h+='<div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';}
-        h+='<div class="rcard-user">'+c.user+' <span class="handle">@'+c.handle+'</span><br><span class="ago">'+c.ago+'</span></div></div>';
-        // Folder name + meta
-        h+='<div class="rcard-body">✨ <b>'+c.user+'</b> <b>\''+c.folder_name+'\'</b> '+(isTr?'klasörüne':'folder')+' <b>'+c.item_count+'</b> '+(isTr?'yeni parça ekledi':'new pieces added')+'</div>';
-        // Visual collage grid
-        if(c.items&&c.items.length){
-          h+='<div class="rcard-collage">';
-          for(var j=0;j<Math.min(c.items.length,3);j++){
-            var it=c.items[j];
-            h+='<div class="rcard-collage-item" style="background:'+(it.color||'rgba(255,255,255,.03)')+'">';
-            h+='<div class="col-emoji">'+(it.emoji||'👕')+'</div>';
-            h+='<div class="col-price">'+it.price+'</div>';
-            h+='</div>';
+        h+='<div class="rcard-body">\uD83D\uDCC8 <b>Y\u00FCkseli\u015Fte:</b> Takip etti\u011Fin moda a\u011F\u0131nda son 24 saatte <b>\''+c.trend_name+'\'</b> aramalar\u0131 <b>'+c.trend_pct+'</b> artt\u0131. Trend patlamadan dolab\u0131na ekle.</div>';
+        if(c.related_items && c.related_items.length){
+          h+='<div class="rcard-trend-items">';
+          for(var k=0;k<Math.min(c.related_items.length,3);k++){
+            var ri=c.related_items[k];
+            h+='<div class="rcard-trend-item"><div class="ti-emoji">'+ri[3]+'</div><div class="ti-name">'+ri[0]+'</div><div class="ti-price">'+ri[1]+'</div></div>';
           }
           h+='</div>';
         }
-        // Folder meta
-        h+='<div class="rcard-folder-meta">';
-        if(c.total_value)h+='<span>💰 <span class="rcard-folder-val">'+c.total_value+'</span></span>';
-        if(c.folder_followers)h+='<span>👥 '+c.folder_followers+(isTr?' takipçi':' followers')+'</span>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-primary">\uD83C\uDFAF Bu Trendi Yakala</button><button class="rbtn rbtn-cyan">Muadilleri G\u00F6r \u2192</button></div>';
+      }
+
+      /* === STYLE TWIN === */
+      else if(c.type==='style_twin'){
+        card.classList.add('type-twin');
+        h+='<div class="rcard-tag" style="background:rgba(224,64,251,.12);color:#e040fb">\uD83D\uDC6F Stil \u0130kizi</div>';
+        h+='<div class="rcard-twin-split">';
+        h+='<div class="rcard-twin-side"><img src="'+c.fit_img1+'" onerror="this.style.background=\'linear-gradient(135deg,#1a1a2e,#16213e)\'"><div class="twin-gradient"></div><div class="twin-info"><img class="twin-avatar" src="'+c.avatar1+'" onerror="this.style.background=\'var(--accent)\'"><div class="twin-name">@'+c.handle1+'</div></div></div>';
+        h+='<div class="rcard-twin-side"><img src="'+c.fit_img2+'" onerror="this.style.background=\'linear-gradient(135deg,#16213e,#1a1a2e)\'"><div class="twin-gradient"></div><div class="twin-info"><img class="twin-avatar" src="'+c.avatar2+'" onerror="this.style.background=\'var(--purple)\'"><div class="twin-name">@'+c.handle2+'</div></div></div>';
+        h+='<div class="rcard-twin-match"><span class="match-pct">%'+c.match_pct+'</span><span class="match-lbl">e\u015Fle\u015Fme</span></div>';
         h+='</div>';
-        // CTA
-        h+='<div class="rcard-action"><button class="rbtn rbtn-secondary" style="flex:1">👀 '+(isTr?'Dolaba Sız':'Sneak Peek')+'</button><button class="rbtn rbtn-primary" style="flex:1">📂 '+(isTr?'Benzer Klasör Oluştur':'Create Similar')+'</button></div>';
+        h+='<div class="rcard-twin-tags">';
+        for(var g=0;g<c.shared_tags.length;g++) h+='<span class="rcard-twin-tag">'+c.shared_tags[g]+'</span>';
+        h+='</div>';
+        h+='<div class="rcard-body">\u2728 <b>Stil E\u015Fle\u015Fmesi:</b> fitchy. radar\u0131 <b>@'+c.handle1+'</b> ile <b>@'+c.handle2+'</b>\'n\u0131n dolaplar\u0131n\u0131n <b>%'+c.match_pct+'</b> oran\u0131nda benzerlik g\u00F6sterdi\u011Fini fark etti. '+c.shared_items+' ortak par\u00E7a!</div>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-primary">\uD83D\uDC40 Dolab\u0131n\u0131 \u0130ncele</button><button class="rbtn rbtn-secondary">Takip Et</button></div>';
       }
 
       card.innerHTML=h;
       card.style.animationDelay=(i*0.06)+'s';
       feed.appendChild(card);
     }
-    // Load more button
     if(d.cards.length>=10){
       var more=document.createElement('button');
       more.className='rbtn rbtn-secondary';
       more.style.cssText='width:100%;padding:14px;border-radius:16px;margin-top:4px';
-      more.textContent=isTr?'📡 Daha Fazla Tara':'📡 Scan More';
+      more.textContent='\uD83D\uDCE1 Daha Fazla Ke\u015Ffet';
       more.onclick=function(){_radarPage++;this.remove();loadRadarFeed()};
       feed.appendChild(more);
     }
   }).catch(function(){});
 }
-
+/* Helper: avatar header */
+function _avatarHead(url,name,handle,ago,colors){
+  var col=colors[(name||'X').charCodeAt(0)%colors.length];
+  var ini=(name||'?')[0].toUpperCase();
+  var h='<div class="rcard-head">';
+  if(url) h+='<img class="rcard-avatar" src="'+url+'" onerror="this.outerHTML=\'<div class=rcard-avatar style=background:'+col+'>'+ini+'</div>\'">';
+  else h+='<div class="rcard-avatar" style="background:'+col+'">'+ini+'</div>';
+  h+='<div class="rcard-user">'+name+' <span class="handle">@'+handle+'</span><br><span class="ago">'+ago+'</span></div></div>';
+  return h;
+}
+/* Helper: hex to rgb */
+function _hexToRgb(hex){
+  hex=hex.replace('#','');
+  if(hex.length===3)hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  var r=parseInt(hex.substring(0,2),16),g=parseInt(hex.substring(2,4),16),b=parseInt(hex.substring(4,6),16);
+  return r+','+g+','+b;
+}
 function _formatAgo(ts){
   var diff=(Date.now()/1000)-ts;
-  if(diff<60)return 'az önce';
-  if(diff<3600)return Math.floor(diff/60)+'dk önce';
-  if(diff<86400)return Math.floor(diff/3600)+'sa önce';
-  return Math.floor(diff/86400)+'g önce';
+  if(diff<60)return 'az \u00F6nce';
+  if(diff<3600)return Math.floor(diff/60)+'dk \u00F6nce';
+  if(diff<86400)return Math.floor(diff/3600)+'sa \u00F6nce';
+  return Math.floor(diff/86400)+'g \u00F6nce';
 }
-
 function radarArenaVote(id,dir,btn){
-  var isTr=CC_LANG[CC]==='tr';
-  var parent=btn.parentElement;
   if(id==='demo'){
-    parent.innerHTML='<div style="text-align:center;font-size:13px;padding:10px;border-radius:12px;background:'+(dir==='up'?'rgba(0,229,255,.08)':'rgba(244,67,54,.08)')+'">'+(dir==='up'?'🔥 '+(isTr?'Ateş Ettin!':'Fired!'):'👎 '+(isTr?'Meh dedin.':'You said Meh.'))+'</div>';
+    btn.parentElement.innerHTML='<div style="text-align:center;font-size:12px;color:var(--muted);padding:8px">\u2705 '+(dir==='up'?'\uD83D\uDD25 Ate\u015F Ettin!':'\uD83D\uDC4E Meh dedin.')+'</div>';
     return;
   }
-  // Disable buttons during request
-  parent.querySelectorAll('button').forEach(function(b){b.disabled=true;b.style.opacity='.5'});
   fetch('/api/arena-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,direction:dir,session:_arenaSession})}).then(function(r){return r.json()}).then(function(d){
-    var total=(d.ups||0)+(d.downs||0);
-    var firePct=total>0?Math.round((d.ups||0)/total*100):50;
-    parent.innerHTML='<div style="text-align:center;font-size:13px;padding:10px;border-radius:12px;background:'+(dir==='up'?'rgba(0,229,255,.08)':'rgba(244,67,54,.08)')+'">'+(dir==='up'?'🔥 '+(isTr?'Ateş Ettin!':'Fired!'):'👎 '+(isTr?'Meh dedin.':'Meh.'))+' <span style="color:var(--muted);font-size:11px">(🔥'+firePct+'% · '+(d.ups||0)+'👍 '+(d.downs||0)+'👎)</span></div>';
-  }).catch(function(){
-    parent.querySelectorAll('button').forEach(function(b){b.disabled=false;b.style.opacity='1'});
-  });
+    btn.parentElement.innerHTML='<div style="text-align:center;font-size:12px;color:var(--muted);padding:8px">\u2705 '+(dir==='up'?'\uD83D\uDD25 Ate\u015F Ettin!':'\uD83D\uDC4E Meh dedin.')+' ('+(d.ups||0)+'\uD83D\uDC4D '+(d.downs||0)+'\uD83D\uDC4E)</div>';
+  }).catch(function(){});
 }
 
 // ─── 🏟️ KOMBİN ARENA (Tinder-style) ───
