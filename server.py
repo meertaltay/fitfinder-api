@@ -2953,13 +2953,13 @@ def _time_ago(ts):
     if diff < 86400: return f"{int(diff/3600)}sa önce"
     return f"{int(diff/86400)}g önce"
 
-# ─── 🔥 KOMBİN ARENA (Tinder-style voting) ───
-ARENA_POOL = []  # {id, image, nickname, ai_score, emoji, roast, ts, ups, downs, voters}
-ARENA_MAX = 200
+# ─── 🔥 PODYUM (Tinder-style voting) ───
+PODYUM_POOL = []  # {id, image, nickname, ai_score, emoji, roast, ts, ups, downs, voters}
+PODYUM_MAX = 200
 
-@app.post("/api/arena-submit")
-async def arena_submit(request: Request):
-    """Submit outfit to the Arena for community voting."""
+@app.post("/api/podyum-submit")
+async def podyum_submit(request: Request):
+    """Submit outfit to the Podyum for community voting."""
     try:
         body = await request.json()
         image_data = body.get("image", "")
@@ -2993,20 +2993,20 @@ async def arena_submit(request: Request):
             "voters": set(),  # Track who voted (by session)
             "reported": 0,
         }
-        ARENA_POOL.insert(0, entry)
-        if len(ARENA_POOL) > ARENA_MAX:
-            ARENA_POOL[:] = ARENA_POOL[:ARENA_MAX]
+        PODYUM_POOL.insert(0, entry)
+        if len(PODYUM_POOL) > PODYUM_MAX:
+            PODYUM_POOL[:] = PODYUM_POOL[:PODYUM_MAX]
 
-        print(f"🏟️ Arena: {entry['nickname']} submitted (AI: {entry['ai_score']})")
+        print(f"✨ Podyum: {entry['nickname']} submitted (AI: {entry['ai_score']})")
         return {"success": True, "id": entry["id"]}
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-@app.get("/api/arena-next")
-async def arena_next(session: str = "anon", count: int = 5):
+@app.get("/api/podyum-next")
+async def podyum_next(session: str = "anon", count: int = 5):
     """Get next unvoted outfits for this session."""
     results = []
-    for e in ARENA_POOL:
+    for e in PODYUM_POOL:
         if e["reported"] >= 3:
             continue  # Skip reported entries
         if session in e["voters"]:
@@ -3023,18 +3023,18 @@ async def arena_next(session: str = "anon", count: int = 5):
         })
         if len(results) >= count:
             break
-    return {"success": True, "entries": results, "remaining": len([e for e in ARENA_POOL if session not in e["voters"] and e["reported"] < 3]) - len(results)}
+    return {"success": True, "entries": results, "remaining": len([e for e in PODYUM_POOL if session not in e["voters"] and e["reported"] < 3]) - len(results)}
 
-@app.post("/api/arena-vote")
-async def arena_vote(request: Request):
-    """Vote on an arena entry. direction: 'up' or 'down'."""
+@app.post("/api/podyum-vote")
+async def podyum_vote(request: Request):
+    """Vote on a podyum entry. direction: 'up' or 'down'."""
     try:
         body = await request.json()
         entry_id = body.get("id", "")
         direction = body.get("direction", "")
         session = body.get("session", "anon")
 
-        for e in ARENA_POOL:
+        for e in PODYUM_POOL:
             if e["id"] == entry_id:
                 if session in e["voters"]:
                     return {"success": False, "message": "Already voted"}
@@ -3064,7 +3064,7 @@ async def arena_vote(request: Request):
                         if len(HALL_OF_FAME) > HOF_MAX:
                             HALL_OF_FAME[:] = HALL_OF_FAME[:HOF_MAX]
                         promoted = True
-                        print(f"🏆 Arena→HOF: {e['nickname']} ({e['ups']}👍 {e['downs']}👎)")
+                        print(f"🏆 Podyum→HOF: {e['nickname']} ({e['ups']}👍 {e['downs']}👎)")
 
                 return {"success": True, "ups": e["ups"], "downs": e["downs"], "promoted": promoted}
 
@@ -3072,28 +3072,28 @@ async def arena_vote(request: Request):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-@app.post("/api/arena-report")
-async def arena_report(request: Request):
+@app.post("/api/podyum-report")
+async def podyum_report(request: Request):
     """Report a fake/inappropriate entry."""
     try:
         body = await request.json()
         entry_id = body.get("id", "")
-        for e in ARENA_POOL:
+        for e in PODYUM_POOL:
             if e["id"] == entry_id:
                 e["reported"] += 1
                 if e["reported"] >= 3:
                     # Also remove from HOF if promoted
                     HALL_OF_FAME[:] = [h for h in HALL_OF_FAME if h["id"] != entry_id]
-                    print(f"🚫 Arena: {e['nickname']} removed (3+ reports)")
+                    print(f"🚫 Podyum: {e['nickname']} removed (3+ reports)")
                 return {"success": True, "reports": e["reported"]}
         return {"success": False}
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-@app.get("/api/arena-top")
-async def arena_top(limit: int = 10):
+@app.get("/api/podyum-top")
+async def podyum_top(limit: int = 10):
     """Get top voted outfits."""
-    ranked = sorted([e for e in ARENA_POOL if e["reported"] < 3 and (e["ups"] + e["downs"]) > 0],
+    ranked = sorted([e for e in PODYUM_POOL if e["reported"] < 3 and (e["ups"] + e["downs"]) > 0],
                     key=lambda x: x["ups"] / max(x["ups"] + x["downs"], 1), reverse=True)
     results = []
     for e in ranked[:limit]:
@@ -3188,9 +3188,9 @@ def _get_items_for_capsule(capsule_items):
 
 @app.get("/api/radar-stories")
 async def radar_stories():
-    """Story bar: arena entries + demo profiles."""
+    """Story bar: podyum entries + demo profiles."""
     stories = []
-    for e in ARENA_POOL[:6]:
+    for e in PODYUM_POOL[:6]:
         if e["reported"] < 3:
             total = e["ups"] + e["downs"]
             idx = hash(e["nickname"]) % len(_DEMO_AVATARS)
@@ -3266,9 +3266,9 @@ async def radar_feed(page: int = 0, limit: int = 10):
         })
 
     # 🏆 Card Type 3: Vitrin Başarısı (Runway Milestone)
-    arena_entries = [e for e in ARENA_POOL if e["reported"] < 3 and e["ai_score"] >= 80]
-    if arena_entries:
-        for e in arena_entries[:2]:
+    podyum_entries = [e for e in PODYUM_POOL if e["reported"] < 3 and e["ai_score"] >= 80]
+    if podyum_entries:
+        for e in podyum_entries[:2]:
             total = e["ups"] + e["downs"]
             idx = hash(e["nickname"]) % len(_DEMO_AVATARS)
             cards.append({
@@ -3377,12 +3377,12 @@ async def get_notifications(tab: str = "social"):
         fire_pct = _rand.randint(65, 92)
         total_votes = _rand.randint(50, 300)
         is_hof = score >= 90
-        arena_body = f"Son kombinin AI Stil Danışmanından {score} alarak 90+ Kulübüne kazındı. An itibariyle Vitrin senin!" if is_hof else f"Son kombinin ilk {total_votes} oylamaya ulaştı! Şu an %{fire_pct} oranında İlham Verici bulunuyorsun."
+        podyum_body = f"Son kombinin AI Stil Danışmanından {score} alarak 90+ Kulübüne kazındı. An itibariyle Vitrin senin!" if is_hof else f"Son kombinin ilk {total_votes} oylamaya ulaştı! Şu an %{fire_pct} oranında İlham Verici bulunuyorsun."
         notifs.append({
-            "type": "arena_report",
+            "type": "podyum_report",
             "icon": "🏆" if is_hof else "📊",
             "title": "EFSANEVİ! 90+ Kulübü" if is_hof else "Vitrin Raporu",
-            "body": arena_body,
+            "body": podyum_body,
             "accent": "#ffd700" if is_hof else "var(--cyan)",
             "score": score,
             "fire_pct": fire_pct,
@@ -3782,27 +3782,27 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .hof-card .hof-time{font-size:9px;color:var(--muted);margin-top:2px}
 .hof-join{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;border:none;padding:14px 28px;border-radius:16px;font:800 14px 'Outfit',sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;width:100%;margin-top:12px;box-shadow:0 4px 20px rgba(255,215,0,.3);transition:transform .2s}
 .hof-join:active{transform:scale(.97)}
-.arena-screen{position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;z-index:100;background:var(--bg);display:none;flex-direction:column}
-.arena-screen.show{display:flex}
-.arena-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
-.arena-stack{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:20px}
-.arena-card{position:absolute;width:min(320px,85vw);background:var(--card);border-radius:24px;border:1px solid var(--border);overflow:hidden;touch-action:none;user-select:none;transition:transform .1s,opacity .1s;box-shadow:0 8px 40px rgba(0,0,0,.4)}
-.arena-card .ac-img{width:100%;height:380px;overflow:hidden;position:relative}
-.arena-card .ac-img img{width:100%;height:100%;object-fit:cover;display:block}
-.arena-card .ac-overlay{position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(5,2,10,.9) 60%)}
-.arena-card .ac-name{font-size:16px;font-weight:800;color:#fff}
-.arena-card .ac-meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:8px}
-.arena-card .ac-aiscore{background:rgba(255,255,255,.1);padding:3px 10px;border-radius:8px;font-weight:700;font-size:11px}
-.arena-card .ac-roast{padding:14px 18px;font-size:13px;line-height:1.5;color:var(--text)}
-.arena-btns{display:flex;align-items:center;justify-content:center;gap:24px;padding:20px 0 36px}
-.arena-btn{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;border:none;transition:transform .2s,box-shadow .2s}
-.arena-btn:active{transform:scale(.9)}
-.arena-btn.nope{background:rgba(244,67,54,.15);border:2px solid rgba(244,67,54,.4);box-shadow:0 4px 20px rgba(244,67,54,.15)}
-.arena-btn.like{background:rgba(0,229,255,.15);border:2px solid rgba(0,229,255,.4);box-shadow:0 4px 20px rgba(0,229,255,.15)}
-.arena-btn.report-btn{width:40px;height:40px;font-size:16px;background:rgba(255,255,255,.05);border:1px solid var(--border)}
+.podyum-screen{position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;z-index:100;background:var(--bg);display:none;flex-direction:column}
+.podyum-screen.show{display:flex}
+.podyum-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.podyum-stack{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:20px}
+.podyum-card{position:absolute;width:min(320px,85vw);background:var(--card);border-radius:24px;border:1px solid var(--border);overflow:hidden;touch-action:none;user-select:none;transition:transform .1s,opacity .1s;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.podyum-card .ac-img{width:100%;height:380px;overflow:hidden;position:relative}
+.podyum-card .ac-img img{width:100%;height:100%;object-fit:cover;display:block}
+.podyum-card .ac-overlay{position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(5,2,10,.9) 60%)}
+.podyum-card .ac-name{font-size:16px;font-weight:800;color:#fff}
+.podyum-card .ac-meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:8px}
+.podyum-card .ac-aiscore{background:rgba(255,255,255,.1);padding:3px 10px;border-radius:8px;font-weight:700;font-size:11px}
+.podyum-card .ac-roast{padding:14px 18px;font-size:13px;line-height:1.5;color:var(--text)}
+.podyum-btns{display:flex;align-items:center;justify-content:center;gap:24px;padding:20px 0 36px}
+.podyum-btn{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;border:none;transition:transform .2s,box-shadow .2s}
+.podyum-btn:active{transform:scale(.9)}
+.podyum-btn.nope{background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.2);box-shadow:0 4px 20px rgba(255,255,255,.05)}
+.podyum-btn.like{background:rgba(0,229,255,.15);border:2px solid rgba(0,229,255,.4);box-shadow:0 4px 20px rgba(0,229,255,.15)}
+.podyum-btn.report-btn{width:40px;height:40px;font-size:16px;background:rgba(255,255,255,.05);border:1px solid var(--border)}
 .swipe-label{position:absolute;top:30px;padding:12px 24px;border-radius:12px;font:900 22px 'Outfit',sans-serif;letter-spacing:2px;z-index:10;opacity:0;transition:opacity .1s}
 .swipe-label.like-label{right:20px;color:#00e5ff;border:3px solid #00e5ff;transform:rotate(15deg)}
-.swipe-label.nope-label{left:20px;color:#f44336;border:3px solid #f44336;transform:rotate(-15deg)}
+.swipe-label.nope-label{left:20px;color:var(--muted);border:3px solid var(--muted);transform:rotate(-15deg)}
 .vton-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(77,0,255,.1));border:1px solid rgba(0,229,255,.25);color:var(--cyan);font:700 10px 'Outfit',sans-serif;cursor:pointer;margin-top:6px;transition:all .2s}
 .vton-btn:active{background:var(--cyan);color:#000}
 .rcard{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;position:relative;animation:fadeUp .3s ease both}
@@ -3934,7 +3934,7 @@ img.rcard-avatar{border:1px solid var(--border)}
 .notif-content .nago{font-size:10px;color:var(--muted);font-weight:600}
 .notif-cta{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:10px;font-size:11px;font-weight:800;border:none;cursor:pointer;transition:all .2s;margin-top:4px}
 .notif-cta:active{transform:scale(.96)}
-/* Score mini bar in arena reports */
+/* Score mini bar in podyum reports */
 .notif-score-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.06);margin:6px 0;overflow:hidden}
 .notif-score-fill{height:100%;border-radius:2px}
 /* Twin avatar in notification */
@@ -4049,36 +4049,36 @@ img.rcard-avatar{border:1px solid var(--border)}
     <div class="bnav-item" id="nav-radar" onclick="navTo('radar')"><div class="icon">📡</div><div class="lbl">Radar</div></div>
     <div class="bnav-item" id="nav-home" onclick="navTo('home')"><div class="icon">✧</div><div class="lbl">Keşfet</div></div>
     <div class="bnav-item bnav-logo" id="nav-logo" onclick="navTo('home')"><div class="bnav-logo-ring"><span><b style="color:var(--accent);font-size:18px;font-style:italic">f.</b></span></div></div>
-    <div class="bnav-item" id="nav-arena" onclick="navTo('arena')"><div class="icon">🏟️</div><div class="lbl">Arena</div></div>
+    <div class="bnav-item" id="nav-podyum" onclick="navTo('podyum')"><div class="icon">✨</div><div class="lbl">Podyum</div></div>
     <div class="bnav-item" id="nav-favs" onclick="navTo('favs')"><div class="icon">♡</div><div class="lbl">Dolabım</div></div>
   </div>
 
-  <!-- 🏟️ KOMBİN ARENA -->
-  <div class="arena-screen" id="arenaScreen">
-    <div class="arena-header">
-      <div onclick="closeArena()" style="cursor:pointer;color:var(--muted);font-size:14px;font-weight:600">← Geri</div>
-      <div style="font-size:18px;font-weight:900;letter-spacing:1px" class="text-gradient">Arena</div>
-      <div id="arenaCount" style="font-size:11px;color:var(--muted);font-weight:600"></div>
+  <!-- ✨ PODYUM -->
+  <div class="podyum-screen" id="podyumScreen">
+    <div class="podyum-header">
+      <div onclick="closePodyum()" style="cursor:pointer;color:var(--muted);font-size:14px;font-weight:600">← Geri</div>
+      <div style="font-size:18px;font-weight:900;letter-spacing:1px" class="text-gradient">Podyum</div>
+      <div id="podyumCount" style="font-size:11px;color:var(--muted);font-weight:600"></div>
     </div>
-    <div class="arena-stack" id="arenaStack">
-      <div id="arenaEmpty" style="text-align:center;display:none">
+    <div class="podyum-stack" id="podyumStack">
+      <div id="podyumEmpty" style="text-align:center;display:none">
         <div style="font-size:56px;margin-bottom:16px">🏟️</div>
-        <div id="arenaEmptyTitle" style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Herkes yargılandı!</div>
-        <div id="arenaEmptySub" style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;padding:0 20px">Yeni kombinler gelince bildirim alacaksın.<br>Sen de kombinini yükle!</div>
-        <button onclick="startFitCheck();closeArena()" style="background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 Fit-Check Yap & Arenaya Gir</button>
+        <div id="podyumEmptyTitle" style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Podyumdaki tüm stiller incelendi!</div>
+        <div id="podyumEmptySub" style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;padding:0 20px">Yeni stiller gelince bildirim alacaksın.<br>Sen de kombinini yükle!</div>
+        <button onclick="startFitCheck();closePodyum()" style="background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 Stilini Değerlendir & Podyuma Çık</button>
       </div>
     </div>
-    <div class="arena-btns" id="arenaBtns">
-      <button class="arena-btn report-btn" onclick="arenaReport()">🚩</button>
-      <button class="arena-btn nope" onclick="arenaSwipe('down')">👎</button>
-      <button class="arena-btn like" onclick="arenaSwipe('up')">👍</button>
+    <div class="podyum-btns" id="podyumBtns">
+      <button class="podyum-btn report-btn" onclick="podyumReport()">🚩</button>
+      <button class="podyum-btn nope" onclick="podyumSwipe('down')">🌬️</button>
+      <button class="podyum-btn like" onclick="podyumSwipe('up')">✨</button>
     </div>
   </div>
 </div>
 
 <!-- 📡 RADAR FEED -->
-<div class="arena-screen" id="radarScreen">
-  <div class="arena-header">
+<div class="podyum-screen" id="radarScreen">
+  <div class="podyum-header">
     <div onclick="closeRadar()" style="cursor:pointer;color:var(--muted);font-size:14px;font-weight:600">← Geri</div>
     <div style="font-size:18px;font-weight:900;letter-spacing:1px"><span class="text-gradient" style="font-style:italic">fitchy.</span> <span style="color:var(--muted);font-weight:600;font-size:14px">radar</span></div>
     <div id="radarBadge" style="font-size:16px;cursor:pointer;position:relative" onclick="openNotifPanel()">🔔<div class="notif-bell-dot" id="notifBellDot"></div></div>
@@ -4102,19 +4102,19 @@ img.rcard-avatar{border:1px solid var(--border)}
   <div class="notif-list" id="notifList"></div>
 </div>
 
-<!-- ⚔️ ARENA STORY MODAL -->
+<!-- ✨ PODYUM STORY MODAL -->
 <div class="story-modal" id="storyModal">
   <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
     <div style="display:flex;align-items:center;gap:12px">
       <div style="width:44px;height:44px;border-radius:50%;padding:2px;background:var(--cyan);flex-shrink:0"><img src="" id="storyAvatarImg" style="width:100%;height:100%;border-radius:50%;object-fit:cover;border:2px solid var(--bg)"></div>
-      <div><div style="font-size:14px;font-weight:800;color:#fff" id="storyHandle">@fitchy_user</div><div style="font-size:11px;color:var(--cyan);font-weight:600;margin-top:2px">⚔️ <span id="storyStatusTxt">Arenada Yarışıyor</span></div></div>
+      <div><div style="font-size:14px;font-weight:800;color:#fff" id="storyHandle">@fitchy_user</div><div style="font-size:11px;color:var(--cyan);font-weight:600;margin-top:2px">✨ <span id="storyStatusTxt">Podyumda İlham Veriyor</span></div></div>
     </div>
     <div onclick="closeStory()" style="font-size:36px;color:var(--muted);cursor:pointer;line-height:1;padding:0 10px">×</div>
   </div>
   <div style="flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:20px">
-    <div id="storyArenaCard" class="arena-card" style="position:relative;width:min(320px,85vw);box-shadow:0 10px 40px rgba(0,0,0,.6);touch-action:none;user-select:none">
-      <div class="swipe-label like-label" id="storyLikeLabel">ATEŞ 🔥</div>
-      <div class="swipe-label nope-label" id="storyNopeLabel">MEH 👎</div>
+    <div id="storyPodyumCard" class="podyum-card" style="position:relative;width:min(320px,85vw);box-shadow:0 10px 40px rgba(0,0,0,.6);touch-action:none;user-select:none">
+      <div class="swipe-label like-label" id="storyLikeLabel">İLHAM ✨</div>
+      <div class="swipe-label nope-label" id="storyNopeLabel">PAS 🌬️</div>
       <div class="ac-img" style="height:420px">
         <img id="storyMainImg" src="" style="width:100%;height:100%;object-fit:cover">
         <div class="ac-overlay" style="padding:16px 18px 24px">
@@ -4126,14 +4126,14 @@ img.rcard-avatar{border:1px solid var(--border)}
       </div>
     </div>
     <div id="storyEmpty" style="display:none;text-align:center">
-      <div style="font-size:56px;margin-bottom:16px">⚔️</div>
+      <div style="font-size:56px;margin-bottom:16px">✨</div>
       <div id="storyEmptyTitle" style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px"></div>
       <div id="storyEmptySub" style="font-size:13px;color:var(--muted);line-height:1.5;padding:0 20px"></div>
     </div>
   </div>
-  <div class="arena-btns" id="storyBtns" style="padding:0 0 40px;margin:0;gap:30px">
-    <button class="arena-btn nope" onclick="storyVote('down')">👎</button>
-    <button class="arena-btn like" onclick="storyVote('up')">👍</button>
+  <div class="podyum-btns" id="storyBtns" style="padding:0 0 40px;margin:0;gap:30px">
+    <button class="podyum-btn nope" onclick="storyVote('down')">🌬️</button>
+    <button class="podyum-btn like" onclick="storyVote('up')">✨</button>
   </div>
 </div>
 
@@ -4142,7 +4142,7 @@ img.rcard-avatar{border:1px solid var(--border)}
 var IC={hat:"\uD83E\uDDE2",sunglasses:"\uD83D\uDD76\uFE0F",top:"\uD83D\uDC55",jacket:"\uD83E\uDDE5",bag:"\uD83D\uDC5C",accessory:"\uD83D\uDC8D",watch:"\u231A",bottom:"\uD83D\uDC56",dress:"\uD83D\uDC57",shoes:"\uD83D\uDC5F",scarf:"\uD83E\uDDE3"};
 var cF=null,cPrev=null,cropper=null,CC='us';
 var L={
-  tr:{heroTitle:'G\u00f6rseldeki kombini<br><span class="text-gradient">birebir</span> bul.',heroSub:'Instagram\'da, TikTok\'ta veya sokakta be\u011fendi\u011fin o kombini an\u0131nda bul.<br>Ekran g\u00f6r\u00fcnt\u00fcs\u00fcn\u00fc y\u00fckle, gerisini fitchy\'ye b\u0131rak.',upload:'\u2728 Kombini Tarat',auto:'\u2728 Ak\u0131ll\u0131 Tarama (\u00d6nerilen)',manual:'\u2702\uFE0F Sadece Bir Par\u00e7a Se\u00e7',trustBadge:'\uD83D\uDD0D ZARA, NIKE, TRENDYOL ve 500+ markada aran\u0131yor...',trendTitle:'\uD83D\uDD25 \u015eu An Trend Olanlar',back:'\u2190 Geri',cropHint:'\uD83D\uDC47 Aramak istedi\u011fin par\u00e7ay\u0131 \u00e7er\u00e7evele',manualPh:'Ne ar\u0131yorsun? (Opsiyonel)',find:'\uD83D\uDD0D Par\u00e7ay\u0131 Bul',cancel:'\u0130ptal',loading:'Siber a\u011fa ba\u011flan\u0131l\u0131yor...',loadingManual:'AI e\u015fle\u015ftiriyor...',noResult:'Par\u00e7a tespit edilemedi.',noProd:'Bu par\u00e7a i\u00e7in e\u015fle\u015fme bulunamad\u0131.',retry:'\u2702\uFE0F Manuel Se\u00e7imi Dene',another:'\u2702\uFE0F Ba\u015fka Par\u00e7a Se\u00e7',selected:'Se\u00e7imin',lensMatch:'g\u00f6rsel e\u015fle\u015fme',recommended:'\u2728 \u00d6nerilen',lensLabel:'\uD83C\uDFAF AI E\u015fle\u015fmesi',goStore:'Sat\u0131n Al \u2197',noPrice:'Fiyat\u0131 G\u00f6r',alts:'\uD83D\uDCB8 Alternatifler \u2192',navHome:'Ke\u015ffet',navFav:'Dolab\u0131m',aiMatch:'AI Onayl\u0131',matchExact:'\u2705 Birebir E\u015fle\u015fme',matchClose:'\uD83D\uDD25 Y\u00fcksek Benzerlik',matchSimilar:'\u2728 Benzer \u00dcr\u00fcnler',step_detect:'K\u0131yafetler tespit ediliyor...',step_bg:'G\u00f6rsel haz\u0131rlan\u0131yor...',step_lens:'Ma\u011fazalar taran\u0131yor...',step_ai:'AI \u00fcr\u00fcnleri k\u0131yasl\u0131yor...',step_verify:'E\u015fle\u015fmeler do\u011frulan\u0131yor...',step_done:'Sonu\u00e7lar haz\u0131r!',piecesFound:'par\u00e7a bulundu',pickPiece:'Aramak istedi\u011fin par\u00e7aya dokun',searchingPiece:'\u00dcr\u00fcn aran\u0131yor...',backToPieces:'\u2190 Di\u011fer Par\u00e7alar',noDetect:'Par\u00e7a bulunamad\u0131. Manuel se\u00e7imi deneyin.',loadMore:'A\u011f\u0131 Geni\u015flet \u2193',loadingMore:'Taran\u0131yor...',linkPaste:'Link Yap\u0131\u015ft\u0131r & Tarat',linkGo:'Tarat',linkLoading:'Link taran\u0131yor...',comboBtn:'\u2728 Bunu Neyle Giyerim?',comboLoading:'AI kombin \u00f6nerisi haz\u0131rl\u0131yor...',comboTitle:'\uD83D\uDC57 AI Kombin \u00d6nerisi',verified:'Resmi Ma\u011faza',sponsored:'Sponsorlu Muadil',fitCheck:'\uD83D\uDD25 AI Fit-Check',fitCheckSub:'Kombinin ka\u00e7 puan? AI yargilat!',fitCheckLoading:'AI stilist inceliyor...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 \u00d6neriler',fitCheckShare:'Sonucu Payla\u015f',fitCheckAnother:'Ba\u015fka Kombin Dene',vtonBtn:'\u2728 \u00dczerimde G\u00f6r',vtonSaveBody:'Tam boy foto\u011fraf\u0131n\u0131 y\u00fckle',vtonLoading:'Sanal kabin haz\u0131rlan\u0131yor...',vtonResult:'AI Fit Analizi',vtonNoBody:'\u00d6nce foto\u011fraf\u0131n\u0131 y\u00fckle'},
+  tr:{heroTitle:'G\u00f6rseldeki kombini<br><span class="text-gradient">birebir</span> bul.',heroSub:'Instagram\'da, TikTok\'ta veya sokakta be\u011fendi\u011fin o kombini an\u0131nda bul.<br>Ekran g\u00f6r\u00fcnt\u00fcs\u00fcn\u00fc y\u00fckle, gerisini fitchy\'ye b\u0131rak.',upload:'\u2728 Kombini Tarat',auto:'\u2728 Ak\u0131ll\u0131 Tarama (\u00d6nerilen)',manual:'\u2702\uFE0F Sadece Bir Par\u00e7a Se\u00e7',trustBadge:'\uD83D\uDD0D ZARA, NIKE, TRENDYOL ve 500+ markada aran\u0131yor...',trendTitle:'\uD83D\uDD25 \u015eu An Trend Olanlar',back:'\u2190 Geri',cropHint:'\uD83D\uDC47 Aramak istedi\u011fin par\u00e7ay\u0131 \u00e7er\u00e7evele',manualPh:'Ne ar\u0131yorsun? (Opsiyonel)',find:'\uD83D\uDD0D Par\u00e7ay\u0131 Bul',cancel:'\u0130ptal',loading:'Siber a\u011fa ba\u011flan\u0131l\u0131yor...',loadingManual:'AI e\u015fle\u015ftiriyor...',noResult:'Par\u00e7a tespit edilemedi.',noProd:'Bu par\u00e7a i\u00e7in e\u015fle\u015fme bulunamad\u0131.',retry:'\u2702\uFE0F Manuel Se\u00e7imi Dene',another:'\u2702\uFE0F Ba\u015fka Par\u00e7a Se\u00e7',selected:'Se\u00e7imin',lensMatch:'g\u00f6rsel e\u015fle\u015fme',recommended:'\u2728 \u00d6nerilen',lensLabel:'\uD83C\uDFAF AI E\u015fle\u015fmesi',goStore:'Sat\u0131n Al \u2197',noPrice:'Fiyat\u0131 G\u00f6r',alts:'\uD83D\uDCB8 Alternatifler \u2192',navHome:'Ke\u015ffet',navFav:'Dolab\u0131m',aiMatch:'AI Onayl\u0131',matchExact:'\u2705 Birebir E\u015fle\u015fme',matchClose:'\uD83D\uDD25 Y\u00fcksek Benzerlik',matchSimilar:'\u2728 Benzer \u00dcr\u00fcnler',step_detect:'K\u0131yafetler tespit ediliyor...',step_bg:'G\u00f6rsel haz\u0131rlan\u0131yor...',step_lens:'Ma\u011fazalar taran\u0131yor...',step_ai:'AI \u00fcr\u00fcnleri k\u0131yasl\u0131yor...',step_verify:'E\u015fle\u015fmeler do\u011frulan\u0131yor...',step_done:'Sonu\u00e7lar haz\u0131r!',piecesFound:'par\u00e7a bulundu',pickPiece:'Aramak istedi\u011fin par\u00e7aya dokun',searchingPiece:'\u00dcr\u00fcn aran\u0131yor...',backToPieces:'\u2190 Di\u011fer Par\u00e7alar',noDetect:'Par\u00e7a bulunamad\u0131. Manuel se\u00e7imi deneyin.',loadMore:'A\u011f\u0131 Geni\u015flet \u2193',loadingMore:'Taran\u0131yor...',linkPaste:'Link Yap\u0131\u015ft\u0131r & Tarat',linkGo:'Tarat',linkLoading:'Link taran\u0131yor...',comboBtn:'\u2728 Bunu Neyle Giyerim?',comboLoading:'AI kombin \u00f6nerisi haz\u0131rl\u0131yor...',comboTitle:'\uD83D\uDC57 AI Kombin \u00d6nerisi',verified:'Resmi Ma\u011faza',sponsored:'Sponsorlu Muadil',fitCheck:'\uD83D\uDD25 AI Fit-Check',fitCheckSub:'Kombinin ka\u00e7 puan? Stilini de\u011ferlendir!',fitCheckLoading:'AI stilist inceliyor...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 \u00d6neriler',fitCheckShare:'Sonucu Payla\u015f',fitCheckAnother:'Ba\u015fka Kombin Dene',vtonBtn:'\u2728 \u00dczerimde G\u00f6r',vtonSaveBody:'Tam boy foto\u011fraf\u0131n\u0131 y\u00fckle',vtonLoading:'Sanal kabin haz\u0131rlan\u0131yor...',vtonResult:'AI Fit Analizi',vtonNoBody:'\u00d6nce foto\u011fraf\u0131n\u0131 y\u00fckle'},
   en:{heroTitle:'Find the outfit<br>in the photo, <span class="text-gradient">exactly</span>.',heroSub:'Spot a fire outfit on Instagram, TikTok or IRL?<br>Screenshot it, let fitchy find every piece.',upload:'\u2728 Scan Outfit',auto:'\u2728 Auto Scan (Recommended)',manual:'\u2702\uFE0F Select Manually',trustBadge:'\uD83D\uDD0D Searching ZARA, NIKE, H&M and 500+ brands...',trendTitle:'\uD83D\uDD25 Trending Now',back:'\u2190 Back',cropHint:'\uD83D\uDC47 Frame the piece you want to search',manualPh:'What are you looking for?',find:'\uD83D\uDD0D Find Piece',cancel:'Cancel',loading:'Analyzing image...',loadingManual:'AI matching...',noResult:'No pieces detected.',noProd:'No exact match found.',retry:'\u2702\uFE0F Try Manual Selection',another:'\u2702\uFE0F Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u2728 Recommended',lensLabel:'\uD83C\uDFAF AI Match',goStore:'Shop \u2197',noPrice:'Check Price',alts:'\uD83D\uDCB8 Alternatives \u2192',navHome:'Explore',navFav:'Profile',aiMatch:'AI Verified',matchExact:'\u2705 Exact Match',matchClose:'\uD83D\uDD25 Close Match',matchSimilar:'\u2728 Similar Items',step_detect:'Detecting garments...',step_lens:'Scanning global stores...',step_match:'Matching products...',step_done:'Ready!',step_bg:'Preparing image...',step_search:'Scanning...',step_ai:'AI comparing details...',step_verify:'Verifying matches...',piecesFound:'pieces found',pickPiece:'Tap a piece to search',searchingPiece:'Searching...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces found. Try manual selection.',loadMore:'Expand Search \u2193',loadingMore:'Scanning...',linkPaste:'Paste Link & Scan',linkGo:'Scan',linkLoading:'Scanning link...',comboBtn:'\u2728 What Goes With This?',comboLoading:'AI building outfit...',comboTitle:'\uD83D\uDC57 AI Outfit Suggestion',verified:'Official Store',sponsored:'Sponsored Dupe',fitCheck:'\uD83D\uDD25 Fit-Check',fitCheckSub:'Rate your outfit!',fitCheckLoading:'AI stylist analyzing...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 Tips',fitCheckShare:'Share Result',fitCheckAnother:'Try Another Outfit',vtonBtn:'\u2728 Try On Me',vtonSaveBody:'Upload your full-body photo',vtonLoading:'Virtual fitting room loading...',vtonResult:'AI Fit Analysis',vtonNoBody:'Upload your photo first'}
 };
 var CC_LANG={tr:'tr',us:'en',uk:'en',de:'en',fr:'en',sa:'en',ae:'en',eg:'en'};
@@ -4331,7 +4331,7 @@ function showScreen(){
 /* ── CENTRAL NAVIGATION ── */
 function _closeAllScreens(){
   document.getElementById('radarScreen').classList.remove('show');
-  document.getElementById('arenaScreen').classList.remove('show');
+  document.getElementById('podyumScreen').classList.remove('show');
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
 }
 function navTo(target){
@@ -4344,12 +4344,12 @@ function navTo(target){
     _radarPage=0;
     loadRadarStories();
     loadRadarFeed();
-  } else if(target==='arena'){
-    document.getElementById('nav-arena').classList.add('active');
+  } else if(target==='podyum'){
+    document.getElementById('nav-podyum').classList.add('active');
     document.getElementById('home').style.display='none';
     document.getElementById('rScreen').style.display='none';
-    document.getElementById('arenaScreen').classList.add('show');
-    loadArenaCards();
+    document.getElementById('podyumScreen').classList.add('show');
+    loadPodyumCards();
   } else if(target==='favs'){
     document.getElementById('nav-favs').classList.add('active');
     showFavs();
@@ -4363,7 +4363,7 @@ function navTo(target){
 function goHome(){
   if(_busy)return;
   document.getElementById('radarScreen').classList.remove('show');
-  document.getElementById('arenaScreen').classList.remove('show');
+  document.getElementById('podyumScreen').classList.remove('show');
   document.getElementById('home').style.display='block';
   document.getElementById('rScreen').style.display='none';
   if(cropper){cropper.destroy();cropper=null}
@@ -4524,7 +4524,7 @@ function showFavs(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
   document.getElementById('nav-favs').classList.add('active');
   document.getElementById('radarScreen').classList.remove('show');
-  document.getElementById('arenaScreen').classList.remove('show');
+  document.getElementById('podyumScreen').classList.remove('show');
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='block';
   var ab=document.getElementById('actionBtns');if(ab)ab.style.display='none';
@@ -4539,11 +4539,11 @@ function showFavs(){
 
   // Profile header with avatar + story ring
   var h='<div class="profile-header">';
-  // Avatar with Arena ring (always active — tapping opens Arena vote)
+  // Avatar with Podyum ring (always active — tapping opens Podyum vote)
   h+='<div class="avatar-wrap has-story" onclick="openProfileStory()">';
   if(profile.avatar)h+='<img src="'+profile.avatar+'" class="avatar" onerror="this.src=\'data:image/svg+xml,<svg xmlns=http://www.w3.org/2000/svg viewBox=0 0 100 100><rect fill=%231a1a2e width=100 height=100/><text x=50 y=55 text-anchor=middle fill=white font-size=40>'+(profile.name?profile.name[0].toUpperCase():'👤')+'</text></svg>\'">';
   else h+='<div class="avatar" style="display:flex;align-items:center;justify-content:center;font-size:36px;background:#1a1a2e">'+(profile.name?profile.name[0].toUpperCase():'👤')+'</div>';
-  h+='<div class="live-badge" style="background:var(--cyan);color:#000;box-shadow:0 4px 15px rgba(0,229,255,.4)">⚔️ ARENA\'DA</div>';
+  h+='<div class="live-badge" style="background:var(--cyan);color:#000;box-shadow:0 4px 15px rgba(0,229,255,.4)">✨ PODYUM\'DA</div>';
   h+='</div>';
   h+='<div class="profile-name">'+(profile.name||(isTr?'Profilini Düzenle':'Edit Profile'))+'</div>';
   h+='<div class="profile-handle">'+(profile.handle||'@fitchy_user')+'</div>';
@@ -4649,7 +4649,7 @@ function shareProfile(){
   if(navigator.share){navigator.share({title:'fitchy. '+handle,text:(CC_LANG[CC]==='tr'?'Profilimi keşfet! ':'Check out my profile! ')+url,url:'https://'+url}).catch(function(){})}
   else{navigator.clipboard.writeText('https://'+url).then(function(){alert((CC_LANG[CC]==='tr'?'Link kopyalandı! 🔗':'Link copied! 🔗')+'\nhttps://'+url)}).catch(function(){})}
 }
-// ─── ⚔️ ARENA STORY (Profile → Swipe Vote) ───
+// ─── ✨ PODYUM STORY (Profile → Swipe Vote) ───
 var _storyDrag={active:false,startX:0,dx:0};
 var _activeStoryEntry=null;
 
@@ -4661,19 +4661,19 @@ function openProfileStory(){
   // Profile info
   var p=_getProfile();
   document.getElementById('storyHandle').textContent=(p&&p.handle)||'@fitchy_user';
-  document.getElementById('storyStatusTxt').textContent=isTr?'Arenada Yarışıyor':'Competing in Arena';
+  document.getElementById('storyStatusTxt').textContent=isTr?'Podyumda İlham Veriyor':'Walking the Runway';
   var avatarEl=document.getElementById('storyAvatarImg');
   if(p&&p.avatar)avatarEl.src=p.avatar;
   else avatarEl.src='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%231a1a2e" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="white" font-size="40">'+(p&&p.name?p.name[0]:'👤')+'</text></svg>';
 
-  // Get arena entry for this user (first from arena pool, then HOF, then empty)
+  // Get podyum entry for this user (first from podyum pool, then HOF, then empty)
   _activeStoryEntry=null;
-  // Try arena pool
+  // Try podyum pool
   if(window._hofData&&window._hofData.length>0){
     _activeStoryEntry=window._hofData[0];
   }
-  // Try fetching from arena
-  fetch('/api/arena-next?session='+_arenaSession+'&count=1').then(function(r){return r.json()}).then(function(d){
+  // Try fetching from podyum
+  fetch('/api/podyum-next?session='+_podyumSession+'&count=1').then(function(r){return r.json()}).then(function(d){
     if(d.success&&d.entries&&d.entries.length>0){
       _activeStoryEntry=d.entries[0];
       renderStoryCard();
@@ -4691,17 +4691,17 @@ function openProfileStory(){
 
 function showStoryEmpty(){
   var isTr=CC_LANG[CC]==='tr';
-  document.getElementById('storyArenaCard').style.display='none';
+  document.getElementById('storyPodyumCard').style.display='none';
   document.getElementById('storyBtns').style.display='none';
   var empty=document.getElementById('storyEmpty');
   empty.style.display='block';
-  document.getElementById('storyEmptyTitle').textContent=isTr?'Henüz Arena\'da kimse yok!':'Nobody in the Arena yet!';
-  document.getElementById('storyEmptySub').innerHTML=isTr?'İlk sen Fit-Check yap ve Arenaya gir!<br><button onclick="closeStory();startFitCheck()" style="margin-top:16px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 Fit-Check Yap</button>':'Be the first to do a Fit-Check and enter the Arena!<br><button onclick="closeStory();startFitCheck()" style="margin-top:16px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 Fit-Check</button>';
+  document.getElementById('storyEmptyTitle').textContent=isTr?'Podyumda hen\u00FCz kimse yok!':'Nobody on the Runway yet!';
+  document.getElementById('storyEmptySub').innerHTML=isTr?'İlk sen Fit-Check yap ve Podyuma çık!<br><button onclick="closeStory();startFitCheck()" style="margin-top:16px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">✨ Stilini Değerlendir</button>':'Be the first to do a Fit-Check and walk the Runway!<br><button onclick="closeStory();startFitCheck()" style="margin-top:16px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 Fit-Check</button>';
 }
 
 function renderStoryCard(){
   if(!_activeStoryEntry)return;
-  var card=document.getElementById('storyArenaCard');
+  var card=document.getElementById('storyPodyumCard');
   var e=_activeStoryEntry;
   card.style.display='';
   document.getElementById('storyBtns').style.display='flex';
@@ -4743,7 +4743,7 @@ function storyMove(e){
   if(!_storyDrag.active)return;
   var t=e.touches?e.touches[0]:e;
   _storyDrag.dx=t.clientX-_storyDrag.startX;
-  var card=document.getElementById('storyArenaCard');
+  var card=document.getElementById('storyPodyumCard');
   var rot=_storyDrag.dx*0.05;
   card.style.transform='translateX('+_storyDrag.dx+'px) rotate('+rot+'deg)';
   card.style.transition='none';
@@ -4759,7 +4759,7 @@ function storyUp(e){
   if(Math.abs(_storyDrag.dx)>80){
     storyVote(_storyDrag.dx>0?'up':'down');
   }else{
-    var card=document.getElementById('storyArenaCard');
+    var card=document.getElementById('storyPodyumCard');
     card.style.transition='transform .3s cubic-bezier(.175,.885,.32,1.275)';
     card.style.transform='scale(1) translateX(0px) rotate(0deg)';
     document.getElementById('storyLikeLabel').style.opacity='0';
@@ -4768,7 +4768,7 @@ function storyUp(e){
 }
 
 function storyVote(dir){
-  var card=document.getElementById('storyArenaCard');
+  var card=document.getElementById('storyPodyumCard');
   var flyX=dir==='up'?window.innerWidth:-window.innerWidth;
   card.style.transition='transform .4s ease-out, opacity .4s ease-out';
   card.style.transform='translateX('+flyX+'px) rotate('+(flyX*0.1)+'deg)';
@@ -4779,7 +4779,7 @@ function storyVote(dir){
 
   // Send vote
   if(_activeStoryEntry&&_activeStoryEntry.id&&_activeStoryEntry.id!=='demo'){
-    fetch('/api/arena-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:_activeStoryEntry.id,direction:dir,session:_arenaSession})}).catch(function(){});
+    fetch('/api/podyum-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:_activeStoryEntry.id,direction:dir,session:_podyumSession})}).catch(function(){});
   }
 
   setTimeout(function(){
@@ -4787,7 +4787,7 @@ function storyVote(dir){
     var isTr=CC_LANG[CC]==='tr';
     var toast=document.createElement('div');
     toast.style.cssText='position:fixed;top:80px;left:50%;transform:translateX(-50%);background:rgba(25,15,45,.95);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);border:1px solid var(--border);color:#fff;padding:16px 24px;border-radius:24px;font:700 13px Outfit,sans-serif;z-index:3000;box-shadow:0 10px 40px rgba(0,0,0,.6);animation:fadeUp .3s ease;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:6px';
-    var vt=dir==='up'?'🔥 '+(isTr?'Ateş Ettin!':'Fire!'):'👎 '+(isTr?'Meh dedin.':'Meh.');
+    var vt=dir==='up'?'✨ '+(isTr?'İlham Verici!':'Inspiring!'):'🌬️ '+(isTr?'Pas Geçtin.':'Passed.');
     toast.innerHTML='<div style="font-size:16px;font-weight:900">'+vt+'</div><div style="font-size:11px;color:var(--muted);font-weight:600">'+(isTr?'Oyun kaydedildi.':'Vote counted.')+'</div>';
     document.body.appendChild(toast);
     setTimeout(function(){toast.style.opacity='0';toast.style.transition='opacity .3s';setTimeout(function(){toast.remove()},300)},2000);
@@ -4958,7 +4958,7 @@ function showFitCheckResult(d,imgData){
 function shareFitCheck(score){
   var emoji=score>=90?'👑':score>=80?'💅':score>=70?'🔥':score>=50?'✨':'💀';
   var text=(CC_LANG[CC]==='tr'?
-    emoji+' fitchy. bana '+score+'/100 Drip Score verdi!\n\nSen de kombinini yargılat → fitchy.app':
+    emoji+' fitchy. bana '+score+'/100 Drip Score verdi!\n\nSen de kombinine puan al → fitchy.app':
     emoji+' fitchy. gave me '+score+'/100 on my Drip Score!\n\nGet your outfit roasted → fitchy.app');
   if(navigator.share){navigator.share({title:'fitchy. Fit-Check '+emoji,text:text}).catch(function(){})}
   else{navigator.clipboard.writeText(text).then(function(){alert('Copied! 📋')}).catch(function(){})}
@@ -5071,7 +5071,7 @@ var _radarStoryData=[];
 function openRadar(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
   document.getElementById('nav-radar').classList.add('active');
-  document.getElementById('arenaScreen').classList.remove('show');
+  document.getElementById('podyumScreen').classList.remove('show');
   document.getElementById('radarScreen').classList.add('show');
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='none';
@@ -5101,7 +5101,7 @@ function loadRadarStories(){
         el.className='radar-story';
         el.onclick=function(){openRadarStoryItem(idx)};
         var ring=s.seen?'story-ring seen':'story-ring';
-        var badge=(!s.seen && s.is_live)?'<div class="live-badge-mini">\u2694\uFE0F ARENA</div>':'';
+        var badge=(!s.seen && s.is_live)?'<div class="live-badge-mini">\u2694\uFE0F PODYUM</div>':'';
         el.innerHTML='<div class="'+ring+'"><img src="'+s.avatar+'" onerror="this.style.background=\'var(--accent)\';this.style.fontSize=\'20px\';this.textContent=\''+s.handle[0].toUpperCase()+'\'">'+badge+'</div><div class="story-name">'+s.handle.split('.')[0]+'</div>';
         tray.appendChild(el);
       })(i);
@@ -5203,7 +5203,7 @@ function loadRadarFeed(){
         if(c.is_hof) h+='<div class="hof-badge">\uD83D\uDC51 Hall of Fame</div>';
         h+='</div>';
         h+='<div class="rcard-body">'+c.emoji+' <b>@'+c.handle+'</b>\'n\u0131n son g\u00F6r\u00FCn\u00FCm\u00FC AI Stil Dan\u0131\u015Fman\u0131ndan <b>'+c.score+' puan</b> alarak '+(c.is_hof?'<b>90+ Kul\u00FCb\u00FC</b>\'ne ad\u0131n\u0131 yazd\u0131rd\u0131. An itibariyle <b>Vitrin</b>\'de ilham veriyor.':'<b>Vitrin</b>\'de yerini ald\u0131.')+'</div>';
-        h+='<div class="rcard-action"><button class="rbtn rbtn-primary" onclick="startFitCheck();closeRadar()">\uD83D\uDCF8 Stilini Analiz Et</button><button class="rbtn rbtn-cyan">\uD83C\uDFDF\uFE0F Arena\'ya Git</button></div>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-primary" onclick="startFitCheck();closeRadar()">\uD83D\uDCF8 Stilini Analiz Et</button><button class="rbtn rbtn-cyan">\uD83C\uDFDF\uFE0F Podyuma Git</button></div>';
       }
 
       /* === TREND ALERT === */
@@ -5283,13 +5283,13 @@ function _formatAgo(ts){
   if(diff<86400)return Math.floor(diff/3600)+'sa \u00F6nce';
   return Math.floor(diff/86400)+'g \u00F6nce';
 }
-function radarArenaVote(id,dir,btn){
+function radarPodyumVote(id,dir,btn){
   if(id==='demo'){
-    btn.parentElement.innerHTML='<div style="text-align:center;font-size:12px;color:var(--muted);padding:8px">\u2705 '+(dir==='up'?'\uD83D\uDD25 Ate\u015F Ettin!':'\uD83D\uDC4E Meh dedin.')+'</div>';
+    btn.parentElement.innerHTML='<div style="text-align:center;font-size:12px;color:var(--muted);padding:8px">\u2705 '+(dir==='up'?'\uD83D\uDD25 \u0130lham Verici \u2728':'\uD83C\uDF2C Pas Ge\u00e7tin.')+'</div>';
     return;
   }
-  fetch('/api/arena-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,direction:dir,session:_arenaSession})}).then(function(r){return r.json()}).then(function(d){
-    btn.parentElement.innerHTML='<div style="text-align:center;font-size:12px;color:var(--muted);padding:8px">\u2705 '+(dir==='up'?'\uD83D\uDD25 Ate\u015F Ettin!':'\uD83D\uDC4E Meh dedin.')+' ('+(d.ups||0)+'\uD83D\uDC4D '+(d.downs||0)+'\uD83D\uDC4E)</div>';
+  fetch('/api/podyum-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,direction:dir,session:_podyumSession})}).then(function(r){return r.json()}).then(function(d){
+    btn.parentElement.innerHTML='<div style="text-align:center;font-size:12px;color:var(--muted);padding:8px">\u2705 '+(dir==='up'?'\uD83D\uDD25 \u0130lham Verici \u2728':'\uD83C\uDF2C Pas Ge\u00e7tin.')+' ('+(d.ups||0)+'\uD83D\uDC4D '+(d.downs||0)+'\uD83D\uDC4E)</div>';
   }).catch(function(){});
 }
 
@@ -5330,7 +5330,7 @@ function loadNotifications(tab){
       /* Icon */
       var iconBg='rgba(255,255,255,.04)';
       if(n.type==='authority'||n.type==='curator_follow') iconBg='rgba(212,175,55,.08)';
-      else if(n.type==='arena_report') iconBg=n.is_hof?'rgba(255,215,0,.1)':'rgba(0,229,255,.06)';
+      else if(n.type==='podyum_report') iconBg=n.is_hof?'rgba(255,215,0,.1)':'rgba(0,229,255,.06)';
       else if(n.type==='style_twin') iconBg='rgba(224,64,251,.08)';
       else if(n.type==='price_alert'||n.type==='stock_alert') iconBg='rgba(244,67,54,.08)';
       else if(n.type==='dupe_found') iconBg='rgba(212,175,55,.08)';
@@ -5343,7 +5343,7 @@ function loadNotifications(tab){
       h+='<div class="nbody">'+_formatNotifBody(n.body)+'</div>';
 
       /* Special elements per type */
-      if(n.type==='arena_report' && n.fire_pct){
+      if(n.type==='podyum_report' && n.fire_pct){
         var barCol=n.is_hof?'linear-gradient(90deg,#ffd700,#ff8c00)':'linear-gradient(90deg,var(--cyan),#4d00ff)';
         h+='<div class="notif-score-bar"><div class="notif-score-fill" style="width:'+n.fire_pct+'%;background:'+barCol+'"></div></div>';
       }
@@ -5362,7 +5362,7 @@ function loadNotifications(tab){
       var ctaBg='rgba(255,255,255,.04)';
       if(n.type==='price_alert'||n.type==='stock_alert') ctaBg='rgba(244,67,54,.1)';
       else if(n.type==='dupe_found'||n.type==='authority') ctaBg='rgba(212,175,55,.08)';
-      else if(n.type==='arena_report' && n.is_hof) ctaBg='rgba(255,215,0,.1)';
+      else if(n.type==='podyum_report' && n.is_hof) ctaBg='rgba(255,215,0,.1)';
       h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px"><button class="notif-cta" style="background:'+ctaBg+';color:'+ctaColor+'">'+n.cta+' \u2192</button><span class="nago">'+n.ago+'</span></div>';
 
       h+='</div>';
@@ -5381,69 +5381,69 @@ function _formatNotifBody(text){
     .replace(/(%\d+)/g,'<b style="color:var(--accent)">$1</b>');
 }
 
-// ─── 🏟️ KOMBİN ARENA (Tinder-style) ───
-var _arenaSession='arena_'+Math.random().toString(36).slice(2,10);
-var _arenaCards=[];
-var _arenaIdx=0;
-var _arenaDrag={active:false,startX:0,startY:0,dx:0};
+// ─── ✨ PODYUM (Tinder-style) ───
+var _podyumSession='podyum_'+Math.random().toString(36).slice(2,10);
+var _podyumCards=[];
+var _podyumIdx=0;
+var _podyumDrag={active:false,startX:0,startY:0,dx:0};
 
-function openArena(){
+function openPodyum(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
-  document.getElementById('nav-arena').classList.add('active');
+  document.getElementById('nav-podyum').classList.add('active');
   document.getElementById('radarScreen').classList.remove('show');
-  document.getElementById('arenaScreen').classList.add('show');
+  document.getElementById('podyumScreen').classList.add('show');
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='none';
-  loadArenaCards();
+  loadPodyumCards();
 }
-function closeArena(){
-  document.getElementById('arenaScreen').classList.remove('show');
+function closePodyum(){
+  document.getElementById('podyumScreen').classList.remove('show');
   goHome();
 }
 
-function loadArenaCards(){
-  var stack=document.getElementById('arenaStack');
-  document.getElementById('arenaEmpty').style.display='none';
-  document.getElementById('arenaBtns').style.display='flex';
+function loadPodyumCards(){
+  var stack=document.getElementById('podyumStack');
+  document.getElementById('podyumEmpty').style.display='none';
+  document.getElementById('podyumBtns').style.display='flex';
   stack.innerHTML='<div style="text-align:center"><div class="loader-orb" style="width:40px;height:40px;margin:0 auto 12px"></div><div style="color:var(--muted);font-size:13px">Kombinler yükleniyor...</div></div>';
 
-  fetch('/api/arena-next?session='+_arenaSession+'&count=10').then(function(r){return r.json()}).then(function(d){
+  fetch('/api/podyum-next?session='+_podyumSession+'&count=10').then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.entries||!d.entries.length){
-      showArenaEmpty();return;
+      showPodyumEmpty();return;
     }
-    _arenaCards=d.entries;
-    _arenaIdx=0;
-    document.getElementById('arenaCount').textContent=d.entries.length+(d.remaining>0?' + '+d.remaining+' daha':'');
-    renderArenaStack();
-  }).catch(function(){showArenaEmpty()});
+    _podyumCards=d.entries;
+    _podyumIdx=0;
+    document.getElementById('podyumCount').textContent=d.entries.length+(d.remaining>0?' + '+d.remaining+' daha':'');
+    renderPodyumStack();
+  }).catch(function(){showPodyumEmpty()});
 }
 
-function showArenaEmpty(){
-  var stack=document.getElementById('arenaStack');
+function showPodyumEmpty(){
+  var stack=document.getElementById('podyumStack');
   stack.innerHTML='';
-  document.getElementById('arenaEmpty').style.display='block';
-  stack.appendChild(document.getElementById('arenaEmpty'));
-  document.getElementById('arenaBtns').style.display='none';
+  document.getElementById('podyumEmpty').style.display='block';
+  stack.appendChild(document.getElementById('podyumEmpty'));
+  document.getElementById('podyumBtns').style.display='none';
 }
 
-function renderArenaStack(){
-  var stack=document.getElementById('arenaStack');
+function renderPodyumStack(){
+  var stack=document.getElementById('podyumStack');
   stack.innerHTML='';
   // Render max 3 cards (top on front)
   var isTr=CC_LANG[CC]==='tr';
-  for(var i=Math.min(_arenaIdx+2,_arenaCards.length-1);i>=_arenaIdx;i--){
-    var e=_arenaCards[i];
+  for(var i=Math.min(_podyumIdx+2,_podyumCards.length-1);i>=_podyumIdx;i--){
+    var e=_podyumCards[i];
     var card=document.createElement('div');
-    card.className='arena-card';
+    card.className='podyum-card';
     card.dataset.id=e.id;
     card.dataset.idx=i;
-    var offset=i-_arenaIdx;
+    var offset=i-_podyumIdx;
     card.style.transform='scale('+(1-offset*0.04)+') translateY('+(-offset*8)+'px)';
     card.style.zIndex=10-offset;
     if(offset>0)card.style.pointerEvents='none';
 
-    var h='<div class="swipe-label like-label">'+( isTr?'ATEŞ':'FIRE')+'</div>';
-    h+='<div class="swipe-label nope-label">'+(isTr?'MEH':'MEH')+'</div>';
+    var h='<div class="swipe-label like-label">'+( isTr?'İLHAM':'INSPIRE')+'</div>';
+    h+='<div class="swipe-label nope-label">'+(isTr?'PAS 🌬️':'PASS 🌬️')+'</div>';
     h+='<div class="ac-img"><img src="data:image/jpeg;base64,'+e.image+'">';
     h+='<div class="ac-overlay"><div class="ac-name">'+e.nickname+'</div>';
     h+='<div class="ac-meta"><span class="ac-aiscore">AI: '+e.emoji+' '+e.ai_score+'</span><span>'+e.ago+'</span>';
@@ -5454,52 +5454,52 @@ function renderArenaStack(){
 
     // Touch/mouse events on front card only
     if(offset===0){
-      card.addEventListener('touchstart',arenaDown,{passive:true});
-      card.addEventListener('touchmove',arenaMove,{passive:false});
-      card.addEventListener('touchend',arenaUp);
-      card.addEventListener('mousedown',arenaDown);
+      card.addEventListener('touchstart',podyumDown,{passive:true});
+      card.addEventListener('touchmove',podyumMove,{passive:false});
+      card.addEventListener('touchend',podyumUp);
+      card.addEventListener('mousedown',podyumDown);
     }
     stack.appendChild(card);
   }
-  document.getElementById('arenaEmpty').style.display='none';
-  stack.appendChild(document.getElementById('arenaEmpty'));
+  document.getElementById('podyumEmpty').style.display='none';
+  stack.appendChild(document.getElementById('podyumEmpty'));
 }
 
-function arenaDown(ev){
+function podyumDown(ev){
   var t=ev.touches?ev.touches[0]:ev;
-  _arenaDrag={active:true,startX:t.clientX,startY:t.clientY,dx:0};
+  _podyumDrag={active:true,startX:t.clientX,startY:t.clientY,dx:0};
   if(!ev.touches){
-    document.addEventListener('mousemove',arenaMove);
-    document.addEventListener('mouseup',arenaUp);
+    document.addEventListener('mousemove',podyumMove);
+    document.addEventListener('mouseup',podyumUp);
   }
 }
-function arenaMove(ev){
-  if(!_arenaDrag.active)return;
+function podyumMove(ev){
+  if(!_podyumDrag.active)return;
   var t=ev.touches?ev.touches[0]:ev;
-  _arenaDrag.dx=t.clientX-_arenaDrag.startX;
-  var card=document.querySelector('.arena-card[data-idx="'+_arenaIdx+'"]');
+  _podyumDrag.dx=t.clientX-_podyumDrag.startX;
+  var card=document.querySelector('.podyum-card[data-idx="'+_podyumIdx+'"]');
   if(!card)return;
-  var rot=_arenaDrag.dx*0.1;
-  card.style.transform='translateX('+_arenaDrag.dx+'px) rotate('+rot+'deg)';
+  var rot=_podyumDrag.dx*0.1;
+  card.style.transform='translateX('+_podyumDrag.dx+'px) rotate('+rot+'deg)';
   card.style.transition='none';
   // Show labels
   var likeLabel=card.querySelector('.like-label');
   var nopeLabel=card.querySelector('.nope-label');
-  if(likeLabel)likeLabel.style.opacity=Math.min(_arenaDrag.dx/80,1);
-  if(nopeLabel)nopeLabel.style.opacity=Math.min(-_arenaDrag.dx/80,1);
+  if(likeLabel)likeLabel.style.opacity=Math.min(_podyumDrag.dx/80,1);
+  if(nopeLabel)nopeLabel.style.opacity=Math.min(-_podyumDrag.dx/80,1);
   if(ev.cancelable)ev.preventDefault();
 }
-function arenaUp(ev){
-  if(!_arenaDrag.active)return;
-  _arenaDrag.active=false;
-  document.removeEventListener('mousemove',arenaMove);
-  document.removeEventListener('mouseup',arenaUp);
-  var dx=_arenaDrag.dx;
+function podyumUp(ev){
+  if(!_podyumDrag.active)return;
+  _podyumDrag.active=false;
+  document.removeEventListener('mousemove',podyumMove);
+  document.removeEventListener('mouseup',podyumUp);
+  var dx=_podyumDrag.dx;
   if(Math.abs(dx)>80){
-    arenaSwipe(dx>0?'up':'down');
+    podyumSwipe(dx>0?'up':'down');
   }else{
     // Snap back
-    var card=document.querySelector('.arena-card[data-idx="'+_arenaIdx+'"]');
+    var card=document.querySelector('.podyum-card[data-idx="'+_podyumIdx+'"]');
     if(card){
       card.style.transition='transform .3s ease';
       card.style.transform='scale(1) translateY(0)';
@@ -5509,9 +5509,9 @@ function arenaUp(ev){
   }
 }
 
-function arenaSwipe(dir){
-  var card=document.querySelector('.arena-card[data-idx="'+_arenaIdx+'"]');
-  var e=_arenaCards[_arenaIdx];
+function podyumSwipe(dir){
+  var card=document.querySelector('.podyum-card[data-idx="'+_podyumIdx+'"]');
+  var e=_podyumCards[_podyumIdx];
   if(!card||!e)return;
 
   // Fly out animation
@@ -5521,8 +5521,8 @@ function arenaSwipe(dir){
   card.style.opacity='0';
 
   // Vote
-  fetch('/api/arena-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    id:e.id,direction:dir,session:_arenaSession
+  fetch('/api/podyum-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    id:e.id,direction:dir,session:_podyumSession
   })}).then(function(r){return r.json()}).then(function(d){
     if(d.promoted){
       var toast=document.createElement('div');
@@ -5534,55 +5534,55 @@ function arenaSwipe(dir){
   }).catch(function(){});
 
   // Next card
-  _arenaIdx++;
+  _podyumIdx++;
   setTimeout(function(){
-    if(_arenaIdx>=_arenaCards.length){
+    if(_podyumIdx>=_podyumCards.length){
       // Load more or show empty
-      loadArenaCards();
+      loadPodyumCards();
     }else{
-      renderArenaStack();
+      renderPodyumStack();
     }
   },350);
 }
 
-function arenaReport(){
-  var e=_arenaCards[_arenaIdx];if(!e)return;
+function podyumReport(){
+  var e=_podyumCards[_podyumIdx];if(!e)return;
   var isTr=CC_LANG[CC]==='tr';
   if(!confirm(isTr?'Bu kombini sahte/uygunsuz olarak bildir?':'Report this outfit as fake/inappropriate?'))return;
-  fetch('/api/arena-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:e.id})})
-  .then(function(){arenaSwipe('down')}).catch(function(){});
+  fetch('/api/podyum-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:e.id})})
+  .then(function(){podyumSwipe('down')}).catch(function(){});
 }
 
-// Add "Arenaya Gir" to fit-check result
+// Add "Podyuma Çık" to fit-check result
 var _lastFitCheckData=null;
 var _origShowFitCheckResult=showFitCheckResult;
 showFitCheckResult=function(d,imgData){
   _lastFitCheckData={score:d.score||50,emoji:d.emoji||'🔥',roast:d.roast||'',imgData:imgData};
   _origShowFitCheckResult(d,imgData);
-  // Inject Arena button after result renders
+  // Inject Podyum button after result renders
   setTimeout(function(){
     var container=document.querySelector('.fitcheck-result');
     if(!container)return;
     var isTr=CC_LANG[CC]==='tr';
-    var arenaBtn=document.createElement('button');
-    arenaBtn.className='btn-main';
-    arenaBtn.style.cssText='margin-top:10px;background:linear-gradient(135deg,rgba(0,229,255,.1),rgba(77,0,255,.1));border:1px solid rgba(0,229,255,.3);color:var(--cyan);font-weight:800';
-    arenaBtn.innerHTML='🏟️ '+(isTr?'Arenaya Gir — Halk Yargılasın!':'Enter the Arena — Let People Judge!');
-    arenaBtn.onclick=function(){promptArenaSubmit()};
+    var podyumBtn=document.createElement('button');
+    podyumBtn.className='btn-main';
+    podyumBtn.style.cssText='margin-top:10px;background:linear-gradient(135deg,rgba(0,229,255,.1),rgba(77,0,255,.1));border:1px solid rgba(0,229,255,.3);color:var(--cyan);font-weight:800';
+    podyumBtn.innerHTML='✨ '+(isTr?'Podyuma Çık — İlham Ver!':'Walk the Runway — Inspire Others!');
+    podyumBtn.onclick=function(){promptPodyumSubmit()};
     // Insert before the back button
     var backBtn=container.querySelector('.btn-main:last-child');
-    if(backBtn)container.insertBefore(arenaBtn,backBtn);
+    if(backBtn)container.insertBefore(podyumBtn,backBtn);
   },300);
 };
 
-function promptArenaSubmit(){
+function promptPodyumSubmit(){
   if(!_lastFitCheckData)return;
   var isTr=CC_LANG[CC]==='tr';
-  var nick=prompt(isTr?'Arenada görünecek ismin:':'Your arena display name:','');
+  var nick=prompt(isTr?'Podyumda görünecek ismin:':'Your runway display name:','');
   if(nick===null)return;
   nick=nick.trim()||'Anonim';
-  // Submit to arena
-  fetch('/api/arena-submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+  // Submit to podyum
+  fetch('/api/podyum-submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     image:_lastFitCheckData.imgData,
     nickname:nick,
     ai_score:_lastFitCheckData.score,
@@ -5592,7 +5592,7 @@ function promptArenaSubmit(){
     if(d.success){
       var toast=document.createElement('div');
       toast.style.cssText='position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;padding:12px 24px;border-radius:16px;font:700 13px Outfit,sans-serif;z-index:1200;box-shadow:0 4px 20px rgba(0,229,255,.3);animation:fadeIn .3s';
-      toast.textContent='🏟️ '+(isTr?'Arenaya eklendi! Oylar gelmeye başlayacak...':'Added to Arena! Votes incoming...');
+      toast.textContent='✨ '+(isTr?'Podyuma çıktın! İlhamlar gelmeye başlayacak...':'You're on the Runway! Reactions incoming...');
       document.body.appendChild(toast);
       setTimeout(function(){toast.remove()},3000);
     }
