@@ -1875,11 +1875,12 @@ CC_LANG_MAP = {"tr": "tr", "us": "en", "uk": "en", "de": "en", "fr": "en", "sa":
 async def trending(country: str = "tr", refresh: bool = False):
     cc = country.lower()
     lang = CC_LANG_MAP.get(cc, "en")
-    if refresh:
-        TRENDING_CACHE.pop(lang, None)
-    data = _get_trending(lang)
     
-    # Use popular searches (app-internal) if available, otherwise Google trending
+    # Brands data (always available)
+    brands_data = BRAND_DATA.get(lang, BRAND_DATA.get("tr", []))
+    section_brands = "Markalar" if lang == "tr" else "Brands"
+    
+    # Popular searches from app usage (high quality images, verified products)
     if POPULAR_SEARCHES:
         popular_products = [{
             "title": p["title"],
@@ -1890,13 +1891,13 @@ async def trending(country: str = "tr", refresh: bool = False):
         } for p in POPULAR_SEARCHES]
         section_trending = "🔥 Popüler Aramalar" if lang == "tr" else "🔥 Popular Searches"
     else:
-        popular_products = data["products"]
-        section_trending = data["section_trending"]
+        popular_products = []
+        section_trending = ""
     
     return {"success": True,
-            "brands": [{"name": b["name"], "url": b.get("url", ""), "domain": b.get("domain", "")} for b in data["brands"]],
+            "brands": [{"name": b["name"], "url": b.get("url", ""), "domain": b.get("domain", "")} for b in brands_data],
             "products": popular_products,
-            "section_brands": data["section_brands"], "section_trending": section_trending}
+            "section_brands": section_brands, "section_trending": section_trending}
 
 # ─── BRAND LOGO SVG ENDPOINT ───
 @app.get("/api/logo")
