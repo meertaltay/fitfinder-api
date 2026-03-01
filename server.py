@@ -1523,11 +1523,15 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             # Clean internal fields
             for r in all_items:
                 for k in ["_score", "_priority", "_channel", "_src", "_exact"]: r.pop(k, None)
+                # Inject verified/sponsored badges
+                badge = get_verified_badge(r.get("link", ""))
+                if badge: r["_verified"] = badge
 
             results.append({
                 "category": cat,
                 "short_title": p.get("short_title", cat.title()),
                 "color": p.get("color", ""),
+                "style_type": p.get("style_type", ""),
                 "brand": brand if brand != "?" else "",
                 "visible_text": visible_text,
                 "products": all_items[:8],
@@ -1538,6 +1542,8 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             # Record for popular searches
             if all_items and match_level in ("exact", "close"):
                 record_popular_search(p, all_items[0])
+            # Record analytics
+            record_analytics("scan", {"category": cat, "brand": brand, "color": p.get("color", ""), "style_type": p.get("style_type", ""), "query": q_specific or q_generic, "match_level": match_level, "country": cc, "results_count": len(all_items)})
 
         return {"success": True, "pieces": results, "country": cc}
     except Exception as e:
@@ -1635,6 +1641,29 @@ TRENDING_TTL = 86400  # 24 saat cache
 # ─── POPULAR SEARCHES (app-internal tracking) ───
 POPULAR_SEARCHES = []  # [{query, img, title, brand, price, link, ts}]
 POPULAR_MAX = 12
+
+# ─── TREND ANALYTICS (B2B SaaS veri toplama) ───
+TREND_ANALYTICS = []  # Her tarama kaydı
+ANALYTICS_MAX = 5000  # Son 5000 taramayı tut
+
+def record_analytics(event_type, data):
+    """Her taramayı analitik olarak kaydet — gelecekte B2B dashboard için."""
+    global TREND_ANALYTICS
+    entry = {
+        "ts": time.time(),
+        "type": event_type,  # "scan", "search_piece", "manual", "combo"
+        "category": data.get("category", ""),
+        "brand": data.get("brand", ""),
+        "color": data.get("color", ""),
+        "style": data.get("style_type", ""),
+        "query": data.get("query", ""),
+        "match_level": data.get("match_level", ""),
+        "country": data.get("country", "tr"),
+        "results_count": data.get("results_count", 0),
+    }
+    TREND_ANALYTICS.insert(0, entry)
+    if len(TREND_ANALYTICS) > ANALYTICS_MAX:
+        TREND_ANALYTICS = TREND_ANALYTICS[:ANALYTICS_MAX]
 
 def record_popular_search(piece_data, top_product):
     """Başarılı bir arama sonucunu popular searches'e kaydet."""
@@ -2261,6 +2290,9 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
         # Clean internal fields
         for r in all_items:
             for k in ["_score", "_priority", "_channel", "_src", "_exact"]: r.pop(k, None)
+            # Inject verified badges
+            badge = get_verified_badge(r.get("link", ""))
+            if badge: r["_verified"] = badge
 
         crop_b64 = ""
         if crop_bytes:
@@ -2274,6 +2306,8 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
         # Record for popular searches
         if all_items and match_level in ("exact", "close"):
             record_popular_search(p, all_items[0])
+        # Record analytics
+        record_analytics("search_piece", {"category": cat, "brand": brand, "color": p.get("color", ""), "style_type": p.get("style_type", ""), "query": queries[0][0] if queries else "", "match_level": match_level, "country": cc, "results_count": len(all_items)})
 
         return {
             "success": True,
@@ -2282,6 +2316,8 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
                 "short_title": p.get("short_title", cat.title()),
                 "brand": brand if brand != "?" else "",
                 "visible_text": visible_text,
+                "color": p.get("color", ""),
+                "style_type": p.get("style_type", ""),
                 "products": all_items[:8],
                 "lens_count": len(all_lens),
                 "match_level": match_level,
@@ -2516,6 +2552,171 @@ async def url_thumbnail(request: Request):
         print(f"URL THUMBNAIL ERR: {e}")
         return {"success": False, "message": "Link işlenemedi"}
 
+# ─── OUTFIT COMBO: "Bunu Neyle Giyerim?" ───
+@app.post("/api/outfit-combo")
+async def outfit_combo(request: Request):
+    """Claude'a parça bilgisi gönder, kombin önerisi + alışveriş linkleri al."""
+    try:
+        data = await request.json()
+        category = data.get("category", "")
+        title = data.get("title", "")
+        brand = data.get("brand", "")
+        color = data.get("color", "")
+        style = data.get("style", "")
+        cc = data.get("country", "tr")
+        cfg = get_country_config(cc)
+        lang = cfg["lang"]
+
+        if not ANTHROPIC_API_KEY:
+            return {"success": False, "message": "AI unavailable"}
+
+        prompt = f"""The user found this item: {title} ({category}, {color}, {brand}, style: {style}).
+Suggest 3 complementary pieces to complete an outfit. For each piece give:
+- category (jacket/top/bottom/shoes/bag/accessory)
+- description (2-3 words in {lang})
+- search_query (4-6 word {lang} shopping query)
+- why (1 sentence in {lang} explaining why it works)
+
+Return ONLY a JSON array:
+[{{"category":"bottom","description":"koyu gri kargo","search_query":"koyu gri kargo pantolon erkek","why":"..."}}]"""
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post("https://api.anthropic.com/v1/messages",
+                headers={"Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
+                json={"model": CLAUDE_MODEL, "max_tokens": 800, "messages": [{"role": "user", "content": prompt}]})
+            text = resp.json().get("content", [{}])[0].get("text", "").strip()
+            text = re.sub(r'^```\w*\n?', '', text)
+            text = re.sub(r'\n?```$', '', text)
+            m = re.search(r'\[.*\]', text, re.DOTALL)
+            if not m:
+                return {"success": False, "message": "AI parse error"}
+            suggestions = json.loads(m.group())
+
+        # Her öneri için shopping arama yap (parallel)
+        async def search_suggestion(s):
+            q = s.get("search_query", "")
+            if not q: return {**s, "products": []}
+            async with API_SEM:
+                results = await asyncio.to_thread(_shop, q, cc, 3)
+            return {**s, "products": results[:3]}
+
+        combo_results = await asyncio.gather(*[search_suggestion(s) for s in suggestions[:3]])
+
+        record_analytics("combo", {"category": category, "brand": brand, "color": color, "style_type": style, "country": cc, "results_count": sum(len(c.get("products", [])) for c in combo_results)})
+
+        return {"success": True, "suggestions": combo_results}
+
+    except Exception as e:
+        print(f"COMBO ERR: {e}")
+        return {"success": False, "message": str(e)}
+
+# ─── TREND ANALYTICS DASHBOARD ───
+@app.get("/api/analytics")
+async def analytics_dashboard():
+    """B2B trend analytics - kategori, marka, renk, stil trendleri."""
+    if not TREND_ANALYTICS:
+        return {"success": True, "total_scans": 0, "trends": {}}
+
+    from collections import Counter
+    now = time.time()
+
+    # Son 24 saat
+    recent = [a for a in TREND_ANALYTICS if now - a["ts"] < 86400]
+    # Son 7 gün
+    weekly = [a for a in TREND_ANALYTICS if now - a["ts"] < 604800]
+
+    def top_counts(items, field, limit=10):
+        c = Counter(a[field] for a in items if a.get(field))
+        return [{"name": k, "count": v} for k, v in c.most_common(limit)]
+
+    return {
+        "success": True,
+        "total_scans": len(TREND_ANALYTICS),
+        "last_24h": len(recent),
+        "last_7d": len(weekly),
+        "trends": {
+            "categories_24h": top_counts(recent, "category"),
+            "brands_24h": top_counts(recent, "brand"),
+            "colors_24h": top_counts(recent, "color"),
+            "styles_24h": top_counts(recent, "style"),
+            "categories_7d": top_counts(weekly, "category"),
+            "brands_7d": top_counts(weekly, "brand"),
+            "colors_7d": top_counts(weekly, "color"),
+            "styles_7d": top_counts(weekly, "style"),
+        },
+        "match_rates": {
+            "exact": len([a for a in recent if a.get("match_level") == "exact"]),
+            "close": len([a for a in recent if a.get("match_level") == "close"]),
+            "similar": len([a for a in recent if a.get("match_level") == "similar"]),
+        },
+        "countries": top_counts(weekly, "country", 5),
+    }
+
+# ─── SPONSORED / VERIFIED BRAND SYSTEM ───
+# Marka sponsorluk + verified partner veritabanı
+SPONSORED_DUPES = {
+    # category → [{brand, query, label, cpc}]
+    # Örnek: Lüks ceket tarandığında Koton muadilini göster
+    "jacket": [
+        {"brand": "Koton", "query": "koton deri ceket", "label": "Uygun Fiyatlı Alternatif", "badge": "fitchy. Sponsorlu Muadil", "cpc": 5.0},
+        {"brand": "DeFacto", "query": "defacto ceket", "label": "Bütçe Dostu", "badge": "fitchy. Sponsorlu Muadil", "cpc": 3.0},
+    ],
+    "shoes": [
+        {"brand": "FLO", "query": "flo sneaker", "label": "Uygun Fiyatlı Alternatif", "badge": "fitchy. Sponsorlu Muadil", "cpc": 4.0},
+    ],
+}
+
+VERIFIED_BRANDS = {
+    # domain → {badge, discount, priority_boost}
+    "nike.com": {"badge": "Resmi Mağaza", "discount": "", "glow": "cyan"},
+    "zara.com": {"badge": "Resmi Mağaza", "discount": "", "glow": "cyan"},
+    "adidas.": {"badge": "Resmi Mağaza", "discount": "", "glow": "cyan"},
+    "trendyol.": {"badge": "Güvenilir Satıcı", "discount": "", "glow": "green"},
+    "hepsiburada.": {"badge": "Güvenilir Satıcı", "discount": "", "glow": "green"},
+    "boyner.": {"badge": "Resmi Mağaza", "discount": "", "glow": "cyan"},
+}
+
+def get_verified_badge(link):
+    """Ürün linkine göre verified badge bilgisi döndür."""
+    link_lower = link.lower()
+    for domain, info in VERIFIED_BRANDS.items():
+        if domain in link_lower:
+            return info
+    return None
+
+def get_sponsored_dupe(category, is_luxury=False):
+    """Kategori + lüks marka ise sponsorlu muadil öner."""
+    if not is_luxury: return None
+    dupes = SPONSORED_DUPES.get(category, [])
+    return dupes[0] if dupes else None
+
+@app.post("/api/sponsored-search")
+async def sponsored_search(request: Request):
+    """Sponsorlu muadil araması — lüks ürün bulunduğunda tetiklenir."""
+    try:
+        data = await request.json()
+        category = data.get("category", "")
+        cc = data.get("country", "tr")
+
+        dupes = SPONSORED_DUPES.get(category, [])
+        if not dupes:
+            return {"success": True, "sponsored": []}
+
+        results = []
+        for dupe in dupes[:2]:
+            async with API_SEM:
+                products = await asyncio.to_thread(_shop, dupe["query"], cc, 2)
+            if products:
+                p = products[0]
+                p["_sponsored"] = True
+                p["_sponsor_badge"] = dupe["badge"]
+                p["_sponsor_brand"] = dupe["brand"]
+                results.append(p)
+
+        return {"success": True, "sponsored": results}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
 @app.get("/", response_class=HTMLResponse)
 async def home(): return HTML_PAGE
 
@@ -2703,8 +2904,8 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 var IC={hat:"\uD83E\uDDE2",sunglasses:"\uD83D\uDD76\uFE0F",top:"\uD83D\uDC55",jacket:"\uD83E\uDDE5",bag:"\uD83D\uDC5C",accessory:"\uD83D\uDC8D",watch:"\u231A",bottom:"\uD83D\uDC56",dress:"\uD83D\uDC57",shoes:"\uD83D\uDC5F",scarf:"\uD83E\uDDE3"};
 var cF=null,cPrev=null,cropper=null,CC='us';
 var L={
-  tr:{heroTitle:'G\u00f6rseldeki kombini<br><span class="text-gradient">birebir</span> bul.',heroSub:'Instagram\'da, TikTok\'ta veya sokakta k\u0131skand\u0131\u011f\u0131n o kombini an\u0131nda bul.<br>Ekran g\u00f6r\u00fcnt\u00fcs\u00fcn\u00fc y\u00fckle, gerisini fitchy\'ye b\u0131rak.',upload:'\u2728 Kombini Tarat',auto:'\u2728 Ak\u0131ll\u0131 Tarama (\u00d6nerilen)',manual:'\u2702\uFE0F Sadece Bir Par\u00e7a Se\u00e7',trustBadge:'\uD83D\uDD0D ZARA, NIKE, TRENDYOL ve 500+ markada aran\u0131yor...',trendTitle:'\uD83D\uDD25 \u015eu An Trend Olanlar',back:'\u2190 Geri',cropHint:'\uD83D\uDC47 Aramak istedi\u011fin par\u00e7ay\u0131 \u00e7er\u00e7evele',manualPh:'Ne ar\u0131yorsun? (Opsiyonel)',find:'\uD83D\uDD0D Par\u00e7ay\u0131 Bul',cancel:'\u0130ptal',loading:'Siber a\u011fa ba\u011flan\u0131l\u0131yor...',loadingManual:'AI e\u015fle\u015ftiriyor...',noResult:'Par\u00e7a tespit edilemedi.',noProd:'Bu par\u00e7a i\u00e7in e\u015fle\u015fme bulunamad\u0131.',retry:'\u2702\uFE0F Manuel Se\u00e7imi Dene',another:'\u2702\uFE0F Ba\u015fka Par\u00e7a Se\u00e7',selected:'Se\u00e7imin',lensMatch:'g\u00f6rsel e\u015fle\u015fme',recommended:'\u2728 \u00d6nerilen',lensLabel:'\uD83C\uDFAF AI E\u015fle\u015fmesi',goStore:'Sat\u0131n Al \u2197',noPrice:'Fiyat\u0131 G\u00f6r',alts:'\uD83D\uDCB8 Alternatifler \u2192',navHome:'Ke\u015ffet',navFav:'Dolap\u0131m',aiMatch:'AI Onayl\u0131',matchExact:'\u2705 Birebir E\u015fle\u015fme',matchClose:'\uD83D\uDD25 Y\u00fcksek Benzerlik',matchSimilar:'\u2728 Benzer \u00dcr\u00fcnler',step_detect:'K\u0131yafetler tespit ediliyor...',step_bg:'G\u00f6rsel haz\u0131rlan\u0131yor...',step_lens:'Ma\u011fazalar taran\u0131yor...',step_ai:'AI \u00fcr\u00fcnleri k\u0131yasl\u0131yor...',step_verify:'E\u015fle\u015fmeler do\u011frulan\u0131yor...',step_done:'Sonu\u00e7lar haz\u0131r!',piecesFound:'par\u00e7a bulundu',pickPiece:'Aramak istedi\u011fin par\u00e7aya dokun',searchingPiece:'\u00dcr\u00fcn aran\u0131yor...',backToPieces:'\u2190 Di\u011fer Par\u00e7alar',noDetect:'Par\u00e7a bulunamad\u0131. Manuel se\u00e7imi deneyin.',loadMore:'A\u011f\u0131 Geni\u015flet \u2193',loadingMore:'Taran\u0131yor...',linkPaste:'Link Yap\u0131\u015ft\u0131r & Tarat',linkGo:'Tarat',linkLoading:'Link taran\u0131yor...'},
-  en:{heroTitle:'Find the outfit<br>in the photo, <span class="text-gradient">exactly</span>.',heroSub:'Spot a fire outfit on Instagram, TikTok or IRL?<br>Screenshot it, let fitchy find every piece.',upload:'\u2728 Scan Outfit',auto:'\u2728 Auto Scan (Recommended)',manual:'\u2702\uFE0F Select Manually',trustBadge:'\uD83D\uDD0D Searching ZARA, NIKE, H&M and 500+ brands...',trendTitle:'\uD83D\uDD25 Trending Now',back:'\u2190 Back',cropHint:'\uD83D\uDC47 Frame the piece you want to search',manualPh:'What are you looking for?',find:'\uD83D\uDD0D Find Piece',cancel:'Cancel',loading:'Analyzing image...',loadingManual:'AI matching...',noResult:'No pieces detected.',noProd:'No exact match found.',retry:'\u2702\uFE0F Try Manual Selection',another:'\u2702\uFE0F Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u2728 Recommended',lensLabel:'\uD83C\uDFAF AI Match',goStore:'Shop \u2197',noPrice:'Check Price',alts:'\uD83D\uDCB8 Alternatives \u2192',navHome:'Explore',navFav:'Closet',aiMatch:'AI Verified',matchExact:'\u2705 Exact Match',matchClose:'\uD83D\uDD25 Close Match',matchSimilar:'\u2728 Similar Items',step_detect:'Detecting garments...',step_lens:'Scanning global stores...',step_match:'Matching products...',step_done:'Ready!',step_bg:'Preparing image...',step_search:'Scanning...',step_ai:'AI comparing details...',step_verify:'Verifying matches...',piecesFound:'pieces found',pickPiece:'Tap a piece to search',searchingPiece:'Searching...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces found. Try manual selection.',loadMore:'Expand Search \u2193',loadingMore:'Scanning...',linkPaste:'Paste Link & Scan',linkGo:'Scan',linkLoading:'Scanning link...'}
+  tr:{heroTitle:'G\u00f6rseldeki kombini<br><span class="text-gradient">birebir</span> bul.',heroSub:'Instagram\'da, TikTok\'ta veya sokakta k\u0131skand\u0131\u011f\u0131n o kombini an\u0131nda bul.<br>Ekran g\u00f6r\u00fcnt\u00fcs\u00fcn\u00fc y\u00fckle, gerisini fitchy\'ye b\u0131rak.',upload:'\u2728 Kombini Tarat',auto:'\u2728 Ak\u0131ll\u0131 Tarama (\u00d6nerilen)',manual:'\u2702\uFE0F Sadece Bir Par\u00e7a Se\u00e7',trustBadge:'\uD83D\uDD0D ZARA, NIKE, TRENDYOL ve 500+ markada aran\u0131yor...',trendTitle:'\uD83D\uDD25 \u015eu An Trend Olanlar',back:'\u2190 Geri',cropHint:'\uD83D\uDC47 Aramak istedi\u011fin par\u00e7ay\u0131 \u00e7er\u00e7evele',manualPh:'Ne ar\u0131yorsun? (Opsiyonel)',find:'\uD83D\uDD0D Par\u00e7ay\u0131 Bul',cancel:'\u0130ptal',loading:'Siber a\u011fa ba\u011flan\u0131l\u0131yor...',loadingManual:'AI e\u015fle\u015ftiriyor...',noResult:'Par\u00e7a tespit edilemedi.',noProd:'Bu par\u00e7a i\u00e7in e\u015fle\u015fme bulunamad\u0131.',retry:'\u2702\uFE0F Manuel Se\u00e7imi Dene',another:'\u2702\uFE0F Ba\u015fka Par\u00e7a Se\u00e7',selected:'Se\u00e7imin',lensMatch:'g\u00f6rsel e\u015fle\u015fme',recommended:'\u2728 \u00d6nerilen',lensLabel:'\uD83C\uDFAF AI E\u015fle\u015fmesi',goStore:'Sat\u0131n Al \u2197',noPrice:'Fiyat\u0131 G\u00f6r',alts:'\uD83D\uDCB8 Alternatifler \u2192',navHome:'Ke\u015ffet',navFav:'Dolap\u0131m',aiMatch:'AI Onayl\u0131',matchExact:'\u2705 Birebir E\u015fle\u015fme',matchClose:'\uD83D\uDD25 Y\u00fcksek Benzerlik',matchSimilar:'\u2728 Benzer \u00dcr\u00fcnler',step_detect:'K\u0131yafetler tespit ediliyor...',step_bg:'G\u00f6rsel haz\u0131rlan\u0131yor...',step_lens:'Ma\u011fazalar taran\u0131yor...',step_ai:'AI \u00fcr\u00fcnleri k\u0131yasl\u0131yor...',step_verify:'E\u015fle\u015fmeler do\u011frulan\u0131yor...',step_done:'Sonu\u00e7lar haz\u0131r!',piecesFound:'par\u00e7a bulundu',pickPiece:'Aramak istedi\u011fin par\u00e7aya dokun',searchingPiece:'\u00dcr\u00fcn aran\u0131yor...',backToPieces:'\u2190 Di\u011fer Par\u00e7alar',noDetect:'Par\u00e7a bulunamad\u0131. Manuel se\u00e7imi deneyin.',loadMore:'A\u011f\u0131 Geni\u015flet \u2193',loadingMore:'Taran\u0131yor...',linkPaste:'Link Yap\u0131\u015ft\u0131r & Tarat',linkGo:'Tarat',linkLoading:'Link taran\u0131yor...',comboBtn:'\u2728 Bunu Neyle Giyerim?',comboLoading:'AI kombin \u00f6nerisi haz\u0131rl\u0131yor...',comboTitle:'\uD83D\uDC57 AI Kombin \u00d6nerisi',verified:'Resmi Ma\u011faza',sponsored:'Sponsorlu Muadil'},
+  en:{heroTitle:'Find the outfit<br>in the photo, <span class="text-gradient">exactly</span>.',heroSub:'Spot a fire outfit on Instagram, TikTok or IRL?<br>Screenshot it, let fitchy find every piece.',upload:'\u2728 Scan Outfit',auto:'\u2728 Auto Scan (Recommended)',manual:'\u2702\uFE0F Select Manually',trustBadge:'\uD83D\uDD0D Searching ZARA, NIKE, H&M and 500+ brands...',trendTitle:'\uD83D\uDD25 Trending Now',back:'\u2190 Back',cropHint:'\uD83D\uDC47 Frame the piece you want to search',manualPh:'What are you looking for?',find:'\uD83D\uDD0D Find Piece',cancel:'Cancel',loading:'Analyzing image...',loadingManual:'AI matching...',noResult:'No pieces detected.',noProd:'No exact match found.',retry:'\u2702\uFE0F Try Manual Selection',another:'\u2702\uFE0F Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u2728 Recommended',lensLabel:'\uD83C\uDFAF AI Match',goStore:'Shop \u2197',noPrice:'Check Price',alts:'\uD83D\uDCB8 Alternatives \u2192',navHome:'Explore',navFav:'Closet',aiMatch:'AI Verified',matchExact:'\u2705 Exact Match',matchClose:'\uD83D\uDD25 Close Match',matchSimilar:'\u2728 Similar Items',step_detect:'Detecting garments...',step_lens:'Scanning global stores...',step_match:'Matching products...',step_done:'Ready!',step_bg:'Preparing image...',step_search:'Scanning...',step_ai:'AI comparing details...',step_verify:'Verifying matches...',piecesFound:'pieces found',pickPiece:'Tap a piece to search',searchingPiece:'Searching...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces found. Try manual selection.',loadMore:'Expand Search \u2193',loadingMore:'Scanning...',linkPaste:'Paste Link & Scan',linkGo:'Scan',linkLoading:'Scanning link...',comboBtn:'\u2728 What Goes With This?',comboLoading:'AI building outfit...',comboTitle:'\uD83D\uDC57 AI Outfit Suggestion',verified:'Official Store',sponsored:'Sponsored Dupe'}
 };
 var CC_LANG={tr:'tr',us:'en',uk:'en',de:'en',fr:'en',sa:'en',ae:'en',eg:'en'};
 function t(key){var lg=CC_LANG[CC]||'en';return(L[lg]||L.en)[key]||(L.en)[key]||key}
@@ -2888,7 +3089,7 @@ function goHome(){
 }
 
 // ─── SCAN LOGIC ───
-var _detectId='',_detectedPieces=[],_lastSearchQuery='',_lastShownLinks=[],_ldTimer=null,_busy=false;
+var _detectId='',_detectedPieces=[],_lastSearchQuery='',_lastShownLinks=[],_ldTimer=null,_busy=false,_currentPiece=null;
 
 function autoScan(){
   if(_busy)return;
@@ -2939,6 +3140,7 @@ function searchPiece(idx){
 }
 
 function renderPieceResult(p){
+  _currentPiece=p;  // Store for combo
   document.getElementById('prev').style.maxHeight='120px';
   var ra=document.getElementById('res');ra.style.display='block';
   var pr=p.products||[],lc=p.lens_count||0,hero=pr[0],alts=pr.slice(1);
@@ -2952,8 +3154,11 @@ function renderPieceResult(p){
   if(!hero){h+='<div class="glass" style="padding:20px;text-align:center;color:var(--muted);font-size:13px">'+t('noProd')+'</div>'}
   else{h+=heroHTML(hero,lc>0);if(alts.length>0)h+=altsHTML(alts)}
   h+='</div>';
-  if(_lastSearchQuery)h+='<button id="loadMoreBtn" class="btn-main" style="margin-top:16px;background:rgba(255,32,121,.1);color:var(--accent);border:1px solid rgba(255,32,121,.3)" onclick="loadMoreResults()">'+t('loadMore')+'</button>';
-  h+='<button class="btn-main" style="margin-top:16px;background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid rgba(0,229,255,.3)" onclick="backToPieces()">'+t('backToPieces')+'</button>';
+  // Combo button
+  h+='<button id="comboBtn" class="btn-main" style="margin-top:16px;background:linear-gradient(135deg,rgba(255,32,121,.15),rgba(77,0,255,.15));color:var(--accent);border:1px solid rgba(255,32,121,.4);box-shadow:0 0 20px rgba(255,32,121,.1)" onclick="loadCombo()">'+t('comboBtn')+'</button>';
+  h+='<div id="comboResults" style="display:none"></div>';
+  if(_lastSearchQuery)h+='<button id="loadMoreBtn" class="btn-main" style="margin-top:12px;background:rgba(255,32,121,.1);color:var(--accent);border:1px solid rgba(255,32,121,.3)" onclick="loadMoreResults()">'+t('loadMore')+'</button>';
+  h+='<button class="btn-main" style="margin-top:12px;background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid rgba(0,229,255,.3)" onclick="backToPieces()">'+t('backToPieces')+'</button>';
   ra.innerHTML=h;
 }
 
@@ -2990,14 +3195,18 @@ function heroHTML(p,isLens){
   var img=p.image||p.thumbnail||'';
   var verified=p.ai_verified;var score=p.match_score||0;
   var badgeText=verified?t('aiMatch'):(isLens?t('lensLabel'):t('recommended'));
-  var borderColor=verified?'rgba(0,229,255,.5)':'rgba(255,32,121,.5)';
+  var borderColor=verified?'rgba(0,229,255,.5)':p._verified?(p._verified.glow==='cyan'?'rgba(0,229,255,.5)':'rgba(34,197,94,.5)'):'rgba(255,32,121,.5)';
   var isFav=_hasFav(p.link);
   var safeT=(p.title||'').replace(/'/g,"\\'");var safeP=(p.price||'').replace(/'/g,"\\'");var safeB=(p.brand||'').replace(/'/g,"\\'");
   var imgUrl=img||'';
   var h='<div style="position:relative"><a href="'+p.link+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text)"><div class="glass hero" style="border-color:'+borderColor+'">';
   if(imgUrl)h+='<img src="'+imgUrl+'" data-orig="'+imgUrl+'" onerror="imgErr(this)">';
   h+='<div class="badge" style="'+(verified?'background:var(--cyan);color:#000':'')+'">'+badgeText+'</div>';
-  if(score>=7)h+='<div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,.8);color:var(--cyan);font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;border:1px solid rgba(0,229,255,.3);backdrop-filter:blur(4px)">'+score+'/10</div>';
+  // Verified/Sponsored badge
+  var vb=p._verified;
+  if(vb)h+='<div style="position:absolute;top:12px;right:12px;background:'+(vb.glow==='cyan'?'rgba(0,229,255,.9)':'rgba(34,197,94,.9)')+';color:#000;font-size:9px;font-weight:800;padding:4px 10px;border-radius:8px;backdrop-filter:blur(4px);letter-spacing:.3px">\u2611\uFE0F '+(vb.badge||t('verified'))+'</div>';
+  else if(p._sponsored)h+='<div style="position:absolute;top:12px;right:12px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;font-size:9px;font-weight:800;padding:4px 10px;border-radius:8px;backdrop-filter:blur(4px);letter-spacing:.3px">\u2728 '+t('sponsored')+'</div>';
+  else if(score>=7)h+='<div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,.8);color:var(--cyan);font-size:11px;font-weight:800;padding:4px 10px;border-radius:8px;border:1px solid rgba(0,229,255,.3);backdrop-filter:blur(4px)">'+score+'/10</div>';
   h+='<div class="info"><div class="t">'+p.title+'</div><div class="s">'+(p.brand||p.source||'')+'</div><div class="row"><span class="price">'+(p.price||t('noPrice'))+'</span><button class="btn">'+t('goStore')+'</button></div></div></div></a>';
   h+='<div onclick="toggleFav(event,\''+p.link+'\',\''+img+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\')" style="position:absolute;top:12px;right:'+(score>=7?'60px':'12px')+';background:rgba(0,0,0,.7);color:'+(isFav?'var(--accent)':'var(--text)')+';padding:8px;border-radius:50%;cursor:pointer;font-size:18px;z-index:10;line-height:1;backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.1)">'+(isFav?'\u2665':'\u2661')+'</div></div>';
   return h;
@@ -3009,10 +3218,11 @@ function altsHTML(list){
     var a=list[i];var img=a.thumbnail||a.image||'';var isFav=_hasFav(a.link);
     var safeT=(a.title||'').replace(/'/g,"\\'");var safeP=(a.price||'').replace(/'/g,"\\'");var safeB=(a.brand||a.source||'').replace(/'/g,"\\'");
     var imgUrl=img||'';
-    h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="glass card" style="'+(a.ai_verified?'border-color:rgba(0,229,255,.4)':'')+'">';
+    h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="glass card" style="'+(a.ai_verified?'border-color:rgba(0,229,255,.4)':a._verified?(a._verified.glow==='cyan'?'border-color:rgba(0,229,255,.3)':'border-color:rgba(34,197,94,.3)'):'')+';">';
     if(imgUrl)h+='<img src="'+imgUrl+'" data-orig="'+imgUrl+'" onerror="imgErr(this)">';
     h+='<div class="ci">';
-    if(a.ai_verified)h+='<div style="font-size:9px;color:var(--cyan);font-weight:800;margin-bottom:4px;letter-spacing:.5px">\u2713 '+t('aiMatch')+'</div>';
+    if(a._verified)h+='<div style="font-size:8px;color:'+(a._verified.glow==='cyan'?'var(--cyan)':'var(--green)')+';font-weight:800;margin-bottom:3px">\u2611\uFE0F '+(a._verified.badge||'')+'</div>';
+    else if(a.ai_verified)h+='<div style="font-size:9px;color:var(--cyan);font-weight:800;margin-bottom:4px;letter-spacing:.5px">\u2713 '+t('aiMatch')+'</div>';
     h+='<div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div>';
     h+='<div onclick="toggleFav(event,\''+a.link+'\',\''+img+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\')" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);color:'+(isFav?'var(--accent)':'var(--text)')+';padding:6px;border-radius:50%;cursor:pointer;font-size:14px;z-index:10;line-height:1;backdrop-filter:blur(4px)">'+(isFav?'\u2665':'\u2661')+'</div></a>';
   }
@@ -3039,6 +3249,41 @@ function showFavs(){if(_busy)return;
     h+='<div onclick="toggleFav(event,\''+f.link+'\',\''+(f.img||'')+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\');showFavs()" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);color:var(--accent);padding:6px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;backdrop-filter:blur(4px)">\u2665</div></div>';
   }
   ra.innerHTML=h+'</div><button class="btn-main" onclick="goHome()" style="margin-top:24px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:#fff">'+t('back')+'</button>';
+}
+
+// ─── OUTFIT COMBO ("Bunu Neyle Giyerim?") ───
+function loadCombo(){
+  if(!_currentPiece)return;
+  var btn=document.getElementById('comboBtn');
+  if(btn){btn.innerHTML='<div class="loader-orb" style="width:20px;height:20px;margin:0"></div> '+t('comboLoading');btn.onclick=null;btn.style.opacity='0.7'}
+  var body=JSON.stringify({category:_currentPiece.category,title:_currentPiece.short_title||'',brand:_currentPiece.brand||'',color:_currentPiece.color||'',style:_currentPiece.style_type||'',country:getCC()});
+  fetch('/api/outfit-combo',{method:'POST',headers:{'Content-Type':'application/json'},body:body})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(btn)btn.remove();
+    var cr=document.getElementById('comboResults');
+    if(!d.success||!d.suggestions||!d.suggestions.length){cr.style.display='block';cr.innerHTML='<div class="glass" style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Kombin önerisi oluşturulamadı</div>';return}
+    cr.style.display='block';
+    var h='<div style="margin-top:16px"><div style="font-size:15px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px" class="text-gradient">'+t('comboTitle')+'</div>';
+    for(var i=0;i<d.suggestions.length;i++){
+      var s=d.suggestions[i];var icon=IC[s.category]||'\uD83D\uDC55';
+      h+='<div class="glass" style="padding:16px;margin-bottom:12px;border-color:rgba(255,32,121,.2)">';
+      h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><span style="font-size:20px">'+icon+'</span><div><div style="font-size:14px;font-weight:700">'+(s.description||s.category)+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px;font-style:italic">'+(s.why||'')+'</div></div></div>';
+      if(s.products&&s.products.length){
+        h+='<div class="scroll" style="margin-top:8px">';
+        for(var j=0;j<s.products.length;j++){
+          var p=s.products[j];var img=p.thumbnail||p.image||'';
+          h+='<a href="'+p.link+'" target="_blank" rel="noopener" class="glass card" style="width:120px">';
+          if(img)h+='<img src="'+img+'" data-orig="'+img+'" onerror="imgErr(this)" style="width:120px;height:120px">';
+          h+='<div class="ci"><div class="cn">'+p.title+'</div><div class="cs">'+(p.brand||p.source||'')+'</div><div class="cp">'+(p.price||'')+'</div></div></a>';
+        }
+        h+='</div>';
+      }
+      h+='</div>';
+    }
+    h+='</div>';
+    cr.innerHTML=h;
+  }).catch(function(){if(btn){btn.innerHTML=t('comboBtn');btn.onclick=loadCombo;btn.style.opacity='1'}})
 }
 
 // ─── LOAD MORE ───
