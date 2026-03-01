@@ -161,7 +161,7 @@ BLOCKED = ["pinterest.", "instagram.", "facebook.", "twitter.", "x.com/", "tikto
     "/haber/", "/news/", "/noticias/", "/celebrit/", "/famous/",
     "/dizi/", "/series/", "/tv-show/", "/actress/", "/actor/",
     # v42: Blog / outfit inspiration / listicle sites
-    "verdicto.", "jennysgou.", "mynet.", "bestoutfitstoday.",
+    "verdicto.", "jennysgou.", "mynet.", "bestoutfitstoday.", "lemon8.", "lemon8.com",
     "thefashionspot.", "whowhatwear.", "stylecaster.",
     "thezoereport.", "thevou.", "fashionactivation.",
     "outfittrends.", "thetrendspotter.", "manofmany.",
@@ -372,7 +372,7 @@ def is_non_clothing_product(title):
     if re.search(r'\d+\+\s*(pieces|classy|best|outfit|style|essential|wardrobe|item|look)', tl):
         return True
     # "Most Popular", "Best Outfits" style listicle
-    if re.search(r'^(most popular|best \d|top \d|\d+ best)', tl):
+    if re.search(r'^(most popular|best \d|top \d|\d+ best|\d+ top|\d+ elegant|\d+ essential|\d+ must)', tl):
         return True
     return any(ncp in tl for ncp in NON_CLOTHING_PRODUCTS)
 
