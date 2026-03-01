@@ -311,6 +311,90 @@ def is_fashion(link, title, src):
 
 RIVAL_BRANDS = ["nike", "adidas", "puma", "zara", "hm", "bershka", "mango", "gucci", "prada", "balenciaga", "converse", "vans", "defacto", "koton", "lcw", "mavi", "colins", "levi", "tommy", "lacoste", "calvin klein", "massimo dutti", "pull&bear", "stradivarius"]
 
+# v42: COLOR CONFLICT MAP — renk uyumsuzluğu tespiti
+COLOR_CONFLICTS = {
+    "beyaz": ["siyah", "black", "gri", "gray", "grey", "antrasit", "koyu", "dark", "lacivert", "navy", "kahve", "brown", "bordo"],
+    "white": ["siyah", "black", "gri", "gray", "grey", "anthracite", "dark", "navy", "brown", "burgundy"],
+    "siyah": ["beyaz", "white", "krem", "cream", "bej", "beige", "pembe", "pink", "sarı", "yellow", "açık", "light"],
+    "black": ["beyaz", "white", "cream", "beige", "pink", "yellow", "light"],
+    "krem": ["siyah", "black", "gri", "gray", "lacivert", "navy", "koyu", "dark"],
+    "bej": ["siyah", "black", "gri", "gray", "lacivert", "navy", "koyu", "dark"],
+    "mavi": ["kırmızı", "red", "pembe", "pink", "sarı", "yellow", "turuncu", "orange", "bordo"],
+    "blue": ["red", "pink", "yellow", "orange", "burgundy"],
+    "kırmızı": ["mavi", "blue", "yeşil", "green", "gri", "gray", "lacivert", "navy"],
+    "red": ["blue", "green", "gray", "navy"],
+    "pembe": ["siyah", "black", "yeşil", "green", "lacivert", "navy", "kahve", "brown"],
+    "pink": ["black", "green", "navy", "brown"],
+    "lacivert": ["krem", "cream", "pembe", "pink", "sarı", "yellow", "kırmızı", "red", "turuncu"],
+    "navy": ["cream", "pink", "yellow", "red", "orange"],
+}
+
+# v42: SUB-TYPE CONFLICTS — aynı kategori içinde uyumsuz alt-tipler
+# gömlek ≠ süveter, tişört ≠ kazak, vb.
+SUB_TYPE_GROUPS = {
+    "top": {
+        "shirt": ["gömlek", "gomlek", "shirt", "bluz", "blouse"],
+        "tshirt": ["tişört", "tisort", "t-shirt", "tee", "tshirt"],
+        "sweater": ["kazak", "süveter", "triko", "sweater", "pullover", "jumper", "knit", "örgü"],
+        "hoodie": ["hoodie", "sweatshirt", "kapüşon", "kapşon"],
+        "polo": ["polo"],
+    },
+    "jacket": {
+        "blazer": ["blazer", "ceket"],
+        "bomber": ["bomber", "varsity"],
+        "coat": ["mont", "kaban", "coat", "parka", "puffer"],
+        "trench": ["trençkot", "trench"],
+        "cardigan": ["hırka", "cardigan"],
+        "vest": ["yelek", "vest"],
+    },
+    "bottom": {
+        "pants": ["pantolon", "pants", "trousers", "chino", "slacks"],
+        "jeans": ["jean", "denim", "jeans"],
+        "shorts": ["şort", "short", "bermuda"],
+        "skirt": ["etek", "skirt"],
+        "jogger": ["jogger", "eşofman", "sweatpant"],
+    },
+    "shoes": {
+        "sneaker": ["sneaker", "spor ayakkabı", "trainer", "runner"],
+        "boot": ["bot", "boot", "çizme"],
+        "loafer": ["loafer", "mokasen", "oxford"],
+        "sandal": ["sandalet", "sandal", "terlik"],
+        "heel": ["topuklu", "heel", "stiletto"],
+    },
+}
+
+def detect_color_conflict(piece_color, result_title):
+    """Parça rengi ile sonuç başlığındaki renk çelişiyor mu?"""
+    if not piece_color or piece_color in ["?", "none", ""]: return False
+    pc = piece_color.lower().strip()
+    rt = result_title.lower()
+    conflicts = COLOR_CONFLICTS.get(pc, [])
+    return any(c in rt for c in conflicts)
+
+def detect_subtype_conflict(piece_style, result_title, category):
+    """Aynı kategori içinde alt-tip çelişiyor mu? (gömlek vs süveter)"""
+    if not piece_style or not category: return False
+    groups = SUB_TYPE_GROUPS.get(category, {})
+    if not groups: return False
+    ps = piece_style.lower()
+    rt = result_title.lower()
+    # Parçanın hangi alt-grubunda olduğunu bul
+    piece_group = None
+    for group_name, keywords in groups.items():
+        if any(kw in ps for kw in keywords):
+            piece_group = group_name
+            break
+    if not piece_group: return False
+    # Sonucun hangi alt-grubunda olduğunu bul
+    result_group = None
+    for group_name, keywords in groups.items():
+        if any(kw in rt for kw in keywords):
+            result_group = group_name
+            break
+    if not result_group: return False
+    # Farklı gruplardaysa → çelişki
+    return piece_group != result_group
+
 def filter_rival_brands(results, piece_brand):
     if not piece_brand or piece_brand == "?" or len(piece_brand) < 3: return results
     brand_lower = piece_brand.lower().strip()
@@ -1188,6 +1272,8 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             brand = p.get("brand", "")
             visible_text = p.get("visible_text", "")
             cat = p.get("category", "")
+            piece_color = p.get("color", "")
+            piece_style = p.get("style_type", "")
 
             shop = piece_shop.get(i, [])
             matched_lens = piece_lens.get(i, [])
@@ -1205,6 +1291,7 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 """Universal scoring function for any channel."""
                 score = base_score
                 combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
+                rtitle = r.get("title", "")
 
                 # 🏆 EXACT LENS MATCH — same photo found on web
                 if r.get("_exact"):
@@ -1228,6 +1315,17 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 # Price & local bonus
                 if r.get("price"): score += 2
                 if r.get("is_local"): score += 3
+
+                # v42: COLOR PENALTY — beyaz ararken gri gelirse cezalandır
+                if detect_color_conflict(piece_color, rtitle):
+                    score -= 30
+                    print(f"      🎨 COLOR PENALTY: [{piece_color}] vs '{rtitle[:40]}'")
+
+                # v42: SUB-TYPE PENALTY — gömlek ararken süveter gelirse cezalandır
+                if detect_subtype_conflict(piece_style, rtitle, cat):
+                    score -= 25
+                    print(f"      👕 SUBTYPE PENALTY: [{piece_style}] vs '{rtitle[:40]}'")
+
                 return score
 
             seen = set()
@@ -1865,12 +1963,15 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
         shop_links = {r.get("link", "") for r in shop_results}
         lens_links = {r.get("link", "") for r in all_lens}
 
+        piece_color = p.get("color", "")
+        piece_style = p.get("style_type", "")
+
         def score_result(r, base_score=0):
             score = base_score
             combined = (r.get("title", "") + " " + r.get("link", "") + " " + r.get("source", "")).lower()
+            rtitle = r.get("title", "")
             if r.get("_exact"): score += 50; r["ai_verified"] = True
             link = r.get("link", "")
-            # Cross-channel: same product in both lens + shopping = reliable
             if link in shop_links and link in lens_links:
                 score += 25; r["ai_verified"] = True
             if brand and brand != "?" and len(brand) > 2 and brand.lower() in combined: score += 8
@@ -1879,6 +1980,12 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
                     if len(vt) > 2 and vt in combined: score += 10; break
             if r.get("price"): score += 2
             if r.get("is_local"): score += 3
+            # v42: COLOR PENALTY
+            if detect_color_conflict(piece_color, rtitle):
+                score -= 30
+            # v42: SUB-TYPE PENALTY
+            if detect_subtype_conflict(piece_style, rtitle, cat):
+                score -= 25
             return score
 
         seen = set()
