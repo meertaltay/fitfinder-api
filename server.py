@@ -4502,7 +4502,7 @@ function loadTrending_kesf(){
   var trends=[
     {tag:'Sessiz Lüks',emoji:'🤫',desc:'Quiet luxury trendi hâlâ güçlü'},
     {tag:'Kargo Pantolon',emoji:'👖',desc:'Y2K geri döndü, geniş kesim her yerde'},
-    {tag:'Bordo Sezon',emoji:'🍷',desc:'Kış'ın rengi: derin bordo tonları'},
+    {tag:'Bordo Sezon',emoji:'🍷',desc:'Kışın rengi: derin bordo tonları'},
     {tag:'Chunky Sneaker',emoji:'👟',desc:'Platform tabanlar yükselmeye devam'}
   ];
   var c=document.getElementById('kesfTrends');if(!c)return;
