@@ -2414,7 +2414,7 @@ async def proxy_img(url: str = ""):
                 "Sec-Fetch-Mode": "no-cors",
                 "Sec-Fetch-Site": "same-origin",
             })
-            if r.status_code == 200 and len(r.content) > 100:
+            if r.status_code == 200 and len(r.content) > 500:
                 ct = r.headers.get("content-type", "image/jpeg")
                 if "image" in ct or "octet" in ct:
                     # Upscale small images for better display quality
@@ -2501,7 +2501,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
 .card{flex-shrink:0;width:135px;background:var(--card);border-radius:10px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text)}
 .card.local{border-color:var(--accent)}
-.card img{width:135px;height:110px;object-fit:cover;display:block}
+.card img{width:135px;height:110px;object-fit:cover;display:block;background:linear-gradient(135deg,#1a1a2e,#16213e)}
 .card .ci{padding:8px}
 .card .cn{font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .card .cs{font-size:9px;color:var(--dim);margin-top:2px}
@@ -2651,7 +2651,7 @@ function loadTrending(){
       h+='<div class="sec-title">'+d.section_trending+'</div><div class="trend-scroll">';
       for(var i=0;i<d.products.length;i++){var p=d.products[i];
         h+='<a href="'+p.link+'" target="_blank" rel="noopener" class="trend-card">';
-        h+='<div class="tc-img"><img src="/api/img?url='+encodeURIComponent(p.img)+'" onerror="this.onerror=null;this.parentElement.classList.add(\'no-img\')"></div>';
+        h+='<div class="tc-img"><img src="'+p.img+'" data-orig="'+p.img+'" onerror="imgErr(this)"></div>';
         h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price">'+(p.price||t('noPrice'))+'</div></div></a>';}
       h+='</div>';
     }
@@ -2788,6 +2788,22 @@ function renderManual(d,cropSrc){
   ra.innerHTML=h+'<button class="btn-main btn-outline" onclick="showScreen()" style="margin-top:20px">'+t('another')+'</button>';
 }
 
+function imgErr(el){
+  el.onerror=null;
+  var orig=el.getAttribute('data-orig');
+  var tried=el.getAttribute('data-tried')||'0';
+  if(tried==='0'&&orig){
+    // Try 1 failed (direct load) → try proxy
+    el.setAttribute('data-tried','1');
+    el.onerror=imgErr;
+    el.src='/api/img?url='+encodeURIComponent(orig);
+  }else{
+    // Both failed → gradient placeholder
+    var d=document.createElement('div');
+    d.style.cssText='width:100%;height:100%;min-height:90px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f172a 100%)';
+    el.replaceWith(d);
+  }
+}
 function _getFavs(){try{return JSON.parse(localStorage.getItem('fitchy_favs')||'[]')}catch(e){return[]}}
 function _setFavs(f){try{localStorage.setItem('fitchy_favs',JSON.stringify(f))}catch(e){}}
 function _hasFav(link){try{return(localStorage.getItem('fitchy_favs')||'').indexOf(link)>-1}catch(e){return false}}
@@ -2795,13 +2811,13 @@ function toggleFav(e,link,img,title,price,brand){e.preventDefault();e.stopPropag
 
 function heroHTML(p,isLens){
   var img=p.image||p.thumbnail||'';var verified=p.ai_verified;var score=p.match_score||0;
-  var imgUrl=img?(img.indexOf('encrypted-tbn')>-1||img.indexOf('gstatic.com')>-1?'/api/img?url='+encodeURIComponent(img):img):'';
+  var imgUrl=img||'';
   var badgeText=verified?'\u2705 '+t('aiMatch'):(isLens?t('lensLabel'):t('recommended'));
   var borderColor=verified?'#6fcf7c':(isLens?'var(--green)':'var(--green)');
   var isFav=_hasFav(p.link);
   var safeT=(p.title||'').replace(/'/g,"\\'");var safeP=(p.price||'').replace(/'/g,"\\'");var safeB=(p.brand||'').replace(/'/g,"\\'");
   var h='<div style="position:relative"><a href="'+p.link+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text)"><div class="hero" style="border-color:'+borderColor+'">';
-  if(imgUrl)h+='<img src="'+imgUrl+'" onerror="if(this.src!==\'/api/img?url='+encodeURIComponent(p.thumbnail||'')+'\')this.src=\'/api/img?url='+encodeURIComponent(p.thumbnail||'')+'\'">';
+  if(imgUrl)h+='<img src="'+imgUrl+'" data-orig="'+imgUrl+'" onerror="imgErr(this)">';
   h+='<div class="badge" style="'+(verified?'background:#22c55e':'')+'">'+badgeText+'</div>';
   if(score>=7)h+='<div style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px">'+score+'/10</div>';
   h+='<div class="info"><div class="t">'+p.title+'</div><div class="s">'+(p.brand||p.source||'')+'</div><div class="row"><span class="price">'+(p.price||t('noPrice'))+'</span><button class="btn">'+t('goStore')+'</button></div></div></div></a>';
@@ -2814,9 +2830,9 @@ function altsHTML(list){
   for(var i=0;i<list.length;i++){
     var a=list[i];var img=a.thumbnail||a.image||'';var isFav=_hasFav(a.link);
     var safeT=(a.title||'').replace(/'/g,"\\'");var safeP=(a.price||'').replace(/'/g,"\\'");var safeB=(a.brand||a.source||'').replace(/'/g,"\\'");
-    var imgUrl=img?(img.indexOf('encrypted-tbn')>-1||img.indexOf('gstatic.com')>-1?'/api/img?url='+encodeURIComponent(img):img):'';
+    var imgUrl=img||'';
     h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' local':'')+'" style="'+(a.ai_verified?'border-color:#22c55e':'')+';position:relative">';
-    if(imgUrl)h+='<img src="'+imgUrl+'" onerror="this.hidden=true">';
+    if(imgUrl)h+='<img src="'+imgUrl+'" data-orig="'+imgUrl+'" onerror="imgErr(this)">';
     h+='<div class="ci">';
     if(a.ai_verified)h+='<div style="font-size:8px;color:#22c55e;font-weight:700;margin-bottom:2px">\u2705 '+t('aiMatch')+'</div>';
     h+='<div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div>';
@@ -2850,9 +2866,9 @@ function loadMoreResults(){
     container.innerHTML='<div style="font-size:11px;color:var(--dim);margin:12px 0">\u{1F50E} '+t('loadMore')+'</div><div class="scroll">'+d.products.map(function(a){
       var img=a.thumbnail||a.image||'';var isFav=_hasFav(a.link);
       var safeT=(a.title||'').replace(/'/g,"\\'");var safeP=(a.price||'').replace(/'/g,"\\'");var safeB=(a.brand||a.source||'').replace(/'/g,"\\'");
-      var imgUrl=img?(img.indexOf('encrypted-tbn')>-1||img.indexOf('gstatic.com')>-1?'/api/img?url='+encodeURIComponent(img):img):'';
+      var imgUrl=img||'';
       var h='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' local':'')+'" style="position:relative">';
-      if(imgUrl)h+='<img src="'+imgUrl+'" onerror="this.hidden=true">';
+      if(imgUrl)h+='<img src="'+imgUrl+'" data-orig="'+imgUrl+'" onerror="imgErr(this)">';
       h+='<div class="ci"><div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div>';
       h+='<div onclick="toggleFav(event,\''+a.link+'\',\''+img+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\')" style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.6);color:#fff;padding:4px;border-radius:50%;cursor:pointer;font-size:10px;z-index:10;line-height:1">'+(isFav?'\u2764\uFE0F':'\u{1F90D}')+'</div></a>';
       return h;
