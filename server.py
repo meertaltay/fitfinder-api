@@ -160,6 +160,14 @@ BLOCKED = ["pinterest.", "instagram.", "facebook.", "twitter.", "x.com/", "tikto
     "celebrity", "paparazzi", "gossip", "tabloid",
     "/haber/", "/news/", "/noticias/", "/celebrit/", "/famous/",
     "/dizi/", "/series/", "/tv-show/", "/actress/", "/actor/",
+    # v42: Blog / outfit inspiration / listicle sites
+    "verdicto.", "jennysgou.", "mynet.", "bestoutfitstoday.",
+    "thefashionspot.", "whowhatwear.", "stylecaster.",
+    "thezoereport.", "thevou.", "fashionactivation.",
+    "outfittrends.", "thetrendspotter.", "manofmany.",
+    "byrdie.", "instyle.", "marieclaire.",
+    "old money", "outfit inspo", "outfit idea",
+    "pieces-woman-needs", "pieces-you-need", "classy-winter",
     # v42: Social media profile viewer / stalker sites
     "twstalker", "sotwe.", "tweetdeck.", "nitter.", "threadreaderapp.",
     "socialblade.", "followerwonk.", "tweepi.", "twipu.",
@@ -303,6 +311,12 @@ NON_CLOTHING_PRODUCTS = [
     # v42: Search engines / image aggregators in title
     "yandex", "pinterest", "google görsel", "google images", "bing images",
     "görselleri görüntüle", "görselleri indirin", "görsel ara",
+    # v42: Blog / listicle / outfit inspiration titles (not products)
+    "pieces woman needs", "pieces you need", "must-have",
+    "outfit inspiration", "outfit inspo", "outfit idea",
+    "classy winter", "classy summer", "old money",
+    "best outfits", "style guide", "nasıl giyilir", "nasıl kombinlenir",
+    "modadaki ruh", "moda trendleri",
 ]
 
 # v42: Dropshipping / scam / spam site patterns
@@ -353,6 +367,12 @@ def is_non_clothing_product(title):
     tl = title.lower()
     # Social media profile detection: "@username" in title = not a product
     if re.search(r'@\w{2,}', title):
+        return True
+    # Listicle/blog detection: "20+ Pieces", "30+ Classy", "Best 10" etc.
+    if re.search(r'\d+\+\s*(pieces|classy|best|outfit|style|essential|wardrobe|item|look)', tl):
+        return True
+    # "Most Popular", "Best Outfits" style listicle
+    if re.search(r'^(most popular|best \d|top \d|\d+ best)', tl):
         return True
     return any(ncp in tl for ncp in NON_CLOTHING_PRODUCTS)
 
@@ -1404,14 +1424,23 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             # Lens results (per-piece crop + full exact = most reliable)
             for r in matched_lens:
                 if r["link"] in seen: continue
-                # _exact items (same photo found online) — NEVER filter, always include
+                lnk = r.get("link", "")
+                ttl = r.get("title", "")
+                # Even _exact items must pass domain-level blocks (blogs, social media, news)
+                if is_blocked(lnk):
+                    print(f"    ⛔ BLOCKED EXACT: {ttl[:50]} | {lnk[:60]}")
+                    continue
+                # Blog/article detection for exact matches
+                if r.get("_exact") and not is_fashion(lnk, ttl, r.get("source", "")):
+                    print(f"    ⛔ NON-FASHION EXACT: {ttl[:50]} | {r.get('source','')}")
+                    continue
                 if not r.get("_exact"):
                     # v42: Category mismatch filter (çanta ararken bardak gelmesin)
-                    if is_category_mismatch(r.get("title", ""), cat):
-                        print(f"    ⛔ CAT MISMATCH [{cat}]: {r.get('title','')[:50]}")
+                    if is_category_mismatch(ttl, cat):
+                        print(f"    ⛔ CAT MISMATCH [{cat}]: {ttl[:50]}")
                         continue
-                    if is_non_clothing_product(r.get("title", "")):
-                        print(f"    ⛔ NON-CLOTHING [{cat}]: {r.get('title','')[:50]}")
+                    if is_non_clothing_product(ttl):
+                        print(f"    ⛔ NON-CLOTHING [{cat}]: {ttl[:50]}")
                         continue
                 seen.add(r["link"])
                 r["_score"] = score_result(r, 18)
@@ -2101,10 +2130,14 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
         # Lens (highest priority)
         for r in all_lens:
             if r.get("link") and r["link"] not in seen:
+                lnk = r.get("link", "")
+                ttl = r.get("title", "")
+                if is_blocked(lnk): continue
+                if r.get("_exact") and not is_fashion(lnk, ttl, r.get("source", "")): continue
                 if not r.get("_exact"):
-                    if is_category_mismatch(r.get("title", ""), cat): continue
-                    if is_non_clothing_product(r.get("title", "")): continue
-                seen.add(r["link"])
+                    if is_category_mismatch(ttl, cat): continue
+                    if is_non_clothing_product(ttl): continue
+                seen.add(lnk)
                 r["_score"] = score_result(r, 18)
                 all_items.append(r)
 
