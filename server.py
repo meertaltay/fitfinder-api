@@ -1535,6 +1535,9 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 "match_level": match_level,
                 "crop_image": p.get("_crop_b64", ""),
             })
+            # Record for popular searches
+            if all_items and match_level in ("exact", "close"):
+                record_popular_search(p, all_items[0])
 
         return {"success": True, "pieces": results, "country": cc}
     except Exception as e:
@@ -1628,6 +1631,37 @@ async def manual_search(file: UploadFile = File(...), query: str = Form(""), cou
 # ─── TRENDING DATA (dynamic + curated) ───
 TRENDING_CACHE = {}  # lang → {brands, products, ts}
 TRENDING_TTL = 86400  # 24 saat cache
+
+# ─── POPULAR SEARCHES (app-internal tracking) ───
+POPULAR_SEARCHES = []  # [{query, img, title, brand, price, link, ts}]
+POPULAR_MAX = 12
+
+def record_popular_search(piece_data, top_product):
+    """Başarılı bir arama sonucunu popular searches'e kaydet."""
+    global POPULAR_SEARCHES
+    if not top_product or not top_product.get("link"): return
+    query = piece_data.get("short_title", piece_data.get("category", ""))
+    if not query: return
+    
+    # En iyi görseli bul (image > thumbnail)
+    img = top_product.get("image", "") or top_product.get("thumbnail", "")
+    if not img: return
+    
+    import time
+    entry = {
+        "query": query,
+        "img": img,
+        "title": top_product.get("title", "")[:40],
+        "brand": top_product.get("brand", "") or top_product.get("source", ""),
+        "price": top_product.get("price", ""),
+        "link": top_product.get("link", ""),
+        "ts": time.time(),
+    }
+    
+    # Aynı query varsa güncelle, yoksa ekle
+    POPULAR_SEARCHES = [p for p in POPULAR_SEARCHES if p["query"].lower() != query.lower()]
+    POPULAR_SEARCHES.insert(0, entry)
+    POPULAR_SEARCHES = POPULAR_SEARCHES[:POPULAR_MAX]
 
 BRAND_DATA = {
     "tr": [
@@ -1782,9 +1816,16 @@ def _fetch_trending_products(lang="tr"):
                     lnk = localize_url(lnk, cc)
                     snippet = item.get("snippet", "")
                     pr_match = re.search(r'(\d[\d.,]+)\s*(?:TL|₺|\$|€|£)', snippet)
+                    # Clean brand: extract domain name if raw URL
+                    brand_name = get_brand(lnk, src)
+                    if not brand_name:
+                        try:
+                            brand_name = urllib.parse.urlparse(lnk).netloc.replace("www.", "").split(".")[0].title()
+                        except:
+                            brand_name = src.split("/")[0] if "/" in src else src
                     products.append({
                         "title": ttl[:40],
-                        "brand": get_brand(lnk, src) or src,
+                        "brand": brand_name,
                         "img": enhance_thumbnail_url(thumb) or "",
                         "price": pr_match.group(0) if pr_match else "",
                         "link": make_affiliate(lnk),
@@ -1835,12 +1876,27 @@ async def trending(country: str = "tr", refresh: bool = False):
     cc = country.lower()
     lang = CC_LANG_MAP.get(cc, "en")
     if refresh:
-        TRENDING_CACHE.pop(lang, None)  # Cache temizle
+        TRENDING_CACHE.pop(lang, None)
     data = _get_trending(lang)
+    
+    # Use popular searches (app-internal) if available, otherwise Google trending
+    if POPULAR_SEARCHES:
+        popular_products = [{
+            "title": p["title"],
+            "brand": p["brand"],
+            "img": p["img"],
+            "price": p["price"],
+            "link": p["link"],
+        } for p in POPULAR_SEARCHES]
+        section_trending = "🔥 Popüler Aramalar" if lang == "tr" else "🔥 Popular Searches"
+    else:
+        popular_products = data["products"]
+        section_trending = data["section_trending"]
+    
     return {"success": True,
             "brands": [{"name": b["name"], "url": b.get("url", ""), "domain": b.get("domain", "")} for b in data["brands"]],
-            "products": data["products"],
-            "section_brands": data["section_brands"], "section_trending": data["section_trending"]}
+            "products": popular_products,
+            "section_brands": data["section_brands"], "section_trending": section_trending}
 
 # ─── BRAND LOGO SVG ENDPOINT ───
 @app.get("/api/logo")
@@ -2214,6 +2270,10 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
                 crop_b64 = "data:image/jpeg;base64," + base64.b64encode(t_buf.getvalue()).decode()
             except: pass
 
+        # Record for popular searches
+        if all_items and match_level in ("exact", "close"):
+            record_popular_search(p, all_items[0])
+
         return {
             "success": True,
             "piece": {
@@ -2453,15 +2513,15 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .brand-chip .b-logo{width:48px;height:48px;border-radius:12px;margin:0 auto 6px;overflow:hidden}
 .brand-chip .b-name{font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trend-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:28px}
-.trend-card{flex-shrink:0;width:150px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s}
+.trend-card{flex-shrink:0;width:170px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s}
 .trend-card:hover{border-color:var(--accent)}
-.trend-card .tc-img{width:150px;height:170px;overflow:hidden;background:#1a1a1a;display:flex;align-items:center;justify-content:center}
+.trend-card .tc-img{width:170px;height:200px;overflow:hidden;background:#1a1a1a;display:flex;align-items:center;justify-content:center}
 .trend-card .tc-img img{width:100%;height:100%;object-fit:cover;display:block;image-rendering:auto;-webkit-image-smoothing:high}
 .trend-card .tc-img.no-img{background:linear-gradient(135deg,#1a1a1a,#2a2a2a)}
 .trend-card .tc-img.no-img img{display:none}
 .trend-card .tc-info{padding:10px}
 .trend-card .tc-title{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.trend-card .tc-brand{font-size:9px;color:var(--muted);margin-top:2px}
+.trend-card .tc-brand{font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trend-card .tc-price{font-size:14px;font-weight:700;color:var(--accent);margin-top:4px}
 </style>
 </head>
@@ -2734,12 +2794,13 @@ function toggleFav(e,link,img,title,price,brand){e.preventDefault();e.stopPropag
 
 function heroHTML(p,isLens){
   var img=p.image||p.thumbnail||'';var verified=p.ai_verified;var score=p.match_score||0;
+  var imgUrl=img?(img.indexOf('encrypted-tbn')>-1||img.indexOf('gstatic.com')>-1?'/api/img?url='+encodeURIComponent(img):img):'';
   var badgeText=verified?'\u2705 '+t('aiMatch'):(isLens?t('lensLabel'):t('recommended'));
   var borderColor=verified?'#6fcf7c':(isLens?'var(--green)':'var(--green)');
   var isFav=_hasFav(p.link);
   var safeT=(p.title||'').replace(/'/g,"\\'");var safeP=(p.price||'').replace(/'/g,"\\'");var safeB=(p.brand||'').replace(/'/g,"\\'");
   var h='<div style="position:relative"><a href="'+p.link+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--text)"><div class="hero" style="border-color:'+borderColor+'">';
-  if(img)h+='<img src="'+img+'" onerror="if(this.src!==\''+p.thumbnail+'\')this.src=\''+p.thumbnail+'\'">';
+  if(imgUrl)h+='<img src="'+imgUrl+'" onerror="if(this.src!==\'/api/img?url='+encodeURIComponent(p.thumbnail||'')+'\')this.src=\'/api/img?url='+encodeURIComponent(p.thumbnail||'')+'\'">';
   h+='<div class="badge" style="'+(verified?'background:#22c55e':'')+'">'+badgeText+'</div>';
   if(score>=7)h+='<div style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px">'+score+'/10</div>';
   h+='<div class="info"><div class="t">'+p.title+'</div><div class="s">'+(p.brand||p.source||'')+'</div><div class="row"><span class="price">'+(p.price||t('noPrice'))+'</span><button class="btn">'+t('goStore')+'</button></div></div></div></a>';
@@ -2752,8 +2813,9 @@ function altsHTML(list){
   for(var i=0;i<list.length;i++){
     var a=list[i];var img=a.thumbnail||a.image||'';var isFav=_hasFav(a.link);
     var safeT=(a.title||'').replace(/'/g,"\\'");var safeP=(a.price||'').replace(/'/g,"\\'");var safeB=(a.brand||a.source||'').replace(/'/g,"\\'");
+    var imgUrl=img?(img.indexOf('encrypted-tbn')>-1||img.indexOf('gstatic.com')>-1?'/api/img?url='+encodeURIComponent(img):img):'';
     h+='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' local':'')+'" style="'+(a.ai_verified?'border-color:#22c55e':'')+';position:relative">';
-    if(img)h+='<img src="'+img+'" onerror="this.hidden=true">';
+    if(imgUrl)h+='<img src="'+imgUrl+'" onerror="this.hidden=true">';
     h+='<div class="ci">';
     if(a.ai_verified)h+='<div style="font-size:8px;color:#22c55e;font-weight:700;margin-bottom:2px">\u2705 '+t('aiMatch')+'</div>';
     h+='<div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div>';
@@ -2787,8 +2849,9 @@ function loadMoreResults(){
     container.innerHTML='<div style="font-size:11px;color:var(--dim);margin:12px 0">\u{1F50E} '+t('loadMore')+'</div><div class="scroll">'+d.products.map(function(a){
       var img=a.thumbnail||a.image||'';var isFav=_hasFav(a.link);
       var safeT=(a.title||'').replace(/'/g,"\\'");var safeP=(a.price||'').replace(/'/g,"\\'");var safeB=(a.brand||a.source||'').replace(/'/g,"\\'");
+      var imgUrl=img?(img.indexOf('encrypted-tbn')>-1||img.indexOf('gstatic.com')>-1?'/api/img?url='+encodeURIComponent(img):img):'';
       var h='<a href="'+a.link+'" target="_blank" rel="noopener" class="card'+(a.is_local?' local':'')+'" style="position:relative">';
-      if(img)h+='<img src="'+img+'" onerror="this.hidden=true">';
+      if(imgUrl)h+='<img src="'+imgUrl+'" onerror="this.hidden=true">';
       h+='<div class="ci"><div class="cn">'+a.title+'</div><div class="cs">'+(a.brand||a.source)+'</div><div class="cp">'+(a.price||'\u2014')+'</div></div>';
       h+='<div onclick="toggleFav(event,\''+a.link+'\',\''+img+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\')" style="position:absolute;top:5px;right:5px;background:rgba(0,0,0,.6);color:#fff;padding:4px;border-radius:50%;cursor:pointer;font-size:10px;z-index:10;line-height:1">'+(isFav?'\u2764\uFE0F':'\u{1F90D}')+'</div></a>';
       return h;
