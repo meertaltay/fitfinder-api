@@ -3227,6 +3227,82 @@ async def radar_feed(page: int = 0, limit: int = 10):
     _rand.shuffle(cards)
     return {"success": True, "cards": cards[page*limit:(page+1)*limit]}
 
+
+@app.get("/api/radar-stories")
+async def radar_stories():
+    """Return active Arena users for story bar + demo stories."""
+    stories = []
+    seen_nicknames = set()
+    now = time.time()
+
+    # Real arena entries (newest first, unique per nickname)
+    for e in ARENA_POOL:
+        if e["reported"] >= 3:
+            continue
+        nick = e["nickname"]
+        if nick in seen_nicknames:
+            continue
+        seen_nicknames.add(nick)
+        age_min = (now - e["ts"]) / 60
+        stories.append({
+            "id": e["id"],
+            "nickname": nick,
+            "ai_score": e["ai_score"],
+            "emoji": e["emoji"],
+            "has_image": bool(e.get("image")),
+            "total_votes": e["ups"] + e["downs"],
+            "age_min": round(age_min),
+            "is_fresh": age_min < 60,  # < 1 hour = neon bright ring
+        })
+        if len(stories) >= 15:
+            break
+
+    # If not enough real stories, pad with demo
+    if len(stories) < 8:
+        demo_needed = 8 - len(stories)
+        _rand.seed(int(now / 600))  # Refresh demo every 10min
+        for i in range(demo_needed):
+            u = _DEMO_USERS[i % len(_DEMO_USERS)]
+            if u[0] in seen_nicknames:
+                continue
+            seen_nicknames.add(u[0])
+            age = _rand.randint(5, 300)
+            stories.append({
+                "id": f"demo_{i}",
+                "nickname": u[0],
+                "ai_score": _rand.randint(45, 95),
+                "emoji": _rand.choice(["🔥", "💅", "😬", "💀", "✨"]),
+                "has_image": False,
+                "total_votes": _rand.randint(2, 80),
+                "age_min": age,
+                "is_fresh": age < 60,
+                "is_demo": True,
+            })
+
+    return {"success": True, "stories": stories}
+
+
+@app.get("/api/radar-story-entry/{entry_id}")
+async def radar_story_entry(entry_id: str):
+    """Get full Arena entry for story viewer."""
+    for e in ARENA_POOL:
+        if e["id"] == entry_id and e["reported"] < 3:
+            return {
+                "success": True,
+                "entry": {
+                    "id": e["id"],
+                    "image": e["image"],
+                    "nickname": e["nickname"],
+                    "ai_score": e["ai_score"],
+                    "emoji": e["emoji"],
+                    "roast": e.get("roast", ""),
+                    "ups": e["ups"],
+                    "downs": e["downs"],
+                    "total_votes": e["ups"] + e["downs"],
+                }
+            }
+    return {"success": False, "message": "Entry not found"}
+
 # ─── VIRTUAL TRY-ON (Sanal Kabin) ───
 VTON_STORE = {}
 
@@ -3545,6 +3621,24 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .rcard-items .ritem .ritem-name{font-weight:700;color:var(--text);margin-bottom:2px}
 .rcard-items .ritem .ritem-price{color:var(--cyan);font-weight:800;font-size:12px}
 
+/* 📡 Radar Story Bar */
+.radar-story-bar{display:flex;gap:14px;padding:14px 16px 10px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-shrink:0}
+.radar-story-bar::-webkit-scrollbar{display:none}
+.radar-story-item{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;scroll-snap-align:start;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.radar-story-item:active .story-ring{transform:scale(.93)}
+.story-ring{width:56px;height:56px;border-radius:50%;padding:2.5px;transition:transform .2s,opacity .2s}
+.story-ring.fresh{background:conic-gradient(from 0deg,var(--accent),var(--cyan),var(--purple),var(--accent));box-shadow:0 0 12px rgba(255,32,121,.35),0 0 24px rgba(0,229,255,.2)}
+.story-ring.seen{background:conic-gradient(from 0deg,rgba(255,32,121,.3),rgba(0,229,255,.3),rgba(77,0,255,.3),rgba(255,32,121,.3));opacity:.55}
+.story-ring-inner{width:100%;height:100%;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;border:2px solid var(--bg);overflow:hidden;position:relative}
+.story-ring-inner .story-score-badge{position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);font-size:8px;font-weight:900;padding:1px 5px;border-radius:6px;background:var(--bg);border:1.5px solid var(--cyan);color:var(--cyan);white-space:nowrap;line-height:1.3}
+.radar-story-name{font-size:10px;font-weight:600;color:var(--text);max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.radar-story-add{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.04);border:2px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:24px;transition:all .2s}
+.radar-story-add:hover{border-color:var(--accent);background:rgba(255,32,121,.08)}
+@keyframes storyPulse{0%,100%{box-shadow:0 0 12px rgba(255,32,121,.35),0 0 24px rgba(0,229,255,.2)}50%{box-shadow:0 0 18px rgba(255,32,121,.5),0 0 36px rgba(0,229,255,.35)}}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.story-ring.fresh{animation:storyPulse 2.5s ease-in-out infinite}
+.radar-story-bar .skeleton-story{width:56px;height:56px;border-radius:50%;background:linear-gradient(90deg,rgba(255,255,255,.03) 25%,rgba(255,255,255,.06) 50%,rgba(255,255,255,.03) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;flex-shrink:0}
+
 /* VTON Modal */
 .vton-modal{position:fixed;inset:0;z-index:1000;background:rgba(5,2,10,.95);backdrop-filter:blur(30px);display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px}
 .vton-modal.show{display:flex}
@@ -3683,6 +3777,18 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
     <div onclick="closeRadar()" style="cursor:pointer;color:var(--muted);font-size:14px;font-weight:600">← Geri</div>
     <div style="font-size:18px;font-weight:900;letter-spacing:1px"><span style="font-size:16px">📡</span> <span class="text-gradient">Radar</span></div>
     <div id="radarBadge" style="font-size:11px;color:var(--muted);font-weight:600"></div>
+  </div>
+  <!-- Story Bar -->
+  <div class="radar-story-bar" id="radarStoryBar">
+    <div class="radar-story-item" onclick="storyAddTap()">
+      <div class="radar-story-add">＋</div>
+      <div class="radar-story-name" id="storyAddLabel">Sıra Sende</div>
+    </div>
+    <div class="skeleton-story"></div>
+    <div class="skeleton-story"></div>
+    <div class="skeleton-story"></div>
+    <div class="skeleton-story"></div>
+    <div class="skeleton-story"></div>
   </div>
   <div id="radarFeed" style="flex:1;overflow-y:auto;padding:16px 16px 120px;display:flex;flex-direction:column;gap:14px">
   </div>
@@ -4615,6 +4721,8 @@ function submitToHof(score,emoji,roast){
 
 // ─── 📡 RADAR FEED ───
 var _radarPage=0;
+var _seenStories={};  // Track seen story IDs
+
 function openRadar(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
   document.querySelectorAll('.bnav-item')[1].classList.add('active');
@@ -4622,11 +4730,131 @@ function openRadar(){
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='none';
   _radarPage=0;
+  loadRadarStories();
   loadRadarFeed();
 }
 function closeRadar(){
   document.getElementById('radarScreen').classList.remove('show');
   goHome();
+}
+
+// Story bar
+function loadRadarStories(){
+  var bar=document.getElementById('radarStoryBar');
+  var isTr=CC_LANG[CC]==='tr';
+  document.getElementById('storyAddLabel').textContent=isTr?'Sıra Sende':'Your Turn';
+  fetch('/api/radar-stories').then(function(r){return r.json()}).then(function(d){
+    // Remove skeleton loaders
+    var skeletons=bar.querySelectorAll('.skeleton-story');
+    skeletons.forEach(function(s){s.remove()});
+    // Remove old story items (keep the add button)
+    var oldItems=bar.querySelectorAll('.radar-story-user');
+    oldItems.forEach(function(s){s.remove()});
+
+    if(!d.success||!d.stories)return;
+    var colors=['#ff2079','#4d00ff','#00e5ff','#ffbe0b','#f44336','#00bcd4','#e040fb','#ff6e40'];
+    for(var i=0;i<d.stories.length;i++){
+      var s=d.stories[i];
+      var el=document.createElement('div');
+      el.className='radar-story-item radar-story-user';
+      var isSeen=_seenStories[s.id];
+      var ringClass=(!isSeen&&s.is_fresh)?'fresh':'seen';
+      var avatarColor=colors[s.nickname.charCodeAt(0)%colors.length];
+      var initial=s.nickname[0].toUpperCase();
+      el.innerHTML='<div class="story-ring '+ringClass+'"><div class="story-ring-inner" style="background:'+avatarColor+'">'+initial+'<div class="story-score-badge">'+s.emoji+s.ai_score+'</div></div></div><div class="radar-story-name">'+s.nickname+'</div>';
+      el.setAttribute('data-story-id',s.id);
+      el.setAttribute('data-is-demo',s.is_demo?'1':'0');
+      el.setAttribute('data-nickname',s.nickname);
+      el.setAttribute('data-score',s.ai_score);
+      el.setAttribute('data-emoji',s.emoji);
+      el.onclick=(function(storyData,element){
+        return function(){openRadarStory(storyData,element)};
+      })(s,el);
+      bar.appendChild(el);
+    }
+  }).catch(function(){
+    var skeletons=bar.querySelectorAll('.skeleton-story');
+    skeletons.forEach(function(s){s.remove()});
+  });
+}
+
+function storyAddTap(){
+  closeRadar();
+  setTimeout(function(){startFitCheck()},200);
+}
+
+function openRadarStory(storyData,el){
+  var isTr=CC_LANG[CC]==='tr';
+
+  // Mark as seen
+  _seenStories[storyData.id]=true;
+  var ring=el.querySelector('.story-ring');
+  if(ring){ring.className='story-ring seen'}
+
+  // If demo entry, show teaser modal
+  if(storyData.is_demo||storyData.id.toString().startsWith('demo')){
+    showDemoStoryModal(storyData);
+    return;
+  }
+
+  // Real entry — fetch full data and open story modal
+  document.getElementById('storyModal').style.display='flex';
+  document.body.style.overflow='hidden';
+
+  // Set header
+  document.getElementById('storyHandle').textContent='@'+storyData.nickname.toLowerCase().replace(/\s/g,'_');
+  document.getElementById('storyStatusTxt').textContent=isTr?'Arenada Yarışıyor':'Competing in Arena';
+
+  // Set avatar
+  var colors=['#ff2079','#4d00ff','#00e5ff','#ffbe0b','#f44336','#00bcd4','#e040fb','#ff6e40'];
+  var avatarColor=colors[storyData.nickname.charCodeAt(0)%colors.length];
+  var avatarEl=document.getElementById('storyAvatarImg');
+  avatarEl.src='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="'+encodeURIComponent(avatarColor)+'" width="100" height="100" rx="50"/><text x="50" y="62" text-anchor="middle" fill="white" font-size="40" font-weight="bold">'+storyData.nickname[0].toUpperCase()+'</text></svg>';
+
+  // Show loading state
+  document.getElementById('storyArenaCard').style.display='none';
+  document.getElementById('storyBtns').style.display='none';
+  var empty=document.getElementById('storyEmpty');
+  empty.style.display='block';
+  document.getElementById('storyEmptyTitle').textContent=isTr?'Yükleniyor...':'Loading...';
+  document.getElementById('storyEmptySub').innerHTML='<div class="loader-orb" style="width:32px;height:32px;margin:12px auto"></div>';
+
+  // Fetch full entry
+  fetch('/api/radar-story-entry/'+storyData.id).then(function(r){return r.json()}).then(function(d){
+    if(d.success&&d.entry){
+      _activeStoryEntry=d.entry;
+      renderStoryCard();
+    }else{
+      showStoryEmpty();
+    }
+  }).catch(function(){
+    showStoryEmpty();
+  });
+}
+
+function showDemoStoryModal(storyData){
+  var isTr=CC_LANG[CC]==='tr';
+  document.getElementById('storyModal').style.display='flex';
+  document.body.style.overflow='hidden';
+
+  // Header
+  document.getElementById('storyHandle').textContent='@'+storyData.nickname.toLowerCase().replace(/\s/g,'.');
+  document.getElementById('storyStatusTxt').textContent=storyData.emoji+' '+storyData.ai_score+'/100';
+
+  // Avatar
+  var colors=['#ff2079','#4d00ff','#00e5ff','#ffbe0b','#f44336','#00bcd4','#e040fb','#ff6e40'];
+  var avatarColor=colors[storyData.nickname.charCodeAt(0)%colors.length];
+  document.getElementById('storyAvatarImg').src='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="'+encodeURIComponent(avatarColor)+'" width="100" height="100" rx="50"/><text x="50" y="62" text-anchor="middle" fill="white" font-size="40" font-weight="bold">'+storyData.nickname[0].toUpperCase()+'</text></svg>';
+
+  // Show demo placeholder
+  document.getElementById('storyArenaCard').style.display='none';
+  document.getElementById('storyBtns').style.display='none';
+  var empty=document.getElementById('storyEmpty');
+  empty.style.display='block';
+  document.getElementById('storyEmptyTitle').textContent=storyData.nickname+' '+storyData.emoji;
+  var voteStr=storyData.total_votes+(isTr?' oy aldı':' votes');
+  var scoreStr=(isTr?'AI Skoru: ':'AI Score: ')+storyData.ai_score+'/100';
+  document.getElementById('storyEmptySub').innerHTML='<div style="font-size:64px;margin-bottom:16px">'+storyData.emoji+'</div><div style="font-size:20px;font-weight:900;color:var(--text);margin-bottom:6px">'+scoreStr+'</div><div style="font-size:13px;color:var(--muted);margin-bottom:20px">'+voteStr+'</div><button onclick="closeStory();startFitCheck()" style="background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 '+(isTr?'Sen de Katıl':'Join the Arena')+'</button>';
 }
 function loadRadarFeed(){
   var feed=document.getElementById('radarFeed');
