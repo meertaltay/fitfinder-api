@@ -1395,43 +1395,43 @@ TRENDING_TTL = 86400  # 24 saat cache
 
 BRAND_DATA = {
     "tr": [
-        {"name": "Zara", "domain": "zara.com", "q": "zara kıyafet"},
-        {"name": "Bershka", "domain": "bershka.com", "q": "bershka giyim"},
-        {"name": "Mango", "domain": "mango.com", "q": "mango kadın giyim"},
-        {"name": "Nike", "domain": "nike.com", "q": "nike ayakkabı"},
-        {"name": "Adidas", "domain": "adidas.com", "q": "adidas originals"},
-        {"name": "H&M", "domain": "hm.com", "q": "h&m giyim"},
-        {"name": "Koton", "domain": "koton.com", "q": "koton giyim"},
-        {"name": "Pull&Bear", "domain": "pullandbear.com", "q": "pull bear giyim"},
+        {"name": "Zara", "domain": "zara.com", "url": "https://www.zara.com/tr/", "logo": "https://logo.clearbit.com/zara.com"},
+        {"name": "Bershka", "domain": "bershka.com", "url": "https://www.bershka.com/tr/", "logo": "https://logo.clearbit.com/bershka.com"},
+        {"name": "Mango", "domain": "mango.com", "url": "https://shop.mango.com/tr", "logo": "https://logo.clearbit.com/mango.com"},
+        {"name": "Nike", "domain": "nike.com", "url": "https://www.nike.com/tr/", "logo": "https://logo.clearbit.com/nike.com"},
+        {"name": "Adidas", "domain": "adidas.com", "url": "https://www.adidas.com.tr/", "logo": "https://logo.clearbit.com/adidas.com"},
+        {"name": "H&M", "domain": "hm.com", "url": "https://www2.hm.com/tr_tr/", "logo": "https://logo.clearbit.com/hm.com"},
+        {"name": "Koton", "domain": "koton.com", "url": "https://www.koton.com/", "logo": "https://logo.clearbit.com/koton.com"},
+        {"name": "Pull&Bear", "domain": "pullandbear.com", "url": "https://www.pullandbear.com/tr/", "logo": "https://logo.clearbit.com/pullandbear.com"},
     ],
     "en": [
-        {"name": "Zara", "domain": "zara.com", "q": "zara clothing"},
-        {"name": "Nike", "domain": "nike.com", "q": "nike shoes"},
-        {"name": "Adidas", "domain": "adidas.com", "q": "adidas originals"},
-        {"name": "H&M", "domain": "hm.com", "q": "h&m clothing"},
-        {"name": "Mango", "domain": "mango.com", "q": "mango women clothing"},
-        {"name": "Uniqlo", "domain": "uniqlo.com", "q": "uniqlo basics"},
-        {"name": "COS", "domain": "cosstores.com", "q": "cos clothing"},
-        {"name": "ASOS", "domain": "asos.com", "q": "asos fashion"},
+        {"name": "Zara", "domain": "zara.com", "url": "https://www.zara.com/", "logo": "https://logo.clearbit.com/zara.com"},
+        {"name": "Nike", "domain": "nike.com", "url": "https://www.nike.com/", "logo": "https://logo.clearbit.com/nike.com"},
+        {"name": "Adidas", "domain": "adidas.com", "url": "https://www.adidas.com/", "logo": "https://logo.clearbit.com/adidas.com"},
+        {"name": "H&M", "domain": "hm.com", "url": "https://www2.hm.com/", "logo": "https://logo.clearbit.com/hm.com"},
+        {"name": "Mango", "domain": "mango.com", "url": "https://shop.mango.com/", "logo": "https://logo.clearbit.com/mango.com"},
+        {"name": "Uniqlo", "domain": "uniqlo.com", "url": "https://www.uniqlo.com/", "logo": "https://logo.clearbit.com/uniqlo.com"},
+        {"name": "COS", "domain": "cosstores.com", "url": "https://www.cos.com/", "logo": "https://logo.clearbit.com/cosstores.com"},
+        {"name": "ASOS", "domain": "asos.com", "url": "https://www.asos.com/", "logo": "https://logo.clearbit.com/asos.com"},
     ],
 }
 
 TRENDING_QUERIES = {
     "tr": [
-        "oversize deri ceket erkek",
-        "varsity bomber ceket",
-        "nike air force 1",
-        "adidas samba og",
+        "kadın trençkot 2025",
+        "kadın blazer ceket",
+        "nike dunk low kadın",
+        "kadın deri omuz çantası",
         "wide leg jean kadın",
-        "oversize tişört",
+        "erkek bomber ceket",
     ],
     "en": [
-        "oversized leather jacket",
-        "varsity bomber jacket",
-        "nike air force 1",
-        "adidas samba og",
+        "women trench coat 2025",
+        "women blazer jacket",
+        "nike dunk low women",
+        "women leather shoulder bag",
         "wide leg jeans women",
-        "oversized tee",
+        "men bomber jacket",
     ],
 }
 
@@ -1582,7 +1582,9 @@ async def trending(country: str = "tr", refresh: bool = False):
     if refresh:
         TRENDING_CACHE.pop(lang, None)  # Cache temizle
     data = _get_trending(lang)
-    return {"success": True, "brands": data["brands"], "products": data["products"],
+    return {"success": True,
+            "brands": [{"name": b["name"], "url": b.get("url", ""), "logo": b.get("logo", ""), "domain": b.get("domain", "")} for b in data["brands"]],
+            "products": data["products"],
             "section_brands": data["section_brands"], "section_trending": data["section_trending"]}
 
 # ─── BRAND LOGO SVG ENDPOINT ───
@@ -2069,9 +2071,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;background:rgba(10,10,12,.93);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;padding:8px 0 22px;z-index:50}
 .sec-title{font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .brand-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:28px}
-.brand-chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 6px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s}
+.brand-chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 6px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s;text-decoration:none;display:block}
 .brand-chip:hover,.brand-chip:active{border-color:var(--accent);transform:scale(1.04)}
-.brand-chip .b-logo{width:48px;height:48px;border-radius:12px;margin:0 auto 6px;display:block}
+.brand-chip .b-logo{width:48px;height:48px;border-radius:12px;margin:0 auto 6px;display:block;object-fit:contain;background:#fff;padding:4px}
+.brand-chip .b-fallback{width:48px;height:48px;border-radius:12px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;background:var(--accent);color:#000;font-weight:800;font-size:14px;letter-spacing:-0.5px}
 .brand-chip .b-name{font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trend-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:28px}
 .trend-card{flex-shrink:0;width:150px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s}
@@ -2187,7 +2190,15 @@ function loadTrending(){
     if(d.brands&&d.brands.length){
       h+='<div class="sec-title">'+d.section_brands+'</div><div class="brand-grid">';
       for(var i=0;i<d.brands.length;i++){var b=d.brands[i];
-        h+='<div class="brand-chip"><img class="b-logo" src="/api/logo?name='+encodeURIComponent(b.name)+'"><div class="b-name">'+b.name+'</div></div>';}
+        var shortName=b.name.replace('&','').substring(0,4).toUpperCase();
+        h+='<a href="'+(b.url||'#')+'" target="_blank" rel="noopener" class="brand-chip">';
+        if(b.logo){
+          h+='<img class="b-logo" src="'+b.logo+'" alt="'+b.name+'" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">';
+          h+='<div class="b-fallback" style="display:none">'+shortName+'</div>';
+        }else{
+          h+='<div class="b-fallback">'+shortName+'</div>';
+        }
+        h+='<div class="b-name">'+b.name+'</div></a>';}
       h+='</div>';
     }
     // Trending products with real images from SerpAPI
@@ -2196,7 +2207,7 @@ function loadTrending(){
       for(var i=0;i<d.products.length;i++){var p=d.products[i];
         h+='<a href="'+p.link+'" target="_blank" rel="noopener" class="trend-card">';
         h+='<div class="tc-img"><img src="'+p.img+'" onerror="this.onerror=null;this.parentElement.classList.add(\'no-img\')"></div>';
-        h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price">'+p.price+'</div></div></a>';}
+        h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price">'+(p.price||t('noPrice'))+'</div></div></a>';}
       h+='</div>';
     }
     ts.innerHTML=h;
