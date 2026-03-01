@@ -2919,6 +2919,160 @@ def _time_ago(ts):
     if diff < 86400: return f"{int(diff/3600)}sa önce"
     return f"{int(diff/86400)}g önce"
 
+# ─── 🔥 KOMBİN ARENA (Tinder-style voting) ───
+ARENA_POOL = []  # {id, image, nickname, ai_score, emoji, roast, ts, ups, downs, voters}
+ARENA_MAX = 200
+
+@app.post("/api/arena-submit")
+async def arena_submit(request: Request):
+    """Submit outfit to the Arena for community voting."""
+    try:
+        body = await request.json()
+        image_data = body.get("image", "")
+        if not image_data:
+            return {"success": False, "message": "No image"}
+
+        # Create thumbnail
+        if "," in image_data:
+            raw = image_data.split(",", 1)[1]
+        else:
+            raw = image_data
+        try:
+            img = Image.open(io.BytesIO(base64.b64decode(raw))).convert("RGB")
+            img.thumbnail((400, 550))
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=75)
+            thumb_b64 = base64.b64encode(buf.getvalue()).decode()
+        except:
+            thumb_b64 = raw[:80000]
+
+        entry = {
+            "id": uuid.uuid4().hex[:10],
+            "image": thumb_b64,
+            "nickname": (body.get("nickname", "").strip()[:20]) or "Anonim",
+            "ai_score": body.get("ai_score", 0),
+            "emoji": body.get("emoji", "🔥"),
+            "roast": (body.get("roast", "")[:150]),
+            "ts": time.time(),
+            "ups": 0,
+            "downs": 0,
+            "voters": set(),  # Track who voted (by session)
+            "reported": 0,
+        }
+        ARENA_POOL.insert(0, entry)
+        if len(ARENA_POOL) > ARENA_MAX:
+            ARENA_POOL[:] = ARENA_POOL[:ARENA_MAX]
+
+        print(f"🏟️ Arena: {entry['nickname']} submitted (AI: {entry['ai_score']})")
+        return {"success": True, "id": entry["id"]}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.get("/api/arena-next")
+async def arena_next(session: str = "anon", count: int = 5):
+    """Get next unvoted outfits for this session."""
+    results = []
+    for e in ARENA_POOL:
+        if e["reported"] >= 3:
+            continue  # Skip reported entries
+        if session in e["voters"]:
+            continue  # Already voted
+        results.append({
+            "id": e["id"],
+            "image": e["image"],
+            "nickname": e["nickname"],
+            "ai_score": e["ai_score"],
+            "emoji": e["emoji"],
+            "roast": e["roast"],
+            "ago": _time_ago(e["ts"]),
+            "total_votes": e["ups"] + e["downs"],
+        })
+        if len(results) >= count:
+            break
+    return {"success": True, "entries": results, "remaining": len([e for e in ARENA_POOL if session not in e["voters"] and e["reported"] < 3]) - len(results)}
+
+@app.post("/api/arena-vote")
+async def arena_vote(request: Request):
+    """Vote on an arena entry. direction: 'up' or 'down'."""
+    try:
+        body = await request.json()
+        entry_id = body.get("id", "")
+        direction = body.get("direction", "")
+        session = body.get("session", "anon")
+
+        for e in ARENA_POOL:
+            if e["id"] == entry_id:
+                if session in e["voters"]:
+                    return {"success": False, "message": "Already voted"}
+                e["voters"].add(session)
+                if direction == "up":
+                    e["ups"] += 1
+                else:
+                    e["downs"] += 1
+
+                # Auto-promote to HOF if enough upvotes and high ratio
+                total = e["ups"] + e["downs"]
+                ratio = e["ups"] / total if total > 0 else 0
+                promoted = False
+                if e["ups"] >= 5 and ratio >= 0.7:
+                    # Check if not already in HOF
+                    if not any(h["id"] == e["id"] for h in HALL_OF_FAME):
+                        hof_entry = {
+                            "id": e["id"],
+                            "score": e["ai_score"],
+                            "emoji": e["emoji"],
+                            "roast": e["roast"],
+                            "image": e["image"],
+                            "ts": e["ts"],
+                            "nickname": e["nickname"],
+                        }
+                        HALL_OF_FAME.insert(0, hof_entry)
+                        if len(HALL_OF_FAME) > HOF_MAX:
+                            HALL_OF_FAME[:] = HALL_OF_FAME[:HOF_MAX]
+                        promoted = True
+                        print(f"🏆 Arena→HOF: {e['nickname']} ({e['ups']}👍 {e['downs']}👎)")
+
+                return {"success": True, "ups": e["ups"], "downs": e["downs"], "promoted": promoted}
+
+        return {"success": False, "message": "Not found"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.post("/api/arena-report")
+async def arena_report(request: Request):
+    """Report a fake/inappropriate entry."""
+    try:
+        body = await request.json()
+        entry_id = body.get("id", "")
+        for e in ARENA_POOL:
+            if e["id"] == entry_id:
+                e["reported"] += 1
+                if e["reported"] >= 3:
+                    # Also remove from HOF if promoted
+                    HALL_OF_FAME[:] = [h for h in HALL_OF_FAME if h["id"] != entry_id]
+                    print(f"🚫 Arena: {e['nickname']} removed (3+ reports)")
+                return {"success": True, "reports": e["reported"]}
+        return {"success": False}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.get("/api/arena-top")
+async def arena_top(limit: int = 10):
+    """Get top voted outfits."""
+    ranked = sorted([e for e in ARENA_POOL if e["reported"] < 3 and (e["ups"] + e["downs"]) > 0],
+                    key=lambda x: x["ups"] / max(x["ups"] + x["downs"], 1), reverse=True)
+    results = []
+    for e in ranked[:limit]:
+        total = e["ups"] + e["downs"]
+        results.append({
+            "id": e["id"], "image": e["image"], "nickname": e["nickname"],
+            "ai_score": e["ai_score"], "emoji": e["emoji"],
+            "ups": e["ups"], "downs": e["downs"],
+            "approval": round(e["ups"] / total * 100) if total > 0 else 0,
+            "ago": _time_ago(e["ts"]),
+        })
+    return {"success": True, "entries": results}
+
 # ─── VIRTUAL TRY-ON (Sanal Kabin) ───
 VTON_STORE = {}
 
@@ -3169,6 +3323,27 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .hof-card .hof-time{font-size:9px;color:var(--muted);margin-top:2px}
 .hof-join{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;border:none;padding:14px 28px;border-radius:16px;font:800 14px 'Outfit',sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;width:100%;margin-top:12px;box-shadow:0 4px 20px rgba(255,215,0,.3);transition:transform .2s}
 .hof-join:active{transform:scale(.97)}
+.arena-screen{position:fixed;inset:0;z-index:100;background:var(--bg);display:none;flex-direction:column}
+.arena-screen.show{display:flex}
+.arena-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.arena-stack{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:20px}
+.arena-card{position:absolute;width:min(320px,85vw);background:var(--card);border-radius:24px;border:1px solid var(--border);overflow:hidden;touch-action:none;user-select:none;transition:transform .1s,opacity .1s;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.arena-card .ac-img{width:100%;height:380px;overflow:hidden;position:relative}
+.arena-card .ac-img img{width:100%;height:100%;object-fit:cover;display:block}
+.arena-card .ac-overlay{position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(5,2,10,.9) 60%)}
+.arena-card .ac-name{font-size:16px;font-weight:800;color:#fff}
+.arena-card .ac-meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:8px}
+.arena-card .ac-aiscore{background:rgba(255,255,255,.1);padding:3px 10px;border-radius:8px;font-weight:700;font-size:11px}
+.arena-card .ac-roast{padding:14px 18px;font-size:13px;line-height:1.5;color:var(--text)}
+.arena-btns{display:flex;align-items:center;justify-content:center;gap:24px;padding:20px 0 36px}
+.arena-btn{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;border:none;transition:transform .2s,box-shadow .2s}
+.arena-btn:active{transform:scale(.9)}
+.arena-btn.nope{background:rgba(244,67,54,.15);border:2px solid rgba(244,67,54,.4);box-shadow:0 4px 20px rgba(244,67,54,.15)}
+.arena-btn.like{background:rgba(0,229,255,.15);border:2px solid rgba(0,229,255,.4);box-shadow:0 4px 20px rgba(0,229,255,.15)}
+.arena-btn.report-btn{width:40px;height:40px;font-size:16px;background:rgba(255,255,255,.05);border:1px solid var(--border)}
+.swipe-label{position:absolute;top:30px;padding:12px 24px;border-radius:12px;font:900 22px 'Outfit',sans-serif;letter-spacing:2px;z-index:10;opacity:0;transition:opacity .1s}
+.swipe-label.like-label{right:20px;color:#00e5ff;border:3px solid #00e5ff;transform:rotate(15deg)}
+.swipe-label.nope-label{left:20px;color:#f44336;border:3px solid #f44336;transform:rotate(-15deg)}
 .vton-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(77,0,255,.1));border:1px solid rgba(0,229,255,.25);color:var(--cyan);font:700 10px 'Outfit',sans-serif;cursor:pointer;margin-top:6px;transition:all .2s}
 .vton-btn:active{background:var(--cyan);color:#000}
 
@@ -3276,7 +3451,30 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 
   <div class="bnav">
     <div class="bnav-item active" onclick="goHome()"><div class="icon">✧</div><div id="navHome" class="lbl"></div></div>
+    <div class="bnav-item" onclick="openArena()"><div class="icon">🏟️</div><div class="lbl">Arena</div></div>
     <div class="bnav-item" onclick="showFavs()"><div class="icon">♡</div><div id="navFav" class="lbl"></div></div>
+  </div>
+
+  <!-- 🏟️ KOMBİN ARENA -->
+  <div class="arena-screen" id="arenaScreen">
+    <div class="arena-header">
+      <div onclick="closeArena()" style="cursor:pointer;color:var(--muted);font-size:14px;font-weight:600">← Geri</div>
+      <div style="font-size:18px;font-weight:900;letter-spacing:1px" class="text-gradient">Arena</div>
+      <div id="arenaCount" style="font-size:11px;color:var(--muted);font-weight:600"></div>
+    </div>
+    <div class="arena-stack" id="arenaStack">
+      <div id="arenaEmpty" style="text-align:center;display:none">
+        <div style="font-size:56px;margin-bottom:16px">🏟️</div>
+        <div id="arenaEmptyTitle" style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Herkes yargılandı!</div>
+        <div id="arenaEmptySub" style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;padding:0 20px">Yeni kombinler gelince bildirim alacaksın.<br>Sen de kombinini yükle!</div>
+        <button onclick="startFitCheck();closeArena()" style="background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 Fit-Check Yap & Arenaya Gir</button>
+      </div>
+    </div>
+    <div class="arena-btns" id="arenaBtns">
+      <button class="arena-btn report-btn" onclick="arenaReport()">🚩</button>
+      <button class="arena-btn nope" onclick="arenaSwipe('down')">👎</button>
+      <button class="arena-btn like" onclick="arenaSwipe('up')">👍</button>
+    </div>
   </div>
 </div>
 
@@ -3964,6 +4162,223 @@ function submitToHof(score,emoji,roast){
       loadHOF(); // Refresh
     }
   }).catch(function(){closeHofModal()});
+}
+
+// ─── 🏟️ KOMBİN ARENA (Tinder-style) ───
+var _arenaSession='arena_'+Math.random().toString(36).slice(2,10);
+var _arenaCards=[];
+var _arenaIdx=0;
+var _arenaDrag={active:false,startX:0,startY:0,dx:0};
+
+function openArena(){
+  document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
+  document.querySelectorAll('.bnav-item')[1].classList.add('active');
+  document.getElementById('arenaScreen').classList.add('show');
+  document.getElementById('home').style.display='none';
+  document.getElementById('rScreen').style.display='none';
+  loadArenaCards();
+}
+function closeArena(){
+  document.getElementById('arenaScreen').classList.remove('show');
+  goHome();
+}
+
+function loadArenaCards(){
+  var stack=document.getElementById('arenaStack');
+  document.getElementById('arenaEmpty').style.display='none';
+  document.getElementById('arenaBtns').style.display='flex';
+  stack.innerHTML='<div style="text-align:center"><div class="loader-orb" style="width:40px;height:40px;margin:0 auto 12px"></div><div style="color:var(--muted);font-size:13px">Kombinler yükleniyor...</div></div>';
+
+  fetch('/api/arena-next?session='+_arenaSession+'&count=10').then(function(r){return r.json()}).then(function(d){
+    if(!d.success||!d.entries||!d.entries.length){
+      showArenaEmpty();return;
+    }
+    _arenaCards=d.entries;
+    _arenaIdx=0;
+    document.getElementById('arenaCount').textContent=d.entries.length+(d.remaining>0?' + '+d.remaining+' daha':'');
+    renderArenaStack();
+  }).catch(function(){showArenaEmpty()});
+}
+
+function showArenaEmpty(){
+  var stack=document.getElementById('arenaStack');
+  stack.innerHTML='';
+  document.getElementById('arenaEmpty').style.display='block';
+  stack.appendChild(document.getElementById('arenaEmpty'));
+  document.getElementById('arenaBtns').style.display='none';
+}
+
+function renderArenaStack(){
+  var stack=document.getElementById('arenaStack');
+  stack.innerHTML='';
+  // Render max 3 cards (top on front)
+  var isTr=CC_LANG[CC]==='tr';
+  for(var i=Math.min(_arenaIdx+2,_arenaCards.length-1);i>=_arenaIdx;i--){
+    var e=_arenaCards[i];
+    var card=document.createElement('div');
+    card.className='arena-card';
+    card.dataset.id=e.id;
+    card.dataset.idx=i;
+    var offset=i-_arenaIdx;
+    card.style.transform='scale('+(1-offset*0.04)+') translateY('+(-offset*8)+'px)';
+    card.style.zIndex=10-offset;
+    if(offset>0)card.style.pointerEvents='none';
+
+    var h='<div class="swipe-label like-label">'+( isTr?'ATEŞ':'FIRE')+'</div>';
+    h+='<div class="swipe-label nope-label">'+(isTr?'MEH':'MEH')+'</div>';
+    h+='<div class="ac-img"><img src="data:image/jpeg;base64,'+e.image+'">';
+    h+='<div class="ac-overlay"><div class="ac-name">'+e.nickname+'</div>';
+    h+='<div class="ac-meta"><span class="ac-aiscore">AI: '+e.emoji+' '+e.ai_score+'</span><span>'+e.ago+'</span>';
+    if(e.total_votes>0)h+='<span>'+e.total_votes+' oy</span>';
+    h+='</div></div></div>';
+    if(e.roast)h+='<div class="ac-roast">'+e.roast+'</div>';
+    card.innerHTML=h;
+
+    // Touch/mouse events on front card only
+    if(offset===0){
+      card.addEventListener('touchstart',arenaDown,{passive:true});
+      card.addEventListener('touchmove',arenaMove,{passive:false});
+      card.addEventListener('touchend',arenaUp);
+      card.addEventListener('mousedown',arenaDown);
+    }
+    stack.appendChild(card);
+  }
+  document.getElementById('arenaEmpty').style.display='none';
+  stack.appendChild(document.getElementById('arenaEmpty'));
+}
+
+function arenaDown(ev){
+  var t=ev.touches?ev.touches[0]:ev;
+  _arenaDrag={active:true,startX:t.clientX,startY:t.clientY,dx:0};
+  if(!ev.touches){
+    document.addEventListener('mousemove',arenaMove);
+    document.addEventListener('mouseup',arenaUp);
+  }
+}
+function arenaMove(ev){
+  if(!_arenaDrag.active)return;
+  var t=ev.touches?ev.touches[0]:ev;
+  _arenaDrag.dx=t.clientX-_arenaDrag.startX;
+  var card=document.querySelector('.arena-card[data-idx="'+_arenaIdx+'"]');
+  if(!card)return;
+  var rot=_arenaDrag.dx*0.1;
+  card.style.transform='translateX('+_arenaDrag.dx+'px) rotate('+rot+'deg)';
+  card.style.transition='none';
+  // Show labels
+  var likeLabel=card.querySelector('.like-label');
+  var nopeLabel=card.querySelector('.nope-label');
+  if(likeLabel)likeLabel.style.opacity=Math.min(_arenaDrag.dx/80,1);
+  if(nopeLabel)nopeLabel.style.opacity=Math.min(-_arenaDrag.dx/80,1);
+  if(ev.cancelable)ev.preventDefault();
+}
+function arenaUp(ev){
+  if(!_arenaDrag.active)return;
+  _arenaDrag.active=false;
+  document.removeEventListener('mousemove',arenaMove);
+  document.removeEventListener('mouseup',arenaUp);
+  var dx=_arenaDrag.dx;
+  if(Math.abs(dx)>80){
+    arenaSwipe(dx>0?'up':'down');
+  }else{
+    // Snap back
+    var card=document.querySelector('.arena-card[data-idx="'+_arenaIdx+'"]');
+    if(card){
+      card.style.transition='transform .3s ease';
+      card.style.transform='scale(1) translateY(0)';
+      var ll=card.querySelector('.like-label'),nl=card.querySelector('.nope-label');
+      if(ll)ll.style.opacity=0;if(nl)nl.style.opacity=0;
+    }
+  }
+}
+
+function arenaSwipe(dir){
+  var card=document.querySelector('.arena-card[data-idx="'+_arenaIdx+'"]');
+  var e=_arenaCards[_arenaIdx];
+  if(!card||!e)return;
+
+  // Fly out animation
+  var flyX=dir==='up'?500:-500;
+  card.style.transition='transform .4s ease, opacity .4s ease';
+  card.style.transform='translateX('+flyX+'px) rotate('+(flyX*0.1)+'deg)';
+  card.style.opacity='0';
+
+  // Vote
+  fetch('/api/arena-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    id:e.id,direction:dir,session:_arenaSession
+  })}).then(function(r){return r.json()}).then(function(d){
+    if(d.promoted){
+      var toast=document.createElement('div');
+      toast.style.cssText='position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;padding:10px 20px;border-radius:14px;font:700 13px Outfit,sans-serif;z-index:1200;box-shadow:0 4px 20px rgba(255,215,0,.4);animation:fadeIn .3s';
+      toast.textContent='🏆 '+e.nickname+' Hall of Fame\'e yükseldi!';
+      document.body.appendChild(toast);
+      setTimeout(function(){toast.remove()},2500);
+    }
+  }).catch(function(){});
+
+  // Next card
+  _arenaIdx++;
+  setTimeout(function(){
+    if(_arenaIdx>=_arenaCards.length){
+      // Load more or show empty
+      loadArenaCards();
+    }else{
+      renderArenaStack();
+    }
+  },350);
+}
+
+function arenaReport(){
+  var e=_arenaCards[_arenaIdx];if(!e)return;
+  var isTr=CC_LANG[CC]==='tr';
+  if(!confirm(isTr?'Bu kombini sahte/uygunsuz olarak bildir?':'Report this outfit as fake/inappropriate?'))return;
+  fetch('/api/arena-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:e.id})})
+  .then(function(){arenaSwipe('down')}).catch(function(){});
+}
+
+// Add "Arenaya Gir" to fit-check result
+var _lastFitCheckData=null;
+var _origShowFitCheckResult=showFitCheckResult;
+showFitCheckResult=function(d,imgData){
+  _lastFitCheckData={score:d.score||50,emoji:d.emoji||'🔥',roast:d.roast||'',imgData:imgData};
+  _origShowFitCheckResult(d,imgData);
+  // Inject Arena button after result renders
+  setTimeout(function(){
+    var container=document.querySelector('.fitcheck-result');
+    if(!container)return;
+    var isTr=CC_LANG[CC]==='tr';
+    var arenaBtn=document.createElement('button');
+    arenaBtn.className='btn-main';
+    arenaBtn.style.cssText='margin-top:10px;background:linear-gradient(135deg,rgba(0,229,255,.1),rgba(77,0,255,.1));border:1px solid rgba(0,229,255,.3);color:var(--cyan);font-weight:800';
+    arenaBtn.innerHTML='🏟️ '+(isTr?'Arenaya Gir — Halk Yargılasın!':'Enter the Arena — Let People Judge!');
+    arenaBtn.onclick=function(){promptArenaSubmit()};
+    // Insert before the back button
+    var backBtn=container.querySelector('.btn-main:last-child');
+    if(backBtn)container.insertBefore(arenaBtn,backBtn);
+  },300);
+};
+
+function promptArenaSubmit(){
+  if(!_lastFitCheckData)return;
+  var isTr=CC_LANG[CC]==='tr';
+  var nick=prompt(isTr?'Arenada görünecek ismin:':'Your arena display name:','');
+  if(nick===null)return;
+  nick=nick.trim()||'Anonim';
+  // Submit to arena
+  fetch('/api/arena-submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    image:_lastFitCheckData.imgData,
+    nickname:nick,
+    ai_score:_lastFitCheckData.score,
+    emoji:_lastFitCheckData.emoji,
+    roast:_lastFitCheckData.roast
+  })}).then(function(r){return r.json()}).then(function(d){
+    if(d.success){
+      var toast=document.createElement('div');
+      toast.style.cssText='position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;padding:12px 24px;border-radius:16px;font:700 13px Outfit,sans-serif;z-index:1200;box-shadow:0 4px 20px rgba(0,229,255,.3);animation:fadeIn .3s';
+      toast.textContent='🏟️ '+(isTr?'Arenaya eklendi! Oylar gelmeye başlayacak...':'Added to Arena! Votes incoming...');
+      document.body.appendChild(toast);
+      setTimeout(function(){toast.remove()},3000);
+    }
+  }).catch(function(){});
 }
 
 // ─── VIRTUAL TRY-ON (Sanal Kabin) ───
