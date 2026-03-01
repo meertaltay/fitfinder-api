@@ -2740,10 +2740,10 @@ Fotoğrafa bak. Aşağıdakilerden biri varsa REDDET:
 - Bulanık, karanlık veya ne olduğu anlaşılmayan fotoğraf
 - Ekran görüntüsü (telefon çerçevesi, UI elementleri görünüyor)
 
-Kombin görmek için EN AZ göğüs+bel bölgesi görünmeli. İdeal olarak tam boy veya yarım boy (belden yukarı tüm üst giyim görünmeli).
+Kombin görmek için TAM BOY fotoğraf şart. Ayakkabılar dahil baş-ayak tamamı görünmeli. Yarım boy veya belden yukarı fotoğrafları da reddet.
 
 Eğer reddediyorsan şu JSON'ı döndür:
-{"rejected": true, "reason": "Kısa ve esprili bir ret mesajı yaz. Örnek: Güzel selfie ama kombini göremiyorum ki 😅 Biraz uzaktan, tam boy çeksene!"}
+{"rejected": true, "reason": "Kısa ve esprili bir ret mesajı yaz. Örnek: Güzel selfie ama ayakkabılarını göremiyorum ki 😅 Tam boy çek, baş-ayak her şey görünsün!"}
 
 Eğer geçerli bir kombin fotoğrafıysa devam et:
 
@@ -2794,10 +2794,10 @@ Look at the photo. REJECT if any of these apply:
 - Blurry, dark, or unrecognizable photo
 - Screenshot (phone frame, UI elements visible)
 
-To evaluate an outfit, AT LEAST the chest+waist area must be visible. Ideally full-body or half-body.
+To evaluate an outfit, a FULL BODY photo is required. Head-to-toe including shoes must be visible. Reject half-body or waist-up photos too.
 
 If rejecting, return this JSON:
-{"rejected": true, "reason": "A short, witty rejection message. Example: Nice selfie but I can't see the fit! Step back and show me the full look 😅"}
+{"rejected": true, "reason": "A short, witty rejection message. Example: Nice selfie but I need the full picture! Head to toe, shoes included 😅"}
 
 If it's a valid outfit photo, continue:
 
@@ -4046,7 +4046,7 @@ function showFitCheckRejected(reason,imgData){
   h+='<div style="margin-top:12px;font-size:15px;line-height:1.6;color:var(--text);padding:0 12px">'+reason+'</div>';
   h+='<div style="margin-top:20px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);text-align:left">';
   h+='<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">'+(isTr?'💡 İpuçları:':'💡 Tips:')+'</div>';
-  h+='<div style="font-size:12px;color:var(--muted);line-height:1.6">'+(isTr?'• Tam boy veya yarım boy çek (en az göğüs+bel görünmeli)<br>• Aynalı selfie veya telefon zamanlayıcısı ile çek<br>• İyi aydınlatılmış bir ortamda çek':'• Take a full or half-body shot (at least chest+waist visible)<br>• Use a mirror selfie or phone timer<br>• Shoot in a well-lit area')+'</div></div>';
+  h+='<div style="font-size:12px;color:var(--muted);line-height:1.6">'+(isTr?'• Tam boy çek — baş-ayak, ayakkabılar dahil görünmeli<br>• Aynalı selfie veya telefon zamanlayıcısı ile çek<br>• İyi aydınlatılmış bir ortamda çek':'• Take a full-body shot — head to toe, shoes included<br>• Use a mirror selfie or phone timer<br>• Shoot in a well-lit area')+'</div></div>';
   h+='<div style="margin-top:20px;display:flex;gap:8px;justify-content:center">';
   h+='<button class="share-fitcheck" onclick="startFitCheck()">📸 '+(isTr?'Tekrar Çek':'Try Again')+'</button>';
   h+='<button class="share-fitcheck" style="background:rgba(255,255,255,.06);box-shadow:none;border:1px solid var(--border)" onclick="goHome()">'+t('back')+'</button>';
