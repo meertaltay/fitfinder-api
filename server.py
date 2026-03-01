@@ -3023,6 +3023,14 @@ async def podyum_next(session: str = "anon", count: int = 5):
         })
         if len(results) >= count:
             break
+    
+    if not results:
+        results = [
+            {"id": "demo1", "image": "", "image_url": "https://images.unsplash.com/photo-1551028719-0c124a4234c4?w=600", "nickname": "ece.drip", "ai_score": 96, "emoji": "👑", "roast": "Deri ceket ve çizmelerin uyumu muazzam. Çabasız şıklığı kusursuz bir şekilde yakalamışsın.", "ago": "12dk önce", "total_votes": 145},
+            {"id": "demo2", "image": "", "image_url": "https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=600", "nickname": "can.kaya", "ai_score": 68, "emoji": "💡", "roast": "Gündelik ve rahat bir sokak stili. Renk paleti başarılı ancak aksesuarlarla biraz daha derinlik katılabilir.", "ago": "1sa önce", "total_votes": 89},
+            {"id": "demo3", "image": "", "image_url": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600", "nickname": "berk_m", "ai_score": 82, "emoji": "✨", "roast": "Minimalist yaklaşımın her zaman işe yarıyor. Temiz çizgiler ve ufak saat detayı çok şık.", "ago": "2sa önce", "total_votes": 210},
+        ]
+    
     return {"success": True, "entries": results, "remaining": len([e for e in PODYUM_POOL if session not in e["voters"] and e["reported"] < 3]) - len(results)}
 
 @app.post("/api/podyum-vote")
@@ -3814,25 +3822,31 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .hof-join:active{transform:scale(.97)}
 .podyum-screen{position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;z-index:100;background:var(--bg);display:none;flex-direction:column}
 .podyum-screen.show{display:flex}
-.podyum-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
-.podyum-stack{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:20px}
-.podyum-card{position:absolute;width:min(320px,85vw);background:var(--card);border-radius:24px;border:1px solid var(--border);overflow:hidden;touch-action:none;user-select:none;transition:transform .1s,opacity .1s;box-shadow:0 8px 40px rgba(0,0,0,.4)}
-.podyum-card .ac-img{width:100%;height:380px;overflow:hidden;position:relative}
-.podyum-card .ac-img img{width:100%;height:100%;object-fit:cover;display:block}
-.podyum-card .ac-overlay{position:absolute;bottom:0;left:0;right:0;padding:16px 18px;background:linear-gradient(transparent,rgba(5,2,10,.9) 60%)}
-.podyum-card .ac-name{font-size:16px;font-weight:800;color:#fff}
+.podyum-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:10}
+.podyum-stack{flex:1;display:flex;align-items:center;justify-content:center;position:relative;height:62vh;max-height:650px;padding:10px 16px 30px;margin-top:10px;perspective:1000px}
+.podyum-card{position:absolute;width:min(380px,92vw);height:68vh;max-height:650px;min-height:480px;background:#1a1a2e;border-radius:28px;overflow:hidden;touch-action:none;user-select:none;transition:transform .3s cubic-bezier(.175,.885,.32,1.275),opacity .2s;box-shadow:0 20px 60px rgba(0,0,0,.8);border:1px solid rgba(255,255,255,.08)}
+.podyum-card .ac-img{width:100%;height:100%;position:relative;background:#111}
+.podyum-card .ac-img img{width:100%;height:100%;object-fit:cover;display:block;opacity:.95}
+.podyum-card .ac-overlay{position:absolute;bottom:0;left:0;right:0;padding:50px 24px 24px;background:linear-gradient(to top,rgba(5,2,10,.98) 0%,rgba(5,2,10,.6) 40%,transparent 100%);pointer-events:none;display:flex;flex-direction:column;justify-content:flex-end}
+.report-btn-float{position:absolute;top:16px;right:16px;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;font-size:16px;color:rgba(255,255,255,.6);cursor:pointer;border:1px solid rgba(255,255,255,.15);z-index:20;transition:all .2s;pointer-events:auto}
+.report-btn-float:active{background:rgba(244,67,54,.4);color:#fff;transform:scale(.9)}
+.podyum-card .ac-name{font-size:24px;font-weight:900;color:#fff;letter-spacing:-.5px;text-shadow:0 2px 15px rgba(0,0,0,.8)}
 .podyum-card .ac-meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:8px}
-.podyum-card .ac-aiscore{background:rgba(255,255,255,.1);padding:3px 10px;border-radius:8px;font-weight:700;font-size:11px}
-.podyum-card .ac-roast{padding:14px 18px;font-size:13px;line-height:1.5;color:var(--text)}
-.podyum-btns{display:flex;align-items:center;justify-content:center;gap:24px;padding:20px 0 36px}
-.podyum-btn{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;border:none;transition:transform .2s,box-shadow .2s}
-.podyum-btn:active{transform:scale(.9)}
-.podyum-btn.nope{background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.2);box-shadow:0 4px 20px rgba(255,255,255,.05)}
-.podyum-btn.like{background:rgba(0,229,255,.15);border:2px solid rgba(0,229,255,.4);box-shadow:0 4px 20px rgba(0,229,255,.15)}
-.podyum-btn.report-btn{width:40px;height:40px;font-size:16px;background:rgba(255,255,255,.05);border:1px solid var(--border)}
-.swipe-label{position:absolute;top:30px;padding:12px 24px;border-radius:12px;font:900 22px 'Outfit',sans-serif;letter-spacing:2px;z-index:10;opacity:0;transition:opacity .1s}
-.swipe-label.like-label{right:20px;color:#00e5ff;border:3px solid #00e5ff;transform:rotate(15deg)}
-.swipe-label.nope-label{left:20px;color:var(--muted);border:3px solid var(--muted);transform:rotate(-15deg)}
+.podyum-card .ac-aiscore{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,rgba(0,229,255,.2),rgba(77,0,255,.2));padding:6px 14px;border-radius:12px;font-weight:800;font-size:13px;backdrop-filter:blur(10px);color:#fff;border:1px solid rgba(0,229,255,.3);box-shadow:0 4px 15px rgba(0,229,255,.2)}
+.ac-meta-box{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.ac-meta-pill{background:rgba(0,0,0,.5);backdrop-filter:blur(8px);padding:4px 10px;border-radius:8px;font-size:10px;font-weight:600;color:var(--muted);border:1px solid rgba(255,255,255,.05)}
+.podyum-card .ac-roast{margin-top:16px;padding:14px 16px;background:rgba(255,255,255,.05);backdrop-filter:blur(15px);border-left:3px solid var(--accent);border-radius:4px 16px 16px 4px;font-size:14px;color:rgba(255,255,255,.95);line-height:1.5;font-style:italic;font-weight:300}
+.podyum-btns{display:flex;align-items:center;justify-content:center;gap:40px;padding:10px 0 20px;z-index:10}
+.podyum-btn{border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:transform .2s,box-shadow .2s;position:relative}
+.podyum-btn:active{transform:scale(.85)}
+.podyum-btn.nope{width:70px;height:70px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);color:var(--muted);backdrop-filter:blur(10px);box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.podyum-btn.like{width:86px;height:86px;background:linear-gradient(135deg,var(--cyan),var(--purple));border:2px solid rgba(0,229,255,.3);color:#fff;box-shadow:0 10px 30px rgba(0,229,255,.3);backdrop-filter:blur(10px)}
+.podyum-btn .btn-icon{font-size:28px;margin-bottom:2px}
+.podyum-btn.like .btn-icon{font-size:36px}
+.podyum-btn .btn-lbl{font-size:10px;font-weight:800;letter-spacing:1px}
+.swipe-label{position:absolute;top:40px;padding:12px 28px;border-radius:14px;font:900 28px 'Outfit',sans-serif;letter-spacing:2px;z-index:10;opacity:0;text-transform:uppercase}
+.swipe-label.like-label{right:20px;color:#00e5ff;border:4px solid #00e5ff;transform:rotate(15deg);background:rgba(0,0,0,.4);backdrop-filter:blur(4px);box-shadow:0 0 30px rgba(0,229,255,.4)}
+.swipe-label.nope-label{left:20px;color:var(--muted);border:4px solid var(--muted);transform:rotate(-15deg);background:rgba(0,0,0,.4);backdrop-filter:blur(4px)}
 .vton-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(77,0,255,.1));border:1px solid rgba(0,229,255,.25);color:var(--cyan);font:700 10px 'Outfit',sans-serif;cursor:pointer;margin-top:6px;transition:all .2s}
 .vton-btn:active{background:var(--cyan);color:#000}
 .rcard{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;position:relative;animation:fadeUp .3s ease both}
@@ -4171,21 +4185,26 @@ img.rcard-avatar{border:1px solid var(--border)}
   <div class="podyum-screen" id="podyumScreen">
     <div class="podyum-header">
       <div onclick="closePodyum()" style="cursor:pointer;color:var(--muted);font-size:14px;font-weight:600">← Geri</div>
-      <div style="font-size:18px;font-weight:900;letter-spacing:1px" class="text-gradient">Podyum</div>
-      <div id="podyumCount" style="font-size:11px;color:var(--muted);font-weight:600"></div>
+      <div style="font-size:22px;font-weight:900;letter-spacing:1px" class="text-gradient">Stil Vitrini</div>
+      <div id="podyumCount" style="font-size:11px;font-weight:700;color:var(--cyan);background:rgba(0,229,255,.1);padding:4px 10px;border-radius:10px"></div>
     </div>
     <div class="podyum-stack" id="podyumStack">
-      <div id="podyumEmpty" style="text-align:center;display:none">
-        <div style="font-size:56px;margin-bottom:16px">✨</div>
-        <div id="podyumEmptyTitle" style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px">Podyumdaki tüm stiller incelendi!</div>
-        <div id="podyumEmptySub" style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;padding:0 20px">Yeni stiller gelince bildirim alacaksın.<br>Sen de kombinini yükle!</div>
-        <button onclick="startFitCheck();closePodyum()" style="background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 Stilini Değerlendir & Podyuma Çık</button>
+      <div id="podyumEmpty" style="text-align:center;display:none;padding:40px 20px">
+        <div style="font-size:64px;margin-bottom:16px;filter:drop-shadow(0 0 20px rgba(255,215,0,.4))">🥂</div>
+        <h2 style="font-size:20px;font-weight:900;color:#fff;margin-bottom:12px;letter-spacing:-.5px">Tüm Stiller İncelendi!</h2>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:30px;line-height:1.6">Dijital cemiyette şu an başka kombin kalmadı.<br>Sahneye çıkma sırası artık sende.</p>
+        <button onclick="startFitCheck();closePodyum()" class="btn-main" style="background:linear-gradient(135deg,var(--accent),var(--purple));box-shadow:0 8px 30px rgba(255,32,121,.4)">📸 Kendi Stilini Değerlendir</button>
       </div>
     </div>
-    <div class="podyum-btns" id="podyumBtns">
-      <button class="podyum-btn report-btn" onclick="podyumReport()">🚩</button>
-      <button class="podyum-btn nope" onclick="podyumSwipe('down')">🌬️</button>
-      <button class="podyum-btn like" onclick="podyumSwipe('up')">✨</button>
+    <div class="podyum-btns" id="podyumBtns" style="display:none">
+      <button class="podyum-btn nope" onclick="podyumSwipe('down')">
+        <span class="btn-icon">🌬️</span>
+        <span class="btn-lbl">PAS</span>
+      </button>
+      <button class="podyum-btn like" onclick="podyumSwipe('up')">
+        <span class="btn-icon">✨</span>
+        <span class="btn-lbl">İLHAM</span>
+      </button>
     </div>
   </div>
 </div>
@@ -4226,16 +4245,16 @@ img.rcard-avatar{border:1px solid var(--border)}
     <div onclick="closeStory()" style="font-size:36px;color:var(--muted);cursor:pointer;line-height:1;padding:0 10px">×</div>
   </div>
   <div style="flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:20px">
-    <div id="storyPodyumCard" class="podyum-card" style="position:relative;width:min(320px,85vw);box-shadow:0 10px 40px rgba(0,0,0,.6);touch-action:none;user-select:none">
+    <div id="storyPodyumCard" class="podyum-card" style="position:relative;width:min(340px,88vw);height:480px;box-shadow:0 20px 60px rgba(0,0,0,.8);touch-action:none;user-select:none">
       <div class="swipe-label like-label" id="storyLikeLabel">İLHAM ✨</div>
       <div class="swipe-label nope-label" id="storyNopeLabel">PAS 🌬️</div>
-      <div class="ac-img" style="height:420px">
+      <div class="ac-img">
         <img id="storyMainImg" src="" style="width:100%;height:100%;object-fit:cover">
-        <div class="ac-overlay" style="padding:16px 18px 24px">
+        <div class="ac-overlay">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-            <span id="storyScoreTxt" class="ac-aiscore" style="font-size:13px;padding:6px 12px;border-radius:12px;background:rgba(255,255,255,.15);backdrop-filter:blur(8px)"></span>
+            <span id="storyScoreTxt" class="ac-aiscore"></span>
           </div>
-          <div id="storyRoastTxt" style="font-size:13px;color:var(--text);line-height:1.5;font-style:italic">...</div>
+          <div id="storyRoastTxt" class="ac-roast" style="margin-top:8px">...</div>
         </div>
       </div>
     </div>
@@ -4245,9 +4264,9 @@ img.rcard-avatar{border:1px solid var(--border)}
       <div id="storyEmptySub" style="font-size:13px;color:var(--muted);line-height:1.5;padding:0 20px"></div>
     </div>
   </div>
-  <div class="podyum-btns" id="storyBtns" style="padding:0 0 40px;margin:0;gap:30px">
-    <button class="podyum-btn nope" onclick="storyVote('down')">🌬️</button>
-    <button class="podyum-btn like" onclick="storyVote('up')">✨</button>
+  <div class="podyum-btns" id="storyBtns" style="padding:0 0 40px;margin:0;gap:40px">
+    <button class="podyum-btn nope" onclick="storyVote('down')"><span class="btn-icon">🌬️</span><span class="btn-lbl">PAS</span></button>
+    <button class="podyum-btn like" onclick="storyVote('up')"><span class="btn-icon">✨</span><span class="btn-lbl">İLHAM</span></button>
   </div>
 </div>
 
@@ -5825,11 +5844,19 @@ function _formatNotifBody(text){
     .replace(/(%\d+)/g,'<b style="color:var(--accent)">$1</b>');
 }
 
-// ─── ✨ PODYUM (Tinder-style) ───
+// ─── ✨ PODYUM (Premium Tinder-style) ───
 var _podyumSession='podyum_'+Math.random().toString(36).slice(2,10);
 var _podyumCards=[];
 var _podyumIdx=0;
 var _podyumDrag={active:false,startX:0,startY:0,dx:0};
+
+function _showToast(title, sub){
+  var t=document.createElement('div');
+  t.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(25,15,45,.95);backdrop-filter:blur(15px);border:1px solid var(--border);color:#fff;padding:16px 24px;border-radius:24px;font:700 13px Outfit,sans-serif;z-index:3000;box-shadow:0 10px 40px rgba(0,0,0,.6);animation:fadeIn .3s;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:6px';
+  t.innerHTML='<div style="font-size:16px;font-weight:900">'+title+'</div>'+(sub?'<div style="font-size:11px;color:var(--cyan);font-weight:600">'+sub+'</div>':'');
+  document.body.appendChild(t);
+  setTimeout(function(){t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(function(){t.remove()},300)},2500);
+}
 
 function openPodyum(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
@@ -5849,8 +5876,8 @@ function closePodyum(){
 function loadPodyumCards(){
   var stack=document.getElementById('podyumStack');
   document.getElementById('podyumEmpty').style.display='none';
-  document.getElementById('podyumBtns').style.display='flex';
-  stack.innerHTML='<div style="text-align:center"><div class="loader-orb" style="width:40px;height:40px;margin:0 auto 12px"></div><div style="color:var(--muted);font-size:13px">Kombinler yükleniyor...</div></div>';
+  document.getElementById('podyumBtns').style.display='none';
+  stack.innerHTML='<div style="text-align:center"><div class="loader-orb" style="width:48px;height:48px;margin:0 auto 16px"></div><div style="color:var(--muted);font-size:14px;font-weight:600">Stil Vitrini hazırlanıyor...</div></div>';
 
   fetch('/api/podyum-next?session='+_podyumSession+'&count=10').then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.entries||!d.entries.length){
@@ -5858,7 +5885,8 @@ function loadPodyumCards(){
     }
     _podyumCards=d.entries;
     _podyumIdx=0;
-    document.getElementById('podyumCount').textContent=d.entries.length+(d.remaining>0?' + '+d.remaining+' daha':'');
+    var remaining=d.remaining||0;
+    document.getElementById('podyumCount').textContent=d.entries.length+(remaining>0?' + '+remaining+' daha':'')+' Stil';
     renderPodyumStack();
   }).catch(function(){showPodyumEmpty()});
 }
@@ -5869,13 +5897,20 @@ function showPodyumEmpty(){
   document.getElementById('podyumEmpty').style.display='block';
   stack.appendChild(document.getElementById('podyumEmpty'));
   document.getElementById('podyumBtns').style.display='none';
+  document.getElementById('podyumCount').textContent='Podyum Temiz';
 }
 
 function renderPodyumStack(){
   var stack=document.getElementById('podyumStack');
   stack.innerHTML='';
-  // Render max 3 cards (top on front)
-  var isTr=CC_LANG[CC]==='tr';
+
+  if(_podyumIdx>=_podyumCards.length){
+    loadPodyumCards(); return;
+  }
+
+  document.getElementById('podyumCount').textContent=(_podyumCards.length-_podyumIdx)+' Stil Kaldı';
+  document.getElementById('podyumBtns').style.display='flex';
+
   for(var i=Math.min(_podyumIdx+2,_podyumCards.length-1);i>=_podyumIdx;i--){
     var e=_podyumCards[i];
     var card=document.createElement('div');
@@ -5883,21 +5918,45 @@ function renderPodyumStack(){
     card.dataset.id=e.id;
     card.dataset.idx=i;
     var offset=i-_podyumIdx;
-    card.style.transform='scale('+(1-offset*0.04)+') translateY('+(-offset*8)+'px)';
+    card.style.transform='scale('+(1-offset*0.05)+') translateY('+(offset*15)+'px)';
     card.style.zIndex=10-offset;
     if(offset>0)card.style.pointerEvents='none';
 
-    var h='<div class="swipe-label like-label">'+( isTr?'İLHAM':'INSPIRE')+'</div>';
-    h+='<div class="swipe-label nope-label">'+(isTr?'PAS 🌬️':'PASS 🌬️')+'</div>';
-    h+='<div class="ac-img"><img src="data:image/jpeg;base64,'+e.image+'">';
-    h+='<div class="ac-overlay"><div class="ac-name">'+e.nickname+'</div>';
-    h+='<div class="ac-meta"><span class="ac-aiscore">AI: '+e.emoji+' '+e.ai_score+'</span><span>'+e.ago+'</span>';
-    if(e.total_votes>0)h+='<span>'+e.total_votes+' oy</span>';
-    h+='</div></div></div>';
-    if(e.roast)h+='<div class="ac-roast">'+e.roast+'</div>';
+    var imgSrc=e.image?(e.image.startsWith('http')?e.image:'data:image/jpeg;base64,'+e.image):(e.image_url||'');
+    var score=e.ai_score||e.score||50;
+    var col=score>=90?'#ffd700':(score>=70?'#00e5ff':'#ff2079');
+    var glow='0 0 20px '+col+'40';
+    var nick=e.nickname||e.handle||'Anonim';
+
+    var h='';
+    h+='<div class="swipe-label like-label" id="swpLike'+i+'">İLHAM ✨</div>';
+    h+='<div class="swipe-label nope-label" id="swpNope'+i+'">PAS 🌬️</div>';
+    h+='<div class="ac-img">';
+    h+='<img src="'+imgSrc+'" draggable="false" onerror="this.style.background=\'linear-gradient(135deg,rgba(255,32,121,.1),rgba(77,0,255,.1))\';this.style.objectFit=\'contain\'">';
+    h+='<div class="ac-overlay">';
+    // Report button floated on card
+    h+='<div class="report-btn-float" onclick="event.stopPropagation();_podyumReport(\''+e.id+'\')">🚩</div>';
+    // Bottom info
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-end">';
+    // Left: name + score
+    h+='<div>';
+    h+='<div class="ac-name" style="cursor:pointer" onclick="openUserProfile(\'@'+nick+'\')">@'+nick;
+    if(score>=90)h+=' <span style="font-size:20px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">👑</span>';
+    h+='</div>';
+    h+='<div style="margin-top:10px"><span class="ac-aiscore" style="border-color:'+col+';color:'+col+';box-shadow:'+glow+'">'+e.emoji+' Puan: '+score+'</span></div>';
+    h+='</div>';
+    // Right: meta pills
+    h+='<div class="ac-meta-box">';
+    if(e.total_votes)h+='<span class="ac-meta-pill">👥 '+e.total_votes+' OY</span>';
+    h+='<span class="ac-meta-pill">🕒 '+(e.ago||'Az önce')+'</span>';
+    h+='</div>';
+    h+='</div>';
+    // Roast
+    if(e.roast)h+='<div class="ac-roast" style="border-color:'+col+'">"'+e.roast+'"</div>';
+    h+='</div></div>';
+
     card.innerHTML=h;
 
-    // Touch/mouse events on front card only
     if(offset===0){
       card.addEventListener('touchstart',podyumDown,{passive:true});
       card.addEventListener('touchmove',podyumMove,{passive:false});
@@ -5910,6 +5969,7 @@ function renderPodyumStack(){
   stack.appendChild(document.getElementById('podyumEmpty'));
 }
 
+// ─── SWIPE FİZİK MOTORU ───
 function podyumDown(ev){
   var t=ev.touches?ev.touches[0]:ev;
   _podyumDrag={active:true,startX:t.clientX,startY:t.clientY,dx:0};
@@ -5922,16 +5982,15 @@ function podyumMove(ev){
   if(!_podyumDrag.active)return;
   var t=ev.touches?ev.touches[0]:ev;
   _podyumDrag.dx=t.clientX-_podyumDrag.startX;
-  var card=document.querySelector('.podyum-card[data-idx="'+_podyumIdx+'"]');
+  var card=document.querySelector('#podyumStack .podyum-card[data-idx="'+_podyumIdx+'"]');
   if(!card)return;
-  var rot=_podyumDrag.dx*0.1;
+  var rot=_podyumDrag.dx*0.05;
   card.style.transform='translateX('+_podyumDrag.dx+'px) rotate('+rot+'deg)';
   card.style.transition='none';
-  // Show labels
-  var likeLabel=card.querySelector('.like-label');
-  var nopeLabel=card.querySelector('.nope-label');
-  if(likeLabel)likeLabel.style.opacity=Math.min(_podyumDrag.dx/80,1);
-  if(nopeLabel)nopeLabel.style.opacity=Math.min(-_podyumDrag.dx/80,1);
+  var ll=document.getElementById('swpLike'+_podyumIdx);
+  var nl=document.getElementById('swpNope'+_podyumIdx);
+  if(ll)ll.style.opacity=Math.min(_podyumDrag.dx/80,1);
+  if(nl)nl.style.opacity=Math.min(-_podyumDrag.dx/80,1);
   if(ev.cancelable)ev.preventDefault();
 }
 function podyumUp(ev){
@@ -5941,48 +6000,46 @@ function podyumUp(ev){
   document.removeEventListener('mouseup',podyumUp);
   var dx=_podyumDrag.dx;
   if(Math.abs(dx)>80){
-    podyumSwipe(dx>0?'up':'down');
+    podyumSwipe(dx>0?'right':'left');
   }else{
-    // Snap back
-    var card=document.querySelector('.podyum-card[data-idx="'+_podyumIdx+'"]');
+    var card=document.querySelector('#podyumStack .podyum-card[data-idx="'+_podyumIdx+'"]');
     if(card){
-      card.style.transition='transform .3s ease';
-      card.style.transform='scale(1) translateY(0)';
-      var ll=card.querySelector('.like-label'),nl=card.querySelector('.nope-label');
-      if(ll)ll.style.opacity=0;if(nl)nl.style.opacity=0;
+      card.style.transition='transform .4s cubic-bezier(.175,.885,.32,1.275)';
+      card.style.transform='scale(1) translateX(0px) rotate(0deg)';
+      var ll=document.getElementById('swpLike'+_podyumIdx);
+      var nl=document.getElementById('swpNope'+_podyumIdx);
+      if(ll)ll.style.opacity='0';
+      if(nl)nl.style.opacity='0';
     }
   }
 }
 
 function podyumSwipe(dir){
-  var card=document.querySelector('.podyum-card[data-idx="'+_podyumIdx+'"]');
+  var card=document.querySelector('#podyumStack .podyum-card[data-idx="'+_podyumIdx+'"]');
   var e=_podyumCards[_podyumIdx];
   if(!card||!e)return;
 
-  // Fly out animation
-  var flyX=dir==='up'?500:-500;
-  card.style.transition='transform .4s ease, opacity .4s ease';
-  card.style.transform='translateX('+flyX+'px) rotate('+(flyX*0.1)+'deg)';
+  var flyX=dir==='right'?(window.innerWidth+200):(-(window.innerWidth+200));
+  card.style.transition='transform .4s cubic-bezier(.2,.8,.2,1), opacity .3s ease-out';
+  card.style.transform='translateX('+flyX+'px) rotate('+(flyX*0.05)+'deg)';
   card.style.opacity='0';
 
-  // Vote
-  fetch('/api/podyum-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    id:e.id,direction:dir,session:_podyumSession
-  })}).then(function(r){return r.json()}).then(function(d){
-    if(d.promoted){
-      var toast=document.createElement('div');
-      toast.style.cssText='position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;padding:10px 20px;border-radius:14px;font:700 13px Outfit,sans-serif;z-index:1200;box-shadow:0 4px 20px rgba(255,215,0,.4);animation:fadeIn .3s';
-      toast.textContent='🏆 '+e.nickname+' Hall of Fame\'e yükseldi!';
-      document.body.appendChild(toast);
-      setTimeout(function(){toast.remove()},2500);
-    }
-  }).catch(function(){});
+  if(navigator.vibrate)navigator.vibrate(50);
 
-  // Next card
+  var voteDir=(dir==='right')?'up':'down';
+  if(e.id && !e.id.startsWith('demo')){
+    fetch('/api/podyum-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      id:e.id,direction:voteDir,session:_podyumSession
+    })}).then(function(r){return r.json()}).then(function(d){
+      if(d.promoted){
+        _showToast('🏆 EFSANEVİ!', (e.nickname||'Bu kombin')+' Hall of Fame\'e yükseldi.');
+      }
+    }).catch(function(){});
+  }
+
   _podyumIdx++;
   setTimeout(function(){
     if(_podyumIdx>=_podyumCards.length){
-      // Load more or show empty
       loadPodyumCards();
     }else{
       renderPodyumStack();
@@ -5990,12 +6047,17 @@ function podyumSwipe(dir){
   },350);
 }
 
+function _podyumReport(id){
+  if(!confirm('Bu kombini sahte/uygunsuz olarak bildirmek istiyor musun?'))return;
+  if(id && !id.startsWith('demo')){
+    fetch('/api/podyum-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})}).catch(function(){});
+  }
+  podyumSwipe('left');
+}
+
 function podyumReport(){
   var e=_podyumCards[_podyumIdx];if(!e)return;
-  var isTr=CC_LANG[CC]==='tr';
-  if(!confirm(isTr?'Bu kombini sahte/uygunsuz olarak bildir?':'Report this outfit as fake/inappropriate?'))return;
-  fetch('/api/podyum-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:e.id})})
-  .then(function(){podyumSwipe('down')}).catch(function(){});
+  _podyumReport(e.id);
 }
 
 // Add "Podyuma Çık" to fit-check result
