@@ -3107,6 +3107,126 @@ async def arena_top(limit: int = 10):
         })
     return {"success": True, "entries": results}
 
+# ─── 📡 RADAR FEED ───
+import random as _rand
+
+# Simulated user names for demo feed
+_DEMO_USERS = [
+    ("Ece", "ece.style"), ("Berk", "berk.drip"), ("Selin", "selin.vogue"),
+    ("Can", "can.kaya"), ("Zeynep", "zey.combo"), ("Deniz", "deniz.fit"),
+    ("Mert", "mert.icon"), ("Ayşe", "ayse.chic"), ("Burak", "burak.mode"),
+    ("Elif", "elif.trend"), ("Kaan", "kaan.drp"), ("Defne", "defne.lux"),
+]
+_DEMO_ITEMS = [
+    ("Vintage Deri Ceket", "1.200 TL", "zara.com"),
+    ("Oversized Blazer", "2.450 TL", "massimodutti.com"),
+    ("Cargo Pantolon", "899 TL", "pullandbear.com"),
+    ("Chunky Sneaker", "3.200 TL", "nike.com"),
+    ("Minimalist Kemer", "450 TL", "hm.com"),
+    ("Old Money Triko", "1.800 TL", "ralphlauren.com"),
+    ("Wide-Leg Jean", "1.100 TL", "levis.com"),
+    ("Chelsea Bot", "2.900 TL", "drmartens.com"),
+]
+_DEMO_FOLDERS = ["🍷 Date Night", "🏋️ Gym Stili", "💼 Ofis Gücü", "🌙 İlk Buluşma", "💰 Old Money"]
+_DEMO_ROASTS_LOW = [
+    "Old Money denemişsin ama cüzdan No Money diye bağırıyor dostum 💀",
+    "Bu kombin hangi yüzyıldan geldi tam anlayamadım, zaman yolcusu musun? 😭",
+    "Üst kış alt yaz, ayakkabılar sonbahar... Mevsim konferansı mı? 🤔",
+    "Renk uyumu diye bir şey duydun mu hiç? Google'la bi 😅",
+]
+
+@app.get("/api/radar-feed")
+async def radar_feed(page: int = 0, limit: int = 10):
+    """Generate a dynamic social feed with 5 card types."""
+    cards = []
+    _rand.seed(int(time.time() / 300) + page)  # Refresh every 5min
+
+    # Card Type 1: Drip Hırsızlığı (Re-fitch)
+    for _ in range(2):
+        u1, u2 = _rand.sample(_DEMO_USERS, 2)
+        item = _rand.choice(_DEMO_ITEMS)
+        cards.append({
+            "type": "refitch",
+            "user": u1[0], "handle": u1[1],
+            "target": u2[0], "target_handle": u2[1],
+            "item_name": item[0], "item_price": item[1], "item_store": item[2],
+            "ts": time.time() - _rand.randint(60, 7200),
+        })
+
+    # Card Type 2: Gladyatör Sahada (Live Arena)
+    arena_entries = [e for e in ARENA_POOL if e["reported"] < 3 and (e["ups"] + e["downs"]) > 0]
+    if arena_entries:
+        for e in arena_entries[:2]:
+            total = e["ups"] + e["downs"]
+            cards.append({
+                "type": "arena_live",
+                "id": e["id"], "nickname": e["nickname"],
+                "image": e["image"][:200] + "..." if len(e.get("image","")) > 200 else "",  # Truncate for feed
+                "has_image": bool(e.get("image")),
+                "ai_score": e["ai_score"], "emoji": e["emoji"],
+                "fire_pct": round(e["ups"] / total * 100) if total > 0 else 50,
+                "meh_pct": round(e["downs"] / total * 100) if total > 0 else 50,
+                "total_votes": total,
+                "ago": _time_ago(e["ts"]),
+            })
+    else:
+        # Demo arena cards
+        for _ in range(2):
+            u = _rand.choice(_DEMO_USERS)
+            fire = _rand.randint(20, 80)
+            cards.append({
+                "type": "arena_live",
+                "id": "demo", "nickname": u[0],
+                "has_image": False,
+                "ai_score": _rand.randint(40, 88), "emoji": _rand.choice(["🔥","💅","😬","💀"]),
+                "fire_pct": fire, "meh_pct": 100-fire,
+                "total_votes": _rand.randint(5, 50),
+                "ago": f"{_rand.randint(1,45)}dk önce",
+            })
+
+    # Card Type 3: Utanç Duvarı (Low Fit-Check scores)
+    for _ in range(2):
+        u = _rand.choice(_DEMO_USERS)
+        score = _rand.randint(32, 55)
+        cards.append({
+            "type": "shame_wall",
+            "user": u[0], "handle": u[1],
+            "score": score, "emoji": "💀" if score < 40 else "😬",
+            "roast": _rand.choice(_DEMO_ROASTS_LOW),
+            "ago": f"{_rand.randint(1,120)}dk önce",
+        })
+
+    # Card Type 4: Gatekeep (Premium tease)
+    u = _rand.choice(_DEMO_USERS)
+    item = _rand.choice(_DEMO_ITEMS)
+    original_price = _rand.choice(["15.000 TL", "25.000 TL", "35.000 TL", "48.000 TL"])
+    dupe_price = _rand.choice(["450 TL", "800 TL", "1.200 TL", "650 TL"])
+    cards.append({
+        "type": "gatekeep",
+        "user": u[0], "handle": u[1],
+        "original_price": original_price, "dupe_price": dupe_price,
+        "brand": _rand.choice(["Prada", "Gucci", "Louis Vuitton", "Balenciaga", "Dior"]),
+        "ago": f"{_rand.randint(1,60)}dk önce",
+    })
+
+    # Card Type 5: Dolap Röntgenciliği (Folder update)
+    for _ in range(2):
+        u = _rand.choice(_DEMO_USERS)
+        folder = _rand.choice(_DEMO_FOLDERS)
+        count = _rand.randint(2, 5)
+        items = _rand.sample(_DEMO_ITEMS, min(count, len(_DEMO_ITEMS)))
+        cards.append({
+            "type": "folder_update",
+            "user": u[0], "handle": u[1],
+            "folder_name": folder, "item_count": count,
+            "items": [{"name": i[0], "price": i[1]} for i in items],
+            "ago": f"{_rand.randint(1,180)}dk önce",
+        })
+
+    # Shuffle for natural feel
+    _rand.shuffle(cards)
+    return {"success": True, "cards": cards[page*limit:(page+1)*limit]}
+
 # ─── VIRTUAL TRY-ON (Sanal Kabin) ───
 VTON_STORE = {}
 
@@ -3391,6 +3511,39 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .swipe-label.nope-label{left:20px;color:#f44336;border:3px solid #f44336;transform:rotate(-15deg)}
 .vton-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(77,0,255,.1));border:1px solid rgba(0,229,255,.25);color:var(--cyan);font:700 10px 'Outfit',sans-serif;cursor:pointer;margin-top:6px;transition:all .2s}
 .vton-btn:active{background:var(--cyan);color:#000}
+.rcard{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:16px;position:relative;overflow:hidden;animation:fadeUp .3s ease both}
+.rcard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:20px 20px 0 0}
+.rcard.type-refitch::before{background:linear-gradient(90deg,var(--accent),var(--purple))}
+.rcard.type-arena::before{background:linear-gradient(90deg,var(--cyan),#4d00ff)}
+.rcard.type-shame::before{background:linear-gradient(90deg,#f44336,#ff9800)}
+.rcard.type-gatekeep::before{background:linear-gradient(90deg,#ffd700,#ff8c00)}
+.rcard.type-folder::before{background:linear-gradient(90deg,#00e5ff,#00bcd4)}
+.rcard-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.rcard-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+.rcard-user{font-size:13px;font-weight:700;color:var(--text);line-height:1.4}
+.rcard-user .handle{color:var(--cyan);font-weight:600}
+.rcard-user .ago{font-size:10px;color:var(--muted);font-weight:500}
+.rcard-tag{position:absolute;top:14px;right:14px;font-size:9px;font-weight:800;padding:4px 10px;border-radius:8px;letter-spacing:.5px;text-transform:uppercase}
+.rcard-body{font-size:13px;line-height:1.6;color:var(--text);margin-bottom:12px}
+.rcard-action{display:flex;gap:8px}
+.rcard-action .rbtn{flex:1;padding:10px;border-radius:14px;font:700 12px 'Outfit',sans-serif;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .2s}
+.rcard-action .rbtn:active{transform:scale(.96)}
+.rcard-action .rbtn-primary{background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;box-shadow:0 4px 15px rgba(255,32,121,.2)}
+.rcard-action .rbtn-secondary{background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--border)}
+.rcard-action .rbtn-fire{background:rgba(0,229,255,.12);color:var(--cyan);border:1px solid rgba(0,229,255,.3)}
+.rcard-action .rbtn-meh{background:rgba(244,67,54,.1);color:#f44336;border:1px solid rgba(244,67,54,.3)}
+.rcard-action .rbtn-gold{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;box-shadow:0 4px 15px rgba(255,215,0,.3)}
+.rcard-score{font-size:36px;font-weight:900;text-align:center;margin:8px 0}
+.rcard-roast{font-size:13px;font-style:italic;line-height:1.5;color:var(--text);padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);margin-bottom:12px}
+.rcard-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.06);margin:10px 0;overflow:hidden;display:flex}
+.rcard-bar .fire-fill{background:linear-gradient(90deg,var(--cyan),#4d00ff);height:100%;transition:width .5s}
+.rcard-bar .meh-fill{background:rgba(244,67,54,.4);height:100%;transition:width .5s}
+.rcard-blur{filter:blur(12px);pointer-events:none;user-select:none}
+.rcard-lock{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2;padding:20px}
+.rcard-items{display:flex;gap:8px;margin-bottom:10px}
+.rcard-items .ritem{flex:1;padding:8px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--border);text-align:center;font-size:11px;line-height:1.3}
+.rcard-items .ritem .ritem-name{font-weight:700;color:var(--text);margin-bottom:2px}
+.rcard-items .ritem .ritem-price{color:var(--cyan);font-weight:800;font-size:12px}
 
 /* VTON Modal */
 .vton-modal{position:fixed;inset:0;z-index:1000;background:rgba(5,2,10,.95);backdrop-filter:blur(30px);display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px}
@@ -3496,6 +3649,7 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 
   <div class="bnav">
     <div class="bnav-item active" onclick="goHome()"><div class="icon">✧</div><div id="navHome" class="lbl"></div></div>
+    <div class="bnav-item" onclick="openRadar()"><div class="icon">📡</div><div class="lbl">Radar</div></div>
     <div class="bnav-item" onclick="openArena()"><div class="icon">🏟️</div><div class="lbl">Arena</div></div>
     <div class="bnav-item" onclick="showFavs()"><div class="icon">👤</div><div id="navFav" class="lbl"></div></div>
   </div>
@@ -3520,6 +3674,17 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
       <button class="arena-btn nope" onclick="arenaSwipe('down')">👎</button>
       <button class="arena-btn like" onclick="arenaSwipe('up')">👍</button>
     </div>
+  </div>
+</div>
+
+<!-- 📡 RADAR FEED -->
+<div class="arena-screen" id="radarScreen">
+  <div class="arena-header">
+    <div onclick="closeRadar()" style="cursor:pointer;color:var(--muted);font-size:14px;font-weight:600">← Geri</div>
+    <div style="font-size:18px;font-weight:900;letter-spacing:1px"><span style="font-size:16px">📡</span> <span class="text-gradient">Radar</span></div>
+    <div id="radarBadge" style="font-size:11px;color:var(--muted);font-weight:600"></div>
+  </div>
+  <div id="radarFeed" style="flex:1;overflow-y:auto;padding:16px 16px 120px;display:flex;flex-direction:column;gap:14px">
   </div>
 </div>
 
@@ -3907,7 +4072,7 @@ function showFavs(){
   _initProfile();
   var isTr=CC_LANG[CC]==='tr';
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
-  document.querySelectorAll('.bnav-item')[2].classList.add('active');
+  document.querySelectorAll('.bnav-item')[3].classList.add('active');
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='block';
   var ab=document.getElementById('actionBtns');if(ab)ab.style.display='none';
@@ -4448,6 +4613,128 @@ function submitToHof(score,emoji,roast){
   }).catch(function(){closeHofModal()});
 }
 
+// ─── 📡 RADAR FEED ───
+var _radarPage=0;
+function openRadar(){
+  document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
+  document.querySelectorAll('.bnav-item')[1].classList.add('active');
+  document.getElementById('radarScreen').classList.add('show');
+  document.getElementById('home').style.display='none';
+  document.getElementById('rScreen').style.display='none';
+  _radarPage=0;
+  loadRadarFeed();
+}
+function closeRadar(){
+  document.getElementById('radarScreen').classList.remove('show');
+  goHome();
+}
+function loadRadarFeed(){
+  var feed=document.getElementById('radarFeed');
+  if(_radarPage===0)feed.innerHTML='<div style="text-align:center;padding:40px"><div class="loader-orb" style="width:40px;height:40px;margin:0 auto 12px"></div><div style="color:var(--muted);font-size:13px">Radar taranıyor...</div></div>';
+  fetch('/api/radar-feed?page='+_radarPage+'&limit=10').then(function(r){return r.json()}).then(function(d){
+    if(_radarPage===0)feed.innerHTML='';
+    if(!d.success||!d.cards||!d.cards.length){
+      if(_radarPage===0)feed.innerHTML='<div style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">📡</div><div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:8px">Radar Boş</div><div style="font-size:13px;color:var(--muted)">Çevrende henüz aktivite yok.<br>Arkadaşlarını davet et!</div></div>';
+      return;
+    }
+    var isTr=CC_LANG[CC]==='tr';
+    var colors=['#ff2079','#4d00ff','#00e5ff','#ffbe0b','#f44336','#00bcd4','#e040fb','#ff6e40'];
+    for(var i=0;i<d.cards.length;i++){
+      var c=d.cards[i];
+      var card=document.createElement('div');
+      card.className='rcard';
+      var avatarColor=colors[(c.user||c.nickname||'X').charCodeAt(0)%colors.length];
+      var initial=(c.user||c.nickname||'?')[0].toUpperCase();
+      var h='';
+
+      if(c.type==='refitch'){
+        card.classList.add('type-refitch');
+        h+='<div class="rcard-tag" style="background:rgba(255,32,121,.15);color:var(--accent)">🥷 Drip Hırsızlığı</div>';
+        h+='<div class="rcard-head"><div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';
+        h+='<div class="rcard-user">'+c.user+' <span class="handle">@'+c.handle+'</span><br><span class="ago">'+_formatAgo(c.ts)+'</span></div></div>';
+        h+='<div class="rcard-body">👀 <b>'+c.user+'</b>, <span class="handle">@'+c.target_handle+'</span>\'nın bulduğu <b>'+c.item_price+'</b>\'lik <b>'+c.item_name+'</b>\'i Re-fitch yaptı!</div>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-primary" onclick="startFitCheck();closeRadar()">🔄 '+(isTr?'Sen de Çal':'Steal it too')+'</button><button class="rbtn rbtn-secondary">'+c.item_store+' →</button></div>';
+      }
+      else if(c.type==='arena_live'){
+        card.classList.add('type-arena');
+        h+='<div class="rcard-tag" style="background:rgba(0,229,255,.15);color:var(--cyan)">⚔️ '+(isTr?'Canlı':'Live')+'</div>';
+        h+='<div class="rcard-head"><div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';
+        h+='<div class="rcard-user">'+c.nickname+' <span class="ago">'+c.ago+'</span></div></div>';
+        h+='<div class="rcard-body">🚨 <b>'+c.nickname+'</b> '+(isTr?'şu an Arena\'da!':'is in the Arena!')+'<br>'+(isTr?'AI Skoru':'AI Score')+': '+c.emoji+' '+c.ai_score+' · '+c.total_votes+' oy</div>';
+        h+='<div class="rcard-bar"><div class="fire-fill" style="width:'+c.fire_pct+'%"></div><div class="meh-fill" style="width:'+c.meh_pct+'%"></div></div>';
+        h+='<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:10px"><span>🔥 %'+c.fire_pct+' Ateş</span><span>👎 %'+c.meh_pct+' Meh</span></div>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-fire" onclick="radarArenaVote(\''+c.id+'\',\'up\',this)">🔥 '+(isTr?'Kurtar':'Save')+'</button><button class="rbtn rbtn-meh" onclick="radarArenaVote(\''+c.id+'\',\'down\',this)">👎 '+(isTr?'Sen de Vur':'Roast')+'</button></div>';
+      }
+      else if(c.type==='shame_wall'){
+        card.classList.add('type-shame');
+        h+='<div class="rcard-tag" style="background:rgba(244,67,54,.15);color:#f44336">💀 '+(isTr?'Utanç Duvarı':'Wall of Shame')+'</div>';
+        h+='<div class="rcard-head"><div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';
+        h+='<div class="rcard-user">'+c.user+' <span class="handle">@'+c.handle+'</span><br><span class="ago">'+c.ago+'</span></div></div>';
+        h+='<div class="rcard-score" style="color:'+(c.score<40?'#f44336':'#ff9800')+'">'+c.emoji+' '+c.score+'<span style="font-size:16px;color:var(--muted)">/100</span></div>';
+        h+='<div class="rcard-roast">"'+c.roast+'"</div>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-primary" onclick="startFitCheck();closeRadar()">📸 '+(isTr?'Sıra Sende: Kendi Drip\'ini Yargılat':'Your Turn: Rate Your Drip')+'</button></div>';
+      }
+      else if(c.type==='gatekeep'){
+        card.classList.add('type-gatekeep');
+        h+='<div class="rcard-tag" style="background:rgba(255,215,0,.15);color:#ffd700">🤫 Gatekeep</div>';
+        h+='<div class="rcard-head"><div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';
+        h+='<div class="rcard-user">'+c.user+' <span class="handle">@'+c.handle+'</span><br><span class="ago">'+c.ago+'</span></div></div>';
+        h+='<div style="position:relative;padding:20px;margin-bottom:12px">';
+        h+='<div class="rcard-blur" style="text-align:center;padding:20px"><div style="font-size:32px;margin-bottom:8px">👜</div><div style="font-size:16px;font-weight:800">'+c.brand+'</div><div style="font-size:14px;color:var(--cyan);margin-top:4px">'+c.original_price+' → '+c.dupe_price+'</div></div>';
+        h+='<div class="rcard-lock"><div style="font-size:36px;margin-bottom:8px">🔒</div><div style="font-size:12px;font-weight:700;color:var(--text);text-align:center">'+c.user+' '+(isTr?'bu muadili herkesten gizledi!':'is gatekeeping this dupe!')+'</div></div>';
+        h+='</div>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-gold">🖤 '+(isTr?'Kilidi Aç — fitchy. BLACK':'Unlock — fitchy. BLACK')+'</button></div>';
+      }
+      else if(c.type==='folder_update'){
+        card.classList.add('type-folder');
+        h+='<div class="rcard-tag" style="background:rgba(0,229,255,.1);color:#00bcd4">📂 '+(isTr?'Dolap':'Closet')+'</div>';
+        h+='<div class="rcard-head"><div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';
+        h+='<div class="rcard-user">'+c.user+' <span class="handle">@'+c.handle+'</span><br><span class="ago">'+c.ago+'</span></div></div>';
+        h+='<div class="rcard-body">✨ <b>'+c.user+'</b> <b>\''+c.folder_name+'\'</b> '+(isTr?'klasörüne':'folder')+' <b>'+c.item_count+'</b> '+(isTr?'yeni parça ekledi':'new pieces added')+'</div>';
+        if(c.items&&c.items.length){
+          h+='<div class="rcard-items">';
+          for(var j=0;j<Math.min(c.items.length,3);j++){
+            h+='<div class="ritem"><div class="ritem-name">'+c.items[j].name+'</div><div class="ritem-price">'+c.items[j].price+'</div></div>';
+          }
+          h+='</div>';
+        }
+        h+='<div class="rcard-action"><button class="rbtn rbtn-secondary">👀 '+(isTr?'Dolaba Sız':'Sneak Peek')+'</button></div>';
+      }
+
+      card.innerHTML=h;
+      card.style.animationDelay=(i*0.06)+'s';
+      feed.appendChild(card);
+    }
+    // Load more button
+    if(d.cards.length>=10){
+      var more=document.createElement('button');
+      more.className='rbtn rbtn-secondary';
+      more.style.cssText='width:100%;padding:14px;border-radius:16px;margin-top:4px';
+      more.textContent=isTr?'📡 Daha Fazla Tara':'📡 Scan More';
+      more.onclick=function(){_radarPage++;this.remove();loadRadarFeed()};
+      feed.appendChild(more);
+    }
+  }).catch(function(){});
+}
+
+function _formatAgo(ts){
+  var diff=(Date.now()/1000)-ts;
+  if(diff<60)return 'az önce';
+  if(diff<3600)return Math.floor(diff/60)+'dk önce';
+  if(diff<86400)return Math.floor(diff/3600)+'sa önce';
+  return Math.floor(diff/86400)+'g önce';
+}
+
+function radarArenaVote(id,dir,btn){
+  if(id==='demo'){
+    btn.parentElement.innerHTML='<div style="text-align:center;font-size:12px;color:var(--muted);padding:8px">✅ '+(dir==='up'?'🔥 Ateş Ettin!':'👎 Meh dedin.')+'</div>';
+    return;
+  }
+  fetch('/api/arena-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id,direction:dir,session:_arenaSession})}).then(function(r){return r.json()}).then(function(d){
+    btn.parentElement.innerHTML='<div style="text-align:center;font-size:12px;color:var(--muted);padding:8px">✅ '+(dir==='up'?'🔥 Ateş Ettin!':'👎 Meh dedin.')+' ('+(d.ups||0)+'👍 '+(d.downs||0)+'👎)</div>';
+  }).catch(function(){});
+}
+
 // ─── 🏟️ KOMBİN ARENA (Tinder-style) ───
 var _arenaSession='arena_'+Math.random().toString(36).slice(2,10);
 var _arenaCards=[];
@@ -4456,7 +4743,7 @@ var _arenaDrag={active:false,startX:0,startY:0,dx:0};
 
 function openArena(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
-  document.querySelectorAll('.bnav-item')[1].classList.add('active');
+  document.querySelectorAll('.bnav-item')[2].classList.add('active');
   document.getElementById('arenaScreen').classList.add('show');
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='none';
