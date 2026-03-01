@@ -3802,23 +3802,23 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .swipe-label.nope-label{left:20px;color:#f44336;border:3px solid #f44336;transform:rotate(-15deg)}
 .vton-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(77,0,255,.1));border:1px solid rgba(0,229,255,.25);color:var(--cyan);font:700 10px 'Outfit',sans-serif;cursor:pointer;margin-top:6px;transition:all .2s}
 .vton-btn:active{background:var(--cyan);color:#000}
-.rcard{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:16px;position:relative;overflow:hidden;animation:fadeUp .3s ease both}
-.rcard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:20px 20px 0 0}
+.rcard{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:20px;position:relative;animation:fadeUp .3s ease both}
+.rcard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:20px 20px 0 0;z-index:1}
 .rcard.type-moodboard::before{background:linear-gradient(90deg,#D4AF37,#8B6914)}
 .rcard.type-refitch::before{background:linear-gradient(90deg,var(--accent),var(--purple))}
 .rcard.type-runway::before{background:linear-gradient(90deg,#ffd700,var(--accent))}
 .rcard.type-trend::before{background:linear-gradient(90deg,var(--cyan),#4d00ff)}
 .rcard.type-twin::before{background:linear-gradient(90deg,#e040fb,var(--cyan))}
-.rcard-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.rcard-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0;object-fit:cover}
+.rcard-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.rcard-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;object-fit:cover}
 img.rcard-avatar{border:1px solid var(--border)}
 .rcard-user{font-size:13px;font-weight:700;color:var(--text);line-height:1.4}
 .rcard-user .handle{color:var(--cyan);font-weight:600}
 .rcard-user .ago{font-size:10px;color:var(--muted);font-weight:500}
 .rcard-tag{position:absolute;top:14px;right:14px;font-size:9px;font-weight:800;padding:4px 10px;border-radius:8px;letter-spacing:.5px;text-transform:uppercase}
-.rcard-body{font-size:13px;line-height:1.6;color:var(--text);margin-bottom:12px}
-.rcard-action{display:flex;gap:8px}
-.rcard-action .rbtn{flex:1;padding:10px;border-radius:14px;font:700 12px 'Outfit',sans-serif;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .2s}
+.rcard-body{font-size:13px;line-height:1.6;color:var(--text);margin-bottom:14px;margin-top:4px}
+.rcard-action{display:flex;gap:8px;margin-top:4px}
+.rcard-action .rbtn{flex:1;padding:12px;border-radius:14px;font:700 12px 'Outfit',sans-serif;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .2s}
 .rcard-action .rbtn:active{transform:scale(.96)}
 .rcard-action .rbtn-primary{background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;box-shadow:0 4px 15px rgba(255,32,121,.2)}
 .rcard-action .rbtn-secondary{background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--border)}
@@ -3838,7 +3838,7 @@ img.rcard-avatar{border:1px solid var(--border)}
 
 /* 🍷 MOODBOARD DROP — Koleksiyon Sızıntısı */
 .rcard-collage{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;border-radius:14px;overflow:hidden}
-.rcard-collage-item{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px;position:relative}
+.rcard-collage-item{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px;position:relative;min-height:90px}
 .rcard-collage-item::after{content:'';position:absolute;inset:0;border:1px solid rgba(255,255,255,.06)}
 .rcard-collage-item .col-emoji{font-size:28px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.3))}
 .rcard-collage-item .col-name{font-size:8px;font-weight:700;color:rgba(255,255,255,.8);text-align:center;line-height:1.2}
@@ -3850,7 +3850,7 @@ img.rcard-avatar{border:1px solid var(--border)}
 .rcard-capsule-val{font-weight:800;color:var(--accent)}
 
 /* 🤝 PREMIUM RE-FITCH — Küratör Onayı */
-.rcard-product{display:flex;gap:12px;margin-bottom:14px;padding:14px;border-radius:14px;background:rgba(255,255,255,.02);border:1px solid var(--border)}
+.rcard-product{display:flex;gap:14px;margin-bottom:14px;padding:16px;border-radius:14px;background:rgba(255,255,255,.02);border:1px solid var(--border)}
 .rcard-product-img{width:72px;height:72px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0;position:relative;overflow:hidden}
 .rcard-product-img::after{content:'';position:absolute;inset:0;border-radius:12px;border:1px solid rgba(255,255,255,.08)}
 .rcard-product-info{flex:1;display:flex;flex-direction:column;justify-content:center;gap:3px}
@@ -3864,7 +3864,7 @@ img.rcard-avatar{border:1px solid var(--border)}
 .rcard-refitch-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px;background:rgba(255,32,121,.1);color:var(--accent);margin-left:auto}
 
 /* 🏆 RUNWAY MILESTONE — Vitrin Başarısı */
-.rcard-runway-hero{position:relative;height:200px;border-radius:14px;overflow:hidden;margin-bottom:14px}
+.rcard-runway-hero{position:relative;height:220px;border-radius:14px;overflow:hidden;margin-bottom:14px}
 .rcard-runway-hero img{width:100%;height:100%;object-fit:cover}
 .rcard-runway-hero .hero-gradient{position:absolute;inset:0;background:linear-gradient(to top,rgba(5,2,10,.95) 0%,transparent 60%)}
 .rcard-runway-hero .hero-score{position:absolute;bottom:16px;left:16px;display:flex;align-items:center;gap:10px}
@@ -3877,7 +3877,7 @@ img.rcard-avatar{border:1px solid var(--border)}
 .rcard-runway-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:64px;background:linear-gradient(135deg,rgba(255,215,0,.05),rgba(255,32,121,.05))}
 
 /* 📈 TREND ALERT — Mikro-Trend */
-.rcard-trend-hero{padding:20px;margin-bottom:14px;border-radius:14px;text-align:center;position:relative;overflow:hidden}
+.rcard-trend-hero{padding:24px;margin-bottom:14px;border-radius:14px;text-align:center;position:relative;overflow:hidden}
 .rcard-trend-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(0,229,255,.08) 0%,transparent 70%)}
 .rcard-trend-emoji{font-size:48px;margin-bottom:10px;filter:drop-shadow(0 4px 12px rgba(0,0,0,.3))}
 .rcard-trend-name{font-size:20px;font-weight:900;color:var(--text);margin-bottom:6px}
@@ -3892,7 +3892,7 @@ img.rcard-avatar{border:1px solid var(--border)}
 .rcard-trend-item .ti-price{font-size:10px;font-weight:800;color:var(--cyan)}
 
 /* 👯 STYLE TWIN — Stil İkizi */
-.rcard-twin-split{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-bottom:14px;border-radius:14px;overflow:hidden;height:160px;position:relative}
+.rcard-twin-split{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin-bottom:14px;border-radius:14px;overflow:hidden;height:180px;position:relative}
 .rcard-twin-side{position:relative;overflow:hidden}
 .rcard-twin-side img{width:100%;height:100%;object-fit:cover}
 .rcard-twin-side .twin-gradient{position:absolute;inset:0;background:linear-gradient(to top,rgba(5,2,10,.85) 0%,transparent 50%)}
