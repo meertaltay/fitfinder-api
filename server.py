@@ -3304,9 +3304,9 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 
 /* Social Profile */
 .profile-header{display:flex;flex-direction:column;align-items:center;padding:24px 20px 0}
-.avatar-wrap{position:relative;width:90px;height:90px;margin-bottom:14px;border-radius:50%;padding:3px;background:linear-gradient(135deg,var(--accent),var(--purple));box-shadow:0 0 30px rgba(255,32,121,.3);cursor:pointer}
+.avatar-wrap{position:relative;width:90px;height:90px;margin-bottom:20px;border-radius:50%;padding:3px;background:linear-gradient(135deg,var(--accent),var(--purple));box-shadow:0 0 30px rgba(255,32,121,.3);cursor:pointer}
 .avatar-wrap .avatar{width:100%;height:100%;border-radius:50%;object-fit:cover;border:3px solid var(--bg);background:#1a1a2e}
-.avatar-wrap.has-story{padding:4px;background:conic-gradient(#ffbe0b,var(--accent),var(--purple),var(--cyan),#ffbe0b);box-shadow:0 0 20px rgba(255,190,11,.4),0 0 40px rgba(255,32,121,.2);animation:storyRingSpin 3s linear infinite}
+.avatar-wrap.has-story{padding:4px;background:conic-gradient(var(--cyan),var(--accent),var(--purple),var(--cyan));box-shadow:0 0 20px rgba(0,229,255,.4),0 0 40px rgba(255,32,121,.2);animation:storyRingSpin 3s linear infinite}
 @keyframes storyRingSpin{from{filter:hue-rotate(0deg)}to{filter:hue-rotate(360deg)}}
 .avatar-wrap.story-seen{animation:none;background:conic-gradient(var(--muted),rgba(139,133,158,.5),var(--muted));box-shadow:none}
 .profile-name{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#fff}
@@ -3345,22 +3345,8 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .item-card .card-info{padding:12px;background:rgba(10,5,20,.4);border-top:1px solid var(--border)}
 .item-card .card-title{font-size:13px;font-weight:700;color:#fff;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px}
 .item-card .card-brand{font-size:11px;color:var(--cyan);font-weight:600;display:flex;align-items:center;gap:4px}
-.story-modal{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.95);flex-direction:column;align-items:center;justify-content:center}
-.story-modal.open{display:flex}
-.story-modal .story-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:16px 20px;z-index:201}
-.story-modal .story-progress{flex:1;height:3px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden}
-.story-modal .story-progress-fill{height:100%;background:#fff;border-radius:3px;animation:storyProgress 5s linear forwards}
-@keyframes storyProgress{from{width:0%}to{width:100%}}
-.story-modal .story-close{color:#fff;font-size:24px;cursor:pointer;position:absolute;top:16px;right:20px;z-index:202}
-.story-modal .story-user{display:flex;align-items:center;gap:10px;position:absolute;top:30px;left:20px;z-index:202}
-.story-modal .story-user img{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #ffbe0b}
-.story-modal .story-user-info .story-name{font-size:14px;font-weight:700;color:#fff}
-.story-modal .story-user-info .story-time{font-size:11px;color:var(--muted)}
-.story-modal .story-content{width:100%;max-width:440px;aspect-ratio:9/16;position:relative;border-radius:16px;overflow:hidden}
-.story-modal .story-content img{width:100%;height:100%;object-fit:cover}
-.story-modal .story-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 30%,transparent 70%,rgba(0,0,0,.5) 100%)}
-.story-modal .story-badge{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#ffbe0b,#fb5607);color:#000;font-size:14px;font-weight:800;padding:10px 20px;border-radius:14px;display:flex;align-items:center;gap:6px;box-shadow:0 4px 20px rgba(255,190,11,.5);white-space:nowrap}
-.story-modal .story-caption{position:absolute;bottom:20px;left:20px;right:20px;text-align:center;color:#fff;font-size:13px;font-weight:600}
+.story-modal{display:none;position:fixed;inset:0;z-index:1100;background:rgba(5,2,10,.95);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);flex-direction:column}
+.live-badge{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);font-size:8px;font-weight:900;padding:3px 8px;border-radius:6px;white-space:nowrap;letter-spacing:.5px;z-index:2}
 
 /* Fit-Check Score */
 .fitcheck-result{text-align:center;padding:24px 0}
@@ -3537,12 +3523,39 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
   </div>
 </div>
 
-<!-- 📖 PROFILE STORY MODAL -->
+<!-- ⚔️ ARENA STORY MODAL -->
 <div class="story-modal" id="storyModal">
-  <div class="story-header" id="storyHeader"></div>
-  <div class="story-close" onclick="closeProfileStory()">✕</div>
-  <div class="story-user" id="storyUser"></div>
-  <div class="story-content" id="storyContent" onclick="showStoryAt(_storyIdx+1)"></div>
+  <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:44px;height:44px;border-radius:50%;padding:2px;background:var(--cyan);flex-shrink:0"><img src="" id="storyAvatarImg" style="width:100%;height:100%;border-radius:50%;object-fit:cover;border:2px solid var(--bg)"></div>
+      <div><div style="font-size:14px;font-weight:800;color:#fff" id="storyHandle">@fitchy_user</div><div style="font-size:11px;color:var(--cyan);font-weight:600;margin-top:2px">⚔️ <span id="storyStatusTxt">Arenada Yarışıyor</span></div></div>
+    </div>
+    <div onclick="closeStory()" style="font-size:36px;color:var(--muted);cursor:pointer;line-height:1;padding:0 10px">×</div>
+  </div>
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:20px">
+    <div id="storyArenaCard" class="arena-card" style="position:relative;width:min(320px,85vw);box-shadow:0 10px 40px rgba(0,0,0,.6);touch-action:none;user-select:none">
+      <div class="swipe-label like-label" id="storyLikeLabel">ATEŞ 🔥</div>
+      <div class="swipe-label nope-label" id="storyNopeLabel">MEH 👎</div>
+      <div class="ac-img" style="height:420px">
+        <img id="storyMainImg" src="" style="width:100%;height:100%;object-fit:cover">
+        <div class="ac-overlay" style="padding:16px 18px 24px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <span id="storyScoreTxt" class="ac-aiscore" style="font-size:13px;padding:6px 12px;border-radius:12px;background:rgba(255,255,255,.15);backdrop-filter:blur(8px)"></span>
+          </div>
+          <div id="storyRoastTxt" style="font-size:13px;color:var(--text);line-height:1.5;font-style:italic">...</div>
+        </div>
+      </div>
+    </div>
+    <div id="storyEmpty" style="display:none;text-align:center">
+      <div style="font-size:56px;margin-bottom:16px">⚔️</div>
+      <div id="storyEmptyTitle" style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px"></div>
+      <div id="storyEmptySub" style="font-size:13px;color:var(--muted);line-height:1.5;padding:0 20px"></div>
+    </div>
+  </div>
+  <div class="arena-btns" id="storyBtns" style="padding:0 0 40px;margin:0;gap:30px">
+    <button class="arena-btn nope" onclick="storyVote('down')">👎</button>
+    <button class="arena-btn like" onclick="storyVote('up')">👍</button>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
@@ -3726,6 +3739,7 @@ function showScreen(){
   document.getElementById('prev').src=cPrev;
   document.getElementById('prev').style.maxHeight='260px';
   document.getElementById('prev').style.display='block';
+  document.getElementById('prev').parentElement.style.display='';
   document.getElementById('actionBtns').style.display='flex';
   document.getElementById('cropMode').style.display='none';
   document.getElementById('piecePicker').style.display='none';
@@ -3898,7 +3912,7 @@ function showFavs(){
   document.getElementById('rScreen').style.display='block';
   var ab=document.getElementById('actionBtns');if(ab)ab.style.display='none';
   var cm=document.getElementById('cropMode');if(cm)cm.style.display='none';
-  var pv=document.getElementById('prev');if(pv)pv.style.display='none';
+  var pv=document.getElementById('prev');if(pv){pv.style.display='none';pv.parentElement.style.display='none'};
   var pp=document.getElementById('piecePicker');if(pp)pp.style.display='none';
   var ra=document.getElementById('res');ra.style.display='block';
   var profile=_getProfile();var favs=_getFavs();var folders=_getFolders();
@@ -3908,10 +3922,11 @@ function showFavs(){
 
   // Profile header with avatar + story ring
   var h='<div class="profile-header">';
-  var hasStory=hofCount>0;
-  h+='<div class="avatar-wrap'+(hasStory?' has-story':'')+'" onclick="'+(hasStory?'openProfileStory()':'editProfile()')+'">';
+  // Avatar with Arena ring (always active — tapping opens Arena vote)
+  h+='<div class="avatar-wrap has-story" onclick="openProfileStory()">';
   if(profile.avatar)h+='<img src="'+profile.avatar+'" class="avatar" onerror="this.src=\'data:image/svg+xml,<svg xmlns=http://www.w3.org/2000/svg viewBox=0 0 100 100><rect fill=%231a1a2e width=100 height=100/><text x=50 y=55 text-anchor=middle fill=white font-size=40>'+(profile.name?profile.name[0].toUpperCase():'👤')+'</text></svg>\'">';
   else h+='<div class="avatar" style="display:flex;align-items:center;justify-content:center;font-size:36px;background:#1a1a2e">'+(profile.name?profile.name[0].toUpperCase():'👤')+'</div>';
+  h+='<div class="live-badge" style="background:var(--cyan);color:#000;box-shadow:0 4px 15px rgba(0,229,255,.4)">⚔️ ARENA\'DA</div>';
   h+='</div>';
   h+='<div class="profile-name">'+(profile.name||(isTr?'Profilini Düzenle':'Edit Profile'))+'</div>';
   h+='<div class="profile-handle">'+(profile.handle||'@fitchy_user')+'</div>';
@@ -4017,56 +4032,156 @@ function shareProfile(){
   if(navigator.share){navigator.share({title:'fitchy. '+handle,text:(CC_LANG[CC]==='tr'?'Profilimi keşfet! ':'Check out my profile! ')+url,url:'https://'+url}).catch(function(){})}
   else{navigator.clipboard.writeText('https://'+url).then(function(){alert((CC_LANG[CC]==='tr'?'Link kopyalandı! 🔗':'Link copied! 🔗')+'\nhttps://'+url)}).catch(function(){})}
 }
-// ─── 📖 PROFILE STORY ───
-var _storyTimer=null,_storyItems=[],_storyIdx=0;
+// ─── ⚔️ ARENA STORY (Profile → Swipe Vote) ───
+var _storyDrag={active:false,startX:0,dx:0};
+var _activeStoryEntry=null;
+
 function openProfileStory(){
-  // Collect HOF items as stories
-  var favs=_getFavs();
-  _storyItems=favs.filter(function(f){return f.hofScore&&f.hofScore>=90});
-  if(!_storyItems.length){editProfile();return}
-  // Build progress bars
-  var header=document.getElementById('storyHeader');
-  header.innerHTML='';
-  for(var i=0;i<_storyItems.length;i++){
-    var bar=document.createElement('div');bar.className='story-progress';
-    bar.innerHTML='<div class="story-progress-fill" id="storyFill'+i+'" style="animation:none;width:0%"></div>';
-    header.appendChild(bar);
-  }
-  // User info
-  var p=_getProfile();
-  var userEl=document.getElementById('storyUser');
-  userEl.innerHTML='<div style="width:36px;height:36px;border-radius:50%;border:2px solid #ffbe0b;overflow:hidden;flex-shrink:0">'+(p.avatar?'<img src="'+p.avatar+'" style="width:100%;height:100%;object-fit:cover">':'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1a1a2e;font-size:16px">'+(p.name?p.name[0]:'👤')+'</div>')+'</div><div class="story-user-info"><div class="story-name">'+(p.handle||'@fitchy_user')+'</div><div class="story-time">'+(CC_LANG[CC]==='tr'?'Bugün':'Today')+'</div></div>';
-  document.getElementById('storyModal').classList.add('open');
-  document.body.style.overflow='hidden';
-  _storyIdx=0;
-  showStoryAt(0);
-}
-function showStoryAt(idx){
-  if(idx>=_storyItems.length){closeProfileStory();return}
-  _storyIdx=idx;
-  var item=_storyItems[idx];
   var isTr=CC_LANG[CC]==='tr';
-  var content=document.getElementById('storyContent');
-  content.innerHTML='<img src="'+_fixThumb(item.img)+'" onerror="this.src=\'data:image/svg+xml,<svg xmlns=http://www.w3.org/2000/svg viewBox=0 0 300 400><rect fill=%231a1a2e width=300 height=400/><text x=150 y=200 text-anchor=middle fill=white font-size=40>👗</text></svg>\'">'
-    +'<div class="story-overlay"></div>'
-    +(item.hofScore?'<div class="story-badge">🏆 '+item.hofScore+' '+(isTr?'Puan · Hall of Fame':'Score · Hall of Fame')+'</div>':'')
-    +'<div class="story-caption">'+(item.title||'')+'</div>';
-  // Update progress bars
-  for(var i=0;i<_storyItems.length;i++){
-    var fill=document.getElementById('storyFill'+i);
-    if(!fill)continue;
-    if(i<idx){fill.style.animation='none';fill.style.width='100%'}
-    else if(i===idx){fill.style.width='0%';fill.style.animation='none';fill.offsetHeight;fill.style.animation='storyProgress 5s linear forwards'}
-    else{fill.style.animation='none';fill.style.width='0%'}
+  document.getElementById('storyModal').style.display='flex';
+  document.body.style.overflow='hidden';
+
+  // Profile info
+  var p=_getProfile();
+  document.getElementById('storyHandle').textContent=(p&&p.handle)||'@fitchy_user';
+  document.getElementById('storyStatusTxt').textContent=isTr?'Arenada Yarışıyor':'Competing in Arena';
+  var avatarEl=document.getElementById('storyAvatarImg');
+  if(p&&p.avatar)avatarEl.src=p.avatar;
+  else avatarEl.src='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%231a1a2e" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="white" font-size="40">'+(p&&p.name?p.name[0]:'👤')+'</text></svg>';
+
+  // Get arena entry for this user (first from arena pool, then HOF, then empty)
+  _activeStoryEntry=null;
+  // Try arena pool
+  if(window._hofData&&window._hofData.length>0){
+    _activeStoryEntry=window._hofData[0];
   }
-  if(_storyTimer)clearTimeout(_storyTimer);
-  _storyTimer=setTimeout(function(){showStoryAt(idx+1)},5000);
+  // Try fetching from arena
+  fetch('/api/arena-next?session='+_arenaSession+'&count=1').then(function(r){return r.json()}).then(function(d){
+    if(d.success&&d.entries&&d.entries.length>0){
+      _activeStoryEntry=d.entries[0];
+      renderStoryCard();
+    }else if(!_activeStoryEntry){
+      showStoryEmpty();
+    }else{
+      renderStoryCard();
+    }
+  }).catch(function(){
+    if(_activeStoryEntry)renderStoryCard();
+    else showStoryEmpty();
+  });
+  if(_activeStoryEntry)renderStoryCard();
 }
-function closeProfileStory(){
-  if(_storyTimer){clearTimeout(_storyTimer);_storyTimer=null}
-  document.getElementById('storyModal').classList.remove('open');
+
+function showStoryEmpty(){
+  var isTr=CC_LANG[CC]==='tr';
+  document.getElementById('storyArenaCard').style.display='none';
+  document.getElementById('storyBtns').style.display='none';
+  var empty=document.getElementById('storyEmpty');
+  empty.style.display='block';
+  document.getElementById('storyEmptyTitle').textContent=isTr?'Henüz Arena\'da kimse yok!':'Nobody in the Arena yet!';
+  document.getElementById('storyEmptySub').innerHTML=isTr?'İlk sen Fit-Check yap ve Arenaya gir!<br><button onclick="closeStory();startFitCheck()" style="margin-top:16px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 Fit-Check Yap</button>':'Be the first to do a Fit-Check and enter the Arena!<br><button onclick="closeStory();startFitCheck()" style="margin-top:16px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 Fit-Check</button>';
+}
+
+function renderStoryCard(){
+  if(!_activeStoryEntry)return;
+  var card=document.getElementById('storyArenaCard');
+  var e=_activeStoryEntry;
+  card.style.display='';
+  document.getElementById('storyBtns').style.display='flex';
+  document.getElementById('storyEmpty').style.display='none';
+
+  // Set image
+  var imgEl=document.getElementById('storyMainImg');
+  if(e.image)imgEl.src='data:image/jpeg;base64,'+e.image;
+  else if(e.img)imgEl.src=_fixThumb(e.img);
+  else imgEl.src='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400"><rect fill="%231a1a2e" width="300" height="400"/><text x="150" y="200" text-anchor="middle" fill="white" font-size="40">👗</text></svg>';
+
+  // Score and roast
+  document.getElementById('storyScoreTxt').textContent='AI: '+(e.emoji||'🔥')+' '+(e.ai_score||e.score||90);
+  document.getElementById('storyRoastTxt').textContent=e.roast||'';
+
+  // Reset card position
+  card.style.transition='none';
+  card.style.transform='scale(1) translateX(0px) rotate(0deg)';
+  card.style.opacity='1';
+  document.getElementById('storyLikeLabel').style.opacity='0';
+  document.getElementById('storyNopeLabel').style.opacity='0';
+
+  // Bind touch events
+  card.ontouchstart=storyDown;
+  card.ontouchmove=storyMove;
+  card.ontouchend=storyUp;
+  card.onmousedown=storyDown;
+}
+
+function storyDown(e){
+  var t=e.touches?e.touches[0]:e;
+  _storyDrag={active:true,startX:t.clientX,dx:0};
+  if(!e.touches){
+    document.addEventListener('mousemove',storyMove);
+    document.addEventListener('mouseup',storyUp);
+  }
+}
+function storyMove(e){
+  if(!_storyDrag.active)return;
+  var t=e.touches?e.touches[0]:e;
+  _storyDrag.dx=t.clientX-_storyDrag.startX;
+  var card=document.getElementById('storyArenaCard');
+  var rot=_storyDrag.dx*0.05;
+  card.style.transform='translateX('+_storyDrag.dx+'px) rotate('+rot+'deg)';
+  card.style.transition='none';
+  document.getElementById('storyLikeLabel').style.opacity=Math.min(_storyDrag.dx/80,1);
+  document.getElementById('storyNopeLabel').style.opacity=Math.min(-_storyDrag.dx/80,1);
+  if(e.cancelable)e.preventDefault();
+}
+function storyUp(e){
+  if(!_storyDrag.active)return;
+  _storyDrag.active=false;
+  document.removeEventListener('mousemove',storyMove);
+  document.removeEventListener('mouseup',storyUp);
+  if(Math.abs(_storyDrag.dx)>80){
+    storyVote(_storyDrag.dx>0?'up':'down');
+  }else{
+    var card=document.getElementById('storyArenaCard');
+    card.style.transition='transform .3s cubic-bezier(.175,.885,.32,1.275)';
+    card.style.transform='scale(1) translateX(0px) rotate(0deg)';
+    document.getElementById('storyLikeLabel').style.opacity='0';
+    document.getElementById('storyNopeLabel').style.opacity='0';
+  }
+}
+
+function storyVote(dir){
+  var card=document.getElementById('storyArenaCard');
+  var flyX=dir==='up'?window.innerWidth:-window.innerWidth;
+  card.style.transition='transform .4s ease-out, opacity .4s ease-out';
+  card.style.transform='translateX('+flyX+'px) rotate('+(flyX*0.1)+'deg)';
+  card.style.opacity='0';
+
+  // Haptic feedback
+  if(navigator.vibrate)navigator.vibrate(50);
+
+  // Send vote
+  if(_activeStoryEntry&&_activeStoryEntry.id&&_activeStoryEntry.id!=='demo'){
+    fetch('/api/arena-vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:_activeStoryEntry.id,direction:dir,session:_arenaSession})}).catch(function(){});
+  }
+
+  setTimeout(function(){
+    closeStory();
+    var isTr=CC_LANG[CC]==='tr';
+    var toast=document.createElement('div');
+    toast.style.cssText='position:fixed;top:80px;left:50%;transform:translateX(-50%);background:rgba(25,15,45,.95);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);border:1px solid var(--border);color:#fff;padding:16px 24px;border-radius:24px;font:700 13px Outfit,sans-serif;z-index:3000;box-shadow:0 10px 40px rgba(0,0,0,.6);animation:fadeUp .3s ease;white-space:nowrap;display:flex;flex-direction:column;align-items:center;gap:6px';
+    var vt=dir==='up'?'🔥 '+(isTr?'Ateş Ettin!':'Fire!'):'👎 '+(isTr?'Meh dedin.':'Meh.');
+    toast.innerHTML='<div style="font-size:16px;font-weight:900">'+vt+'</div><div style="font-size:11px;color:var(--muted);font-weight:600">'+(isTr?'Oyun kaydedildi.':'Vote counted.')+'</div>';
+    document.body.appendChild(toast);
+    setTimeout(function(){toast.style.opacity='0';toast.style.transition='opacity .3s';setTimeout(function(){toast.remove()},300)},2000);
+  },350);
+}
+
+function closeStory(){
+  document.getElementById('storyModal').style.display='none';
   document.body.style.overflow='';
-  // Mark as seen
+  _storyDrag.active=false;
+  // Mark ring as seen
   var wrap=document.querySelector('.avatar-wrap');
   if(wrap)wrap.classList.add('story-seen');
 }
