@@ -140,7 +140,16 @@ def localize_url(url, cc="tr"):
     return url
 
 BRAND_MAP = {"trendyol.com": "Trendyol", "hepsiburada.com": "Hepsiburada", "boyner.com.tr": "Boyner", "defacto.com": "DeFacto", "lcwaikiki.com": "LC Waikiki", "koton.com": "Koton", "beymen.com": "Beymen", "zara.com": "Zara", "bershka.com": "Bershka", "pullandbear.com": "Pull&Bear", "hm.com": "H&M", "mango.com": "Mango", "asos.com": "ASOS", "stradivarius.com": "Stradivarius", "massimodutti.com": "Massimo Dutti", "nike.com": "Nike", "adidas.": "Adidas"}
-BLOCKED = ["pinterest.", "instagram.", "facebook.", "twitter.", "x.com/", "tiktok.", "youtube.", "aliexpress.", "wish.com", "dhgate.", "alibaba.", "shein.", "temu.", "cider.", "romwe.", "patpat.", "rightmove.", "zillow.", "realtor.", "ikea.", "wayfair.", "reddit.", "quora.", "medium.com", "wordpress.com", "blogspot.", "tumblr.", "buzzfeed.", "cosmopolitan.", "vogue.", "glamour.", "harpersbazaar.", "elle.", "gq.", "esquire.", "whowhatwear.", "refinery29.", "popsugar.", "insider.", "bustle.", "allure.", "fashionista.", "hypebeast.", "highsnobiety.", "complex.", "wikipedia.", "wikihow.", "wikiHow.", "lookastic.", "outfittrends.", "fashionbeans.", "themodestman.", "realmenrealstyle.", "stylesofman.", "brantano.", "lyst.com", "polyvore.", "chictopia.", "lookbook.nu", "wear.jp", "chicisimo.", "/blog/", "/blogs/", "/article/", "/magazin/", "/dergi/", "wattpad.", "booking.com", "tripadvisor.", "hotels.", "airbnb.", "shutterstock.", "gettyimages.", "alamy.", "istockphoto.", "123rf.", "dreamstime.", "stock.", "wallpaper.", "freepik.", "unsplash.", "pexels.", "pixabay.", "sahibinden.", "hepsiemlak.", "letgo.", "ebay.", "etsy.", "mercari.", "vinted.", "depop.", "grailed.", "stockx.", "goat."]
+BLOCKED = ["pinterest.", "instagram.", "facebook.", "twitter.", "x.com/", "tiktok.", "youtube.", "aliexpress.", "wish.com", "dhgate.", "alibaba.", "shein.", "temu.", "cider.", "romwe.", "patpat.", "rightmove.", "zillow.", "realtor.", "ikea.", "wayfair.", "reddit.", "quora.", "medium.com", "wordpress.com", "blogspot.", "tumblr.", "buzzfeed.", "cosmopolitan.", "vogue.", "glamour.", "harpersbazaar.", "elle.", "gq.", "esquire.", "whowhatwear.", "refinery29.", "popsugar.", "insider.", "bustle.", "allure.", "fashionista.", "hypebeast.", "highsnobiety.", "complex.", "wikipedia.", "wikihow.", "wikiHow.", "lookastic.", "outfittrends.", "fashionbeans.", "themodestman.", "realmenrealstyle.", "stylesofman.", "brantano.", "lyst.com", "polyvore.", "chictopia.", "lookbook.nu", "wear.jp", "chicisimo.", "/blog/", "/blogs/", "/article/", "/magazin/", "/dergi/", "wattpad.", "booking.com", "tripadvisor.", "hotels.", "airbnb.", "shutterstock.", "gettyimages.", "alamy.", "istockphoto.", "123rf.", "dreamstime.", "stock.", "wallpaper.", "freepik.", "unsplash.", "pexels.", "pixabay.", "sahibinden.", "hepsiemlak.", "letgo.", "ebay.", "etsy.", "mercari.", "vinted.", "depop.", "grailed.", "stockx.", "goat.",
+    # v42: Foreign magazine/blog sites that bypass keyword filters
+    "blic.rs", "stil.kurir.rs", "zadovoljna.rs", "žena.rs", "gloria.hr", "femina.hr",
+    "woman.ru", "lady.mail.ru", "cosmo.ru", "glamour.ru", "kp.ru",
+    "digikala.", "divar.ir", "torob.ir", "basalam.ir", "emalls.ir",
+    "bol.com", "cdiscount.", "otto.de", "aboutyou.de",
+    "ozon.ru", "wildberries.", "lamoda.",
+    "/stil/", "/moda/", "/trendy/", "/outfit/", "/look/", "/style-guide/",
+    "/fashion-tips/", "/what-to-wear/", "lookbook", "streetstyle",
+]
 FASHION_DOMAINS = ["trendyol.", "hepsiburada.", "boyner.", "beymen.", "defacto.", "lcwaikiki.", "koton.", "flo.", "zara.com", "bershka.com", "pullandbear.com", "hm.com", "mango.com", "asos.com", "stradivarius.com", "massimodutti.com", "nike.com", "adidas.", "puma.com", "dolap.com", "gardrops.com", "morhipo.", "lidyana.", "n11.com", "amazon.", "network.", "derimod.", "ipekyol.", "vakko.", "tommy.", "lacoste.", "uniqlo.", "gap.com", "nordstrom.", "farfetch.", "ssense.", "zalando.", "aboutyou."]
 FASHION_KW = ["ceket", "kazak", "shirt", "dress", "ayakkabi", "sneaker", "shoe", "canta", "bag", "gozluk", "saat", "giyim", "fashion", "jacket", "hoodie", "sweatshirt", "jeans", "pantolon", "elbise", "bot", "mont", "kaban", "sapka", "hat", "watch", "clothing", "wear", "kolye", "kemer", "fiyat", "satin al", "urun", "modelleri"]
 
@@ -174,6 +183,71 @@ def is_non_fashion_domain(link, title, source):
     return any(nf in c for nf in NON_FASHION_DOMAINS)
 
 def is_blocked(link): return any(d in link.lower() for d in BLOCKED)
+
+# 🛡️ v42: YABANCI YAZI FİLTRESİ — Kiril, Arapça, Farsça başlıkları çöpe at
+import unicodedata
+def has_foreign_script(text, threshold=0.3):
+    """TR modunda Latin-dışı karakter oranı threshold'u geçerse True."""
+    if not text: return False
+    non_latin = 0
+    total = 0
+    for ch in text:
+        if ch.isalpha():
+            total += 1
+            cat = unicodedata.category(ch)
+            # Latin harfler: Lu/Ll with name containing LATIN
+            try:
+                name = unicodedata.name(ch, "")
+                if "LATIN" not in name and "TURKISH" not in name:
+                    non_latin += 1
+            except ValueError:
+                non_latin += 1
+    if total < 3: return False
+    return (non_latin / total) > threshold
+
+# 🛡️ v42: KATEGORİ TERS EŞLEŞME — "bag" aramasında "cup" gelirse çöpe at
+CATEGORY_ANTI_KEYWORDS = {
+    "bag": ["cup", "bardak", "mug", "tumbler", "thermos", "termos", "bottle", "şişe", "matara",
+            "starbucks", "coffee", "kahve", "tea ", "çay ", "glass", "tabak", "kase", "fincan",
+            "telefon", "phone", "kılıf", "tablet", "laptop", "charger"],
+    "jacket": ["pantalo", "pants", "trousers", "etek", "skirt", "ayakkab", "shoe",
+               "bardak", "cup", "mug", "telefon", "phone", "sneaker"],
+    "top": ["pantalo", "pants", "ayakkab", "shoe", "boot", "ceket", "jacket",
+            "bardak", "cup", "mug"],
+    "bottom": ["ceket", "jacket", "tişört", "shirt", "bluz",
+               "bardak", "cup", "mug", "ayakkab", "shoe"],
+    "shoes": ["ceket", "jacket", "pantalo", "pants", "gömlek", "shirt",
+              "bardak", "cup", "mug", "çanta"],
+    "watch": ["bardak", "cup", "mug", "saat kulesi", "clock tower", "duvar saati", "wall clock"],
+    "dress": ["bardak", "cup", "mug", "pantalo", "pants"],
+}
+
+# 🛡️ v42: MODA-DIŞI ÜRÜN FİLTRESİ — Kıyafet aramasında bardak, telefon vs. çöpe at
+NON_CLOTHING_PRODUCTS = [
+    "cup", "mug", "bardak", "tumbler", "thermos", "bottle", "şişe", "matara",
+    "starbucks", "coffee", "kahve", "tea", "çay", "fincan",
+    "phone", "telefon", "tablet", "laptop", "charger", "şarj", "kablo",
+    "kitap", "book", "dergi", "magazine", "takvim", "calendar",
+    "parfüm", "perfume", "koku", "deodorant", "kozmetik", "cosmetic",
+    "oyuncak", "toy", "puzzle", "lego", "figür",
+    "mutfak", "kitchen", "tabak", "plate", "çatal", "fork", "bıçak", "knife",
+    "mum", "candle", "dekor", "decor", "vazo", "vase", "çerçeve", "frame",
+    "halı", "carpet", "perde", "curtain", "yastık", "pillow", "battaniye", "blanket",
+]
+
+def is_non_clothing_product(title):
+    """Ürün başlığı moda-dışı bir ürün mü? (bardak, telefon, mutfak vs.)"""
+    tl = title.lower()
+    return any(ncp in tl for ncp in NON_CLOTHING_PRODUCTS)
+
+def is_category_mismatch(title, category):
+    """Bu sonuç, aranan kategoriye ters mi? (çanta ararken bardak gelmesi gibi)"""
+    if not category: return False
+    anti_kws = CATEGORY_ANTI_KEYWORDS.get(category, [])
+    if not anti_kws: return False
+    tl = title.lower()
+    return any(akw in tl for akw in anti_kws)
+
 def is_fashion(link, title, src):
     c = (link + " " + src).lower()
     if any(d in c for d in FASHION_DOMAINS): return True
@@ -616,6 +690,14 @@ def _lens(url, cc="tr", lens_type="all"):
             if not lnk or lnk in seen: continue
             if is_blocked(lnk): continue
             if is_non_fashion_domain(lnk, ttl, src): continue
+            # v42: Foreign script filter — TR modunda Kiril/Arapça başlıkları çöpe at
+            if cc == "tr" and has_foreign_script(ttl):
+                print(f"    ⛔ FOREIGN SCRIPT: {ttl[:60]}")
+                continue
+            # v42: Non-clothing product filter
+            if is_non_clothing_product(ttl):
+                print(f"    ⛔ NON-CLOTHING: {ttl[:60]}")
+                continue
             seen.add(lnk)
             if not ttl: ttl = src or lnk
             original_lnk = lnk
@@ -639,6 +721,12 @@ def _lens(url, cc="tr", lens_type="all"):
             lnk, ttl, src = m.get("link", ""), m.get("title", ""), m.get("source", "")
             if not lnk or not ttl or lnk in seen: continue
             if is_blocked(lnk) or not is_fashion(lnk, ttl, src): continue
+            # v42: Foreign script filter
+            if cc == "tr" and has_foreign_script(ttl):
+                continue
+            # v42: Non-clothing product filter
+            if is_non_clothing_product(ttl):
+                continue
             seen.add(lnk)
             original_lnk = lnk
             lnk = localize_url(lnk, cc)  # yabancı linkleri yerelleştir
@@ -685,6 +773,9 @@ def _shop(q, cc="tr", limit=6):
                 lnk = google_page or direct
             ttl, src = item.get("title", ""), item.get("source", "")
             if not lnk or not ttl or lnk in seen or is_blocked(lnk): continue
+            # v42: Non-clothing product filter (Starbucks bardak vs.)
+            if is_non_clothing_product(ttl): continue
+            if cc == "tr" and has_foreign_script(ttl): continue
             seen.add(lnk)
             lnk = localize_url(lnk, cc)
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src, "link": make_affiliate(lnk), "price": item.get("price", str(item.get("extracted_price", ""))), "thumbnail": item.get("thumbnail", ""), "image": "", "is_local": is_local(lnk, src, cfg)})
@@ -1075,6 +1166,13 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             # Lens results (per-piece crop + full exact = most reliable)
             for r in matched_lens:
                 if r["link"] in seen: continue
+                # v42: Category mismatch filter (çanta ararken bardak gelmesin)
+                if is_category_mismatch(r.get("title", ""), cat):
+                    print(f"    ⛔ CAT MISMATCH [{cat}]: {r.get('title','')[:50]}")
+                    continue
+                if is_non_clothing_product(r.get("title", "")):
+                    print(f"    ⛔ NON-CLOTHING [{cat}]: {r.get('title','')[:50]}")
+                    continue
                 seen.add(r["link"])
                 r["_score"] = score_result(r, 18)
                 all_items.append(r)
@@ -1082,6 +1180,8 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             # Shopping results
             for r in shop:
                 if r["link"] in seen: continue
+                if is_category_mismatch(r.get("title", ""), cat): continue
+                if is_non_clothing_product(r.get("title", "")): continue
                 seen.add(r["link"])
                 base = 15 if r.get("_priority") == "specific" else 5
                 r["_score"] = score_result(r, base)
@@ -1689,6 +1789,9 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
         # Lens (highest priority)
         for r in all_lens:
             if r.get("link") and r["link"] not in seen:
+                # v42: Category mismatch + non-clothing filters
+                if is_category_mismatch(r.get("title", ""), cat): continue
+                if is_non_clothing_product(r.get("title", "")): continue
                 seen.add(r["link"])
                 r["_score"] = score_result(r, 18)
                 all_items.append(r)
@@ -1696,6 +1799,8 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
         # Shopping
         for r in shop_results:
             if r.get("link") and r["link"] not in seen:
+                if is_category_mismatch(r.get("title", ""), cat): continue
+                if is_non_clothing_product(r.get("title", "")): continue
                 seen.add(r["link"])
                 r["_score"] = score_result(r, 15)
                 all_items.append(r)
