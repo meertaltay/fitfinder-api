@@ -921,6 +921,8 @@ def _lens(url, cc="tr", lens_type="all"):
             lnk, ttl, src = m.get("link", ""), m.get("title", ""), m.get("source", "")
             if not lnk or not ttl or lnk in seen: continue
             if is_blocked(lnk) or not is_fashion(lnk, ttl, src): continue
+            # v42: Skip search/category pages
+            if not is_product_url(lnk): continue
             # v42: Foreign script filter
             if cc == "tr" and has_foreign_script(ttl):
                 continue
@@ -976,6 +978,10 @@ def _shop(q, cc="tr", limit=6):
                 lnk = google_page or direct
             ttl, src = item.get("title", ""), item.get("source", "")
             if not lnk or not ttl or lnk in seen or is_blocked(lnk): continue
+            # v42: Skip search/category pages — only direct product links
+            if not is_product_url(lnk):
+                print(f"  ⛔ SHOP SKIP (not product URL): {lnk[:80]}")
+                continue
             # v42: Non-clothing product filter (Starbucks bardak vs.)
             if is_non_clothing_product(ttl): continue
             if cc == "tr" and has_foreign_script(ttl): continue
@@ -1386,6 +1392,10 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 elif cat in ("watch", "bag", "sunglasses", "hat", "scarf", "accessory"):
                     score -= 20  # Aksesuar aramasında kategori kelimesi yoksa penaltı
 
+                # v42: NON-PRODUCT URL penalty — arama/kategori sayfası ise cezalandır
+                if not is_product_url(r.get("link", "")):
+                    score -= 40
+
                 return score
 
             seen = set()
@@ -1619,25 +1629,44 @@ def is_product_url(url):
     u = url.lower()
 
     # ❌ Kesinlikle ürün sayfası DEĞİL (arama/kategori sayfaları)
-    search_patterns = ["/sr?", "/search?", "/arama?", "?q=", "?query=", "/kategori/",
-                       "/category/", "/collection/", "/collections/", "/list/", "/listing/"]
+    search_patterns = [
+        "/sr?", "/search?", "/search/", "/arama?", "/arama/",
+        "?q=", "?query=", "?search=", "?keyword=",
+        "/kategori/", "/category/", "/categories/",
+        "/collection/", "/collections/", "/koleksiyon/",
+        "/list/", "/listing/", "/browse/",
+        "/c/", "/shop/", "/store/",  # generic category paths
+        "?text=", "?term=", "&q=",
+        "/women/", "/men/", "/kadin/", "/erkek/",  # category landing pages
+    ]
     if any(sp in u for sp in search_patterns):
-        return False
+        # Exception: some stores use /shop/ or /c/ in product URLs too
+        # Check if there's also a product identifier after
+        has_product_id = bool(re.search(r'-p-\d|/dp/|/product/|/urun/|/p\d{4,}|productpage|/t/[A-Z]', u))
+        if not has_product_id:
+            return False
 
     # ✅ Bilinen mağazaların ürün URL pattern'leri
     product_patterns = {
-        "trendyol.com": r'-p-\d+',          # trendyol.com/marka/urun-p-12345678
-        "hepsiburada.com": r'-p[m]?-[A-Za-z0-9]+',  # hepsiburada.com/urun-pm-HB00123 veya -p-12345
-        "amazon.": r'/dp/[A-Z0-9]+|/gp/product/', # amazon.com/dp/B08XYZ
+        "trendyol.com": r'-p-\d+',
+        "hepsiburada.com": r'-p[m]?-[A-Za-z0-9]+',
+        "amazon.": r'/dp/[a-zA-Z0-9]+|/gp/product/',
         "n11.com": r'/urun/',
-        "boyner.com": r'/urun/',
-        "beymen.com": r'/urun/',
-        "defacto.com": r'/\w+-\w+',
-        "lcwaikiki.com": r'/tr-tr/',
-        "zara.com": r'/tr/.+/p\d+',
-        "bershka.com": r'/tr/.+/\d+',
-        "hm.com": r'/productpage\.',
-        "nike.com": r'/t/',
+        "boyner.com": r'/urun/|/p/',
+        "beymen.com": r'/urun/|/p/',
+        "defacto.com": r'/\w+-\w+-\d+',
+        "lcwaikiki.com": r'/tr-tr/.*\d',
+        "zara.com": r'/tr/.+/p\d+|/p\d{4,}',
+        "bershka.com": r'/tr/.+/\d+|/\d{8,}',
+        "pullandbear.com": r'/tr/.+/\d+|/\d{8,}',
+        "stradivarius.com": r'/tr/.+/\d+|/\d{8,}',
+        "hm.com": r'/productpage\.|/p\.',
+        "nike.com": r'/t/[A-Za-z]',
+        "adidas.": r'/[A-Z]{2}\d{4}|/product/',
+        "mango.com": r'/\d{8,}',
+        "koton.com": r'/product/|/urun/',
+        "flo.com": r'/urun/',
+        "occasion.com.tr": r'/urun/|/product/',
     }
 
     for domain, pattern in product_patterns.items():
@@ -2061,6 +2090,9 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
                 score += 15
             elif cat in ("watch", "bag", "sunglasses", "hat", "scarf", "accessory"):
                 score -= 20
+            # v42: NON-PRODUCT URL penalty
+            if not is_product_url(r.get("link", "")):
+                score -= 40
             return score
 
         seen = set()
