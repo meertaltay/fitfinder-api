@@ -2831,6 +2831,41 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .top-header{position:fixed;top:0;left:0;right:0;z-index:999;height:52px;display:flex;align-items:center;justify-content:center;gap:10px;background:rgba(5,2,10,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,32,121,.12)}
 .top-header img{width:30px;height:30px;border-radius:8px;box-shadow:0 0 12px rgba(255,32,121,.3)}
 .top-header .brand-text{font-family:'Outfit',sans-serif;font-size:20px;font-weight:800;letter-spacing:-.5px;background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+
+/* Social Profile */
+.profile-header{text-align:center;padding:16px 0 20px}
+.profile-avatar{width:88px;height:88px;border-radius:50%;border:3px solid var(--accent);box-shadow:0 0 30px rgba(255,32,121,.3);margin:0 auto 14px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(255,32,121,.15),rgba(77,0,255,.15));font-size:38px;cursor:pointer;position:relative;overflow:hidden}
+.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.profile-name{font-size:20px;font-weight:800;letter-spacing:-.3px}
+.profile-handle{font-size:13px;color:var(--cyan);font-weight:600;margin-top:2px}
+.profile-bio{font-size:12px;color:var(--muted);margin-top:8px;max-width:260px;margin-left:auto;margin-right:auto;line-height:1.4}
+.profile-stats{display:flex;justify-content:center;gap:28px;margin-top:16px}
+.profile-stat{text-align:center}
+.profile-stat .num{font-size:18px;font-weight:800}
+.profile-stat .lbl{font-size:10px;color:var(--muted);font-weight:600;margin-top:2px}
+.profile-actions{display:flex;gap:10px;justify-content:center;margin-top:16px}
+.profile-btn{padding:10px 20px;border-radius:14px;font:700 12px 'Outfit',sans-serif;cursor:pointer;border:none;letter-spacing:.3px;transition:all .2s}
+.profile-btn.primary{background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;box-shadow:0 4px 20px rgba(255,32,121,.3)}
+.profile-btn.secondary{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border)}
+.folder-tabs{display:flex;gap:8px;padding:0 4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-top:20px;padding-bottom:4px}
+.folder-tabs::-webkit-scrollbar{display:none}
+.folder-tab{white-space:nowrap;padding:8px 16px;border-radius:12px;font:600 12px 'Outfit',sans-serif;cursor:pointer;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);transition:all .2s;flex-shrink:0}
+.folder-tab.active{background:linear-gradient(135deg,rgba(255,32,121,.15),rgba(77,0,255,.1));border-color:rgba(255,32,121,.4);color:var(--accent)}
+.folder-tab .cnt{font-size:10px;opacity:.6;margin-left:4px}
+.item-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.item-card{border-radius:16px;overflow:hidden;position:relative;background:var(--card);border:1px solid var(--border);transition:border-color .2s}
+.item-card img{width:100%;height:160px;object-fit:cover;border-bottom:1px solid var(--border)}
+.item-card .info{padding:10px}
+.item-card .title{font-size:11px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px}
+.item-card .brand{font-size:10px;color:var(--cyan)}
+.item-card .price{font-weight:800;font-size:14px;margin-top:6px}
+.item-badge{position:absolute;top:8px;left:8px;display:flex;gap:4px}
+.item-badge span{padding:3px 8px;border-radius:8px;font-size:9px;font-weight:700;backdrop-filter:blur(8px)}
+.lock-badge{background:rgba(0,0,0,.7);color:var(--muted)}
+.refitch-badge{background:rgba(255,32,121,.8);color:#fff}
+.refitch-btn{position:absolute;bottom:60px;right:8px;background:rgba(0,0,0,.8);border:1px solid rgba(255,32,121,.3);color:var(--accent);padding:6px 10px;border-radius:10px;font:700 10px 'Outfit',sans-serif;cursor:pointer;backdrop-filter:blur(4px);display:flex;align-items:center;gap:4px;transition:all .2s}
+.refitch-btn:active{background:var(--accent);color:#fff}
+.vis-toggle{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);padding:6px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;backdrop-filter:blur(4px)}
 </style>
 </head>
 <body>
@@ -3199,7 +3234,156 @@ function renderManual(d,cropSrc){
 function _getFavs(){try{return JSON.parse(localStorage.getItem('fitchy_favs')||'[]')}catch(e){return[]}}
 function _setFavs(f){try{localStorage.setItem('fitchy_favs',JSON.stringify(f))}catch(e){}}
 function _hasFav(link){try{return(localStorage.getItem('fitchy_favs')||'').indexOf(link)>-1}catch(e){return false}}
-function toggleFav(e,link,img,title,price,brand){e.preventDefault();e.stopPropagation();var favs=_getFavs();var idx=favs.findIndex(function(f){return f.link===link});if(idx>-1){favs.splice(idx,1);e.target.innerHTML='\u2661';e.target.style.color='var(--text)'}else{favs.push({link:link,img:img,title:title,price:price,brand:brand});e.target.innerHTML='\u2665';e.target.style.color='var(--accent)'}_setFavs(favs)}
+function _getProfile(){try{return JSON.parse(localStorage.getItem('fitchy_profile')||'null')}catch(e){return null}}
+function _setProfile(p){try{localStorage.setItem('fitchy_profile',JSON.stringify(p))}catch(e){}}
+function _getFolders(){try{return JSON.parse(localStorage.getItem('fitchy_folders')||'[]')}catch(e){return[]}}
+function _setFolders(f){try{localStorage.setItem('fitchy_folders',JSON.stringify(f))}catch(e){}}
+function _initProfile(){
+  var p=_getProfile();
+  if(!p){p={name:'',handle:'@fitchy_user',bio:'',avatar:'',followers:0,following:0,refitches:0};_setProfile(p)}
+  var folders=_getFolders();
+  if(!folders.length){_setFolders([
+    {id:'all',name:CC_LANG[CC]==='tr'?'Tümü':'All',icon:'✧',system:true},
+    {id:'fav',name:CC_LANG[CC]==='tr'?'Favoriler':'Favorites',icon:'♡',system:true},
+    {id:'date',name:CC_LANG[CC]==='tr'?'İlk Buluşma':'Date Night',icon:'🌙'},
+    {id:'casual',name:CC_LANG[CC]==='tr'?'Günlük':'Casual',icon:'☀️'},
+    {id:'wishlist',name:'Wishlist',icon:'💸'}
+  ])}
+  return p
+}
+function toggleFav(e,link,img,title,price,brand){
+  e.preventDefault();e.stopPropagation();
+  var favs=_getFavs();var idx=favs.findIndex(function(f){return f.link===link});
+  if(idx>-1){favs.splice(idx,1);e.target.innerHTML='\u2661';e.target.style.color='var(--text)'}
+  else{favs.push({link:link,img:img,title:title,price:price,brand:brand,folder:'fav',visible:true,ts:Date.now(),refitches:Math.floor(Math.random()*50)});e.target.innerHTML='\u2665';e.target.style.color='var(--accent)'}
+  _setFavs(favs)
+}
+function toggleItemVis(idx){
+  var favs=_getFavs();if(favs[idx]){favs[idx].visible=!favs[idx].visible;_setFavs(favs);showFavs()}
+}
+function moveToFolder(idx,folderId){
+  var favs=_getFavs();if(favs[idx]){favs[idx].folder=folderId;_setFavs(favs);showFavs()}
+}
+function addFolder(){
+  var isTr=CC_LANG[CC]==='tr';
+  var name=prompt(isTr?'Klasör adı:':'Folder name:');
+  if(!name)return;
+  var folders=_getFolders();
+  var id='f_'+Date.now();
+  folders.push({id:id,name:name,icon:'📂'});
+  _setFolders(folders);showFavs()
+}
+var _activeFolder='all';
+function showFavs(){
+  _initProfile();
+  var isTr=CC_LANG[CC]==='tr';
+  document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
+  document.querySelectorAll('.bnav-item')[1].classList.add('active');
+  document.getElementById('home').style.display='none';
+  document.getElementById('rScreen').style.display='block';
+  var ab=document.getElementById('actionBtns');if(ab)ab.style.display='none';
+  var cm=document.getElementById('cropMode');if(cm)cm.style.display='none';
+  var pv=document.getElementById('prev');if(pv)pv.style.display='none';
+  var pp=document.getElementById('piecePicker');if(pp)pp.style.display='none';
+  var ra=document.getElementById('res');ra.style.display='block';
+  var profile=_getProfile();var favs=_getFavs();var folders=_getFolders();
+  // Profile header
+  var h='<div class="profile-header">';
+  h+='<div class="profile-avatar" onclick="editProfile()">';
+  if(profile.avatar)h+='<img src="'+profile.avatar+'" onerror="this.style.display=\'none\'">';
+  else h+='<span style="font-size:36px">'+(profile.name?profile.name[0].toUpperCase():'👤')+'</span>';
+  h+='</div>';
+  h+='<div class="profile-name">'+(profile.name||(isTr?'Profilini Düzenle':'Edit Profile'))+'</div>';
+  h+='<div class="profile-handle">'+(profile.handle||'@fitchy_user')+'</div>';
+  if(profile.bio)h+='<div class="profile-bio">'+profile.bio+'</div>';
+  // Stats
+  var totalRefitches=favs.reduce(function(s,f){return s+(f.refitches||0)},0);
+  h+='<div class="profile-stats">';
+  h+='<div class="profile-stat"><div class="num">'+favs.length+'</div><div class="lbl">'+(isTr?'Parça':'Pieces')+'</div></div>';
+  h+='<div class="profile-stat"><div class="num">'+totalRefitches+'</div><div class="lbl">Re-fitch</div></div>';
+  h+='<div class="profile-stat"><div class="num">'+profile.followers+'</div><div class="lbl">'+(isTr?'Takipçi':'Followers')+'</div></div>';
+  h+='</div>';
+  // Action buttons
+  h+='<div class="profile-actions">';
+  h+='<button class="profile-btn primary" onclick="shareProfile()">'+(isTr?'🔗 Profili Paylaş':'🔗 Share Profile')+'</button>';
+  h+='<button class="profile-btn secondary" onclick="editProfile()">'+(isTr?'✏️ Düzenle':'✏️ Edit')+'</button>';
+  h+='</div>';
+  h+='</div>';
+  // Folder tabs
+  h+='<div class="folder-tabs">';
+  for(var fi=0;fi<folders.length;fi++){
+    var fo=folders[fi];
+    var cnt=fo.id==='all'?favs.length:favs.filter(function(f){return f.folder===fo.id}).length;
+    h+='<div class="folder-tab'+(fo.id===_activeFolder?' active':'')+'" onclick="_activeFolder=\''+fo.id+'\';showFavs()">'+fo.icon+' '+fo.name+'<span class="cnt">'+cnt+'</span></div>';
+  }
+  h+='<div class="folder-tab" onclick="addFolder()" style="border-style:dashed">+ '+(isTr?'Yeni':'New')+'</div>';
+  h+='</div>';
+  // Filter items by folder
+  var filtered=_activeFolder==='all'?favs:favs.filter(function(f){return f.folder===_activeFolder});
+  if(filtered.length===0){
+    var emptyMsg=isTr?'Bu klasörde henüz parça yok':'No pieces in this folder yet';
+    if(favs.length===0)emptyMsg=isTr?'Beğendiğin ürünlerin ♡ butonuna bas — burada görünecek!':'Tap ♡ on items you love — they\'ll appear here!';
+    h+='<div class="glass" style="text-align:center;padding:40px;color:var(--muted);margin-top:20px;font-size:13px">'+emptyMsg+'</div>';
+  }else{
+    h+='<div class="item-grid">';
+    for(var i=0;i<filtered.length;i++){
+      var f=filtered[i];var realIdx=favs.indexOf(f);
+      var safeT=(f.title||'').replace(/'/g,"\\'");var safeP=(f.price||'').replace(/'/g,"\\'");var safeB=(f.brand||'').replace(/'/g,"\\'");
+      h+='<div class="item-card" style="'+(f.visible?'':'opacity:.6;border-color:rgba(255,255,255,.05)')+'">';
+      // Badges
+      h+='<div class="item-badge">';
+      if(!f.visible)h+='<span class="lock-badge">🔒 '+(isTr?'Gizli':'Private')+'</span>';
+      if((f.refitches||0)>10)h+='<span class="refitch-badge">🔄 '+(f.refitches||0)+'</span>';
+      h+='</div>';
+      // Visibility toggle
+      h+='<div class="vis-toggle" onclick="event.stopPropagation();toggleItemVis('+realIdx+')">'+(f.visible?'👁':'🔒')+'</div>';
+      h+='<a href="'+f.link+'" target="_blank" style="text-decoration:none;color:var(--text)">';
+      if(f.img)h+='<img src="'+f.img+'" onerror="this.style.display=\'none\'">';
+      else h+='<div style="width:100%;height:160px;background:linear-gradient(135deg,#1a1a2e,#16213e);display:flex;align-items:center;justify-content:center;font-size:32px;border-bottom:1px solid var(--border)">👗</div>';
+      h+='<div class="info"><div class="title">'+f.title+'</div><div class="brand">'+(f.brand||'')+'</div><div class="price">'+(f.price||'')+'</div></div></a>';
+      // Re-fitch button
+      h+='<div class="refitch-btn" onclick="event.stopPropagation();refitchItem('+realIdx+')">🔄 Re-fitch</div>';
+      // Remove fav
+      h+='<div onclick="event.stopPropagation();toggleFav(event,\''+f.link+'\',\''+(f.img||'')+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\');showFavs()" style="position:absolute;top:8px;right:36px;background:rgba(0,0,0,.7);color:var(--accent);padding:6px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;backdrop-filter:blur(4px)">\u2665</div>';
+      // Folder move
+      h+='<div onclick="event.stopPropagation();showFolderMenu('+realIdx+')" style="position:absolute;bottom:10px;left:8px;background:rgba(0,0,0,.7);color:var(--muted);padding:5px 8px;border-radius:8px;cursor:pointer;font-size:10px;backdrop-filter:blur(4px)">📂</div>';
+      h+='</div>';
+    }
+    h+='</div>';
+  }
+  h+='<button class="btn-main" onclick="goHome()" style="margin-top:24px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:#fff">'+t('back')+'</button>';
+  h+='<div style="height:80px"></div>';
+  ra.innerHTML=h;
+}
+function editProfile(){
+  var isTr=CC_LANG[CC]==='tr';
+  var p=_getProfile()||{name:'',handle:'@user',bio:'',avatar:'',followers:0,following:0,refitches:0};
+  var name=prompt(isTr?'İsmin:':'Your name:',p.name||'');if(name===null)return;
+  var handle=prompt(isTr?'Kullanıcı adın (@):':'Username (@):',p.handle||'@');if(handle===null)return;
+  if(handle&&handle[0]!=='@')handle='@'+handle;
+  var bio=prompt(isTr?'Biyo (kısa açıklama):':'Bio:',p.bio||'');if(bio===null)return;
+  p.name=name;p.handle=handle;p.bio=bio;
+  // Simulate followers for demo
+  if(!p.followers)p.followers=Math.floor(Math.random()*500)+12;
+  _setProfile(p);showFavs()
+}
+function shareProfile(){
+  var p=_getProfile();var handle=(p&&p.handle)||'@user';
+  var url='fitchy.app/'+handle.replace('@','');
+  if(navigator.share){navigator.share({title:'fitchy. '+handle,text:(CC_LANG[CC]==='tr'?'Dolabımı keşfet! ':'Check out my closet! ')+url,url:'https://'+url}).catch(function(){})}
+  else{navigator.clipboard.writeText('https://'+url).then(function(){alert((CC_LANG[CC]==='tr'?'Link kopyalandı! 🔗':'Link copied! 🔗')+'\nhttps://'+url)}).catch(function(){})}
+}
+function refitchItem(idx){
+  var favs=_getFavs();if(favs[idx]){favs[idx].refitches=(favs[idx].refitches||0)+1;_setFavs(favs);showFavs()}
+}
+function showFolderMenu(idx){
+  var isTr=CC_LANG[CC]==='tr';var folders=_getFolders();
+  var names=folders.filter(function(f){return!f.system||f.id==='fav'}).map(function(f){return f.icon+' '+f.name});
+  var choice=prompt((isTr?'Hangi klasöre taşıyayım?\n':'Move to folder:\n')+names.join(', '));
+  if(!choice)return;
+  var match=folders.find(function(f){return f.name.toLowerCase()===choice.toLowerCase()||choice.indexOf(f.name)>-1});
+  if(match)moveToFolder(idx,match.id);
+}
 
 // ─── PRODUCT CARDS ───
 function heroHTML(p,isLens){
@@ -3240,27 +3424,7 @@ function altsHTML(list){
   return h+'</div>';
 }
 
-// ─── FAVORITES PAGE ───
-function showFavs(){if(_busy)return;
-  document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
-  document.querySelectorAll('.bnav-item')[1].classList.add('active');
-  document.getElementById('home').style.display='none';
-  document.getElementById('rScreen').style.display='block';
-  var ab=document.getElementById('actionBtns');if(ab)ab.style.display='none';
-  var cm=document.getElementById('cropMode');if(cm)cm.style.display='none';
-  var pv=document.getElementById('prev');if(pv)pv.style.display='none';
-  var pp=document.getElementById('piecePicker');if(pp)pp.style.display='none';
-  var ra=document.getElementById('res');var favs=_getFavs();ra.style.display='block';
-  if(favs.length===0){var empty=CC_LANG[CC]==='tr'?'Hen\u00fcz favoriye eklenen \u00fcr\u00fcn yok \u2661':'No saved items yet \u2661';ra.innerHTML='<div class="glass" style="text-align:center;padding:40px;color:var(--muted);margin-top:20px">'+empty+'</div><button class="btn-main" onclick="goHome()" style="margin-top:24px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:#fff">'+t('back')+'</button>';return}
-  var h='<h3 style="margin-bottom:20px;font-size:22px;font-weight:800" class="text-gradient">'+t('navFav')+' \u2665</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
-  for(var i=0;i<favs.length;i++){var f=favs[i];var safeT=(f.title||'').replace(/'/g,"\\'");var safeP=(f.price||'').replace(/'/g,"\\'");var safeB=(f.brand||'').replace(/'/g,"\\'");
-    h+='<div class="glass" style="overflow:hidden;position:relative;border-radius:16px"><a href="'+f.link+'" target="_blank" style="text-decoration:none;color:var(--text)">';
-    if(f.img)h+='<img src="'+f.img+'" style="width:100%;height:150px;object-fit:cover;border-bottom:1px solid var(--border)" onerror="this.style.display=\'none\'">';
-    h+='<div style="padding:10px"><div style="font-size:11px;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;margin-bottom:4px">'+f.title+'</div><div style="font-size:10px;color:var(--cyan)">'+(f.brand||'')+'</div><div style="color:var(--text);font-weight:800;font-size:14px;margin-top:6px">'+(f.price||'')+'</div></div></a>';
-    h+='<div onclick="toggleFav(event,\''+f.link+'\',\''+(f.img||'')+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\');showFavs()" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);color:var(--accent);padding:6px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;backdrop-filter:blur(4px)">\u2665</div></div>';
-  }
-  ra.innerHTML=h+'</div><button class="btn-main" onclick="goHome()" style="margin-top:24px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:#fff">'+t('back')+'</button>';
-}
+// ─── FAVORITES PAGE (see social profile system above) ───
 
 // ─── OUTFIT COMBO ("Bunu Neyle Giyerim?") ───
 function loadCombo(){
