@@ -3144,6 +3144,71 @@ _DEMO_ROASTS_TIPS = [
     "Kemer ekle, silüet anında düzelir ✨",
     "Renk paletini daralt: max 3 renk kuralı 🎯",
 ]
+_DEMO_AVATARS = [
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100",
+    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100",
+    "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100",
+    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100",
+    "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100",
+    "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100",
+    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100",
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100",
+    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100",
+    "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=100",
+    "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=100",
+    "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100",
+]
+_DEMO_FIT_IMGS = [
+    "https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=600",
+    "https://images.unsplash.com/photo-1551028719-0c124a4234c4?w=600",
+    "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600",
+    "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=600",
+    "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=600",
+    "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=600",
+]
+
+@app.get("/api/radar-stories")
+async def radar_stories():
+    """Return story bar data with avatars and arena info."""
+    stories = []
+    # Real arena entries first
+    for e in ARENA_POOL[:6]:
+        if e["reported"] < 3:
+            total = e["ups"] + e["downs"]
+            idx = hash(e["nickname"]) % len(_DEMO_AVATARS)
+            stories.append({
+                "id": e["id"], "handle": e["nickname"],
+                "avatar": _DEMO_AVATARS[idx],
+                "fit_img": "data:image/jpeg;base64," + e["image"][:200] if e.get("image") else "",
+                "has_image": bool(e.get("image")),
+                "score": e["ai_score"], "emoji": e["emoji"],
+                "roast": e.get("roast", "")[:100],
+                "fire_pct": round(e["ups"] / total * 100) if total > 0 else 50,
+                "total_votes": total,
+                "seen": False, "is_live": True,
+            })
+    # Fill with demo stories
+    demo_stories = [
+        {"handle": "can.kaya", "score": 45, "emoji": "💀", "roast": "Eşofmanla sokağa çıkmak cesaret ister. Hele o renk uyumu..."},
+        {"handle": "ece.drip", "score": 94, "emoji": "🔥", "roast": "Deri ceket ve çizmeler efsane. Milano sokakları ağlıyor!"},
+        {"handle": "berk.mode", "score": 62, "emoji": "😐", "roast": "Basic bir kombin. Kötü değil ama dönüp ikinci kez bakmam."},
+        {"handle": "selin.vip", "score": 88, "emoji": "💅", "roast": "Minimalist ama şık. Renk paleti harika ama kemer lazım."},
+        {"handle": "deniz.fit", "score": 37, "emoji": "💀", "roast": "Bunu giyip dışarı çıkan adama helal olsun. Cesaret puanı: 100."},
+    ]
+    for i, ds in enumerate(demo_stories):
+        if len(stories) >= 8: break
+        stories.append({
+            "id": f"demo_{i}", "handle": ds["handle"],
+            "avatar": _DEMO_AVATARS[i % len(_DEMO_AVATARS)],
+            "fit_img": _DEMO_FIT_IMGS[i % len(_DEMO_FIT_IMGS)],
+            "has_image": True,
+            "score": ds["score"], "emoji": ds["emoji"],
+            "roast": ds["roast"],
+            "fire_pct": _rand.randint(25, 75),
+            "total_votes": _rand.randint(5, 80),
+            "seen": i > 2, "is_live": i < 3,
+        })
+    return {"success": True, "stories": stories}
 
 @app.get("/api/radar-feed")
 async def radar_feed(page: int = 0, limit: int = 10):
@@ -3155,11 +3220,13 @@ async def radar_feed(page: int = 0, limit: int = 10):
     for _ in range(2):
         u1, u2 = _rand.sample(_DEMO_USERS, 2)
         item = _rand.choice(_DEMO_ITEMS)
+        i1 = _DEMO_USERS.index(u1) % len(_DEMO_AVATARS)
+        i2 = _DEMO_USERS.index(u2) % len(_DEMO_AVATARS)
         refitch_count = _rand.randint(2, 18)
         cards.append({
             "type": "refitch",
-            "user": u1[0], "handle": u1[1],
-            "target": u2[0], "target_handle": u2[1],
+            "user": u1[0], "handle": u1[1], "avatar": _DEMO_AVATARS[i1],
+            "target": u2[0], "target_handle": u2[1], "target_avatar": _DEMO_AVATARS[i2],
             "item_name": item[0], "item_price": item[1], "item_store": item[2],
             "item_emoji": item[3], "item_color": item[4],
             "refitch_count": refitch_count,
@@ -3200,10 +3267,11 @@ async def radar_feed(page: int = 0, limit: int = 10):
     # Card Type 3: Utanç Duvarı (Low Fit-Check scores)
     for _ in range(2):
         u = _rand.choice(_DEMO_USERS)
+        ui = _DEMO_USERS.index(u) % len(_DEMO_AVATARS)
         score = _rand.randint(32, 55)
         cards.append({
             "type": "shame_wall",
-            "user": u[0], "handle": u[1],
+            "user": u[0], "handle": u[1], "avatar": _DEMO_AVATARS[ui],
             "score": score, "emoji": "💀" if score < 40 else "😬",
             "roast": _rand.choice(_DEMO_ROASTS_LOW),
             "tip": _rand.choice(_DEMO_ROASTS_TIPS),
@@ -3213,17 +3281,18 @@ async def radar_feed(page: int = 0, limit: int = 10):
 
     # Card Type 4: Gatekeep (Premium tease)
     u = _rand.choice(_DEMO_USERS)
+    ui = _DEMO_USERS.index(u) % len(_DEMO_AVATARS)
     item = _rand.choice(_DEMO_ITEMS)
     orig_num = _rand.choice([15000, 25000, 35000, 48000])
     dupe_num = _rand.choice([450, 800, 1200, 650])
     savings_pct = round((1 - dupe_num / orig_num) * 100)
     cards.append({
         "type": "gatekeep",
-        "user": u[0], "handle": u[1],
+        "user": u[0], "handle": u[1], "avatar": _DEMO_AVATARS[ui],
         "original_price": f"{orig_num:,} TL".replace(",", "."),
         "dupe_price": f"{dupe_num:,} TL".replace(",", "."),
         "savings_pct": savings_pct,
-        "brand": _rand.choice(["Prada", "Gucci", "Louis Vuitton", "Balenciaga", "Dior", "Bottega Veneta", "Saint Laurent"]),
+        "brand": _rand.choice(["Prada", "Gucci", "Louis Vuitton", "Balenciaga", "Dior", "Bottega Veneta"]),
         "brand_emoji": _rand.choice(["👜", "👛", "🕶️", "👠", "🧥"]),
         "gatekeep_count": _rand.randint(12, 200),
         "ago": f"{_rand.randint(1,60)}dk önce",
@@ -3232,13 +3301,14 @@ async def radar_feed(page: int = 0, limit: int = 10):
     # Card Type 5: Dolap Röntgenciliği (Folder update)
     for _ in range(2):
         u = _rand.choice(_DEMO_USERS)
+        ui = _DEMO_USERS.index(u) % len(_DEMO_AVATARS)
         folder = _rand.choice(_DEMO_FOLDERS)
         count = _rand.randint(2, 5)
         items = _rand.sample(_DEMO_ITEMS, min(count, len(_DEMO_ITEMS)))
         total_val = sum(int(i[1].replace(".", "").replace(" TL", "")) for i in items)
         cards.append({
             "type": "folder_update",
-            "user": u[0], "handle": u[1],
+            "user": u[0], "handle": u[1], "avatar": _DEMO_AVATARS[ui],
             "folder_name": folder, "item_count": count,
             "items": [{"name": i[0], "price": i[1], "emoji": i[3], "color": i[4]} for i in items],
             "total_value": f"{total_val:,} TL".replace(",", "."),
@@ -3249,82 +3319,6 @@ async def radar_feed(page: int = 0, limit: int = 10):
     # Shuffle for natural feel
     _rand.shuffle(cards)
     return {"success": True, "cards": cards[page*limit:(page+1)*limit]}
-
-
-@app.get("/api/radar-stories")
-async def radar_stories():
-    """Return active Arena users for story bar + demo stories."""
-    stories = []
-    seen_nicknames = set()
-    now = time.time()
-
-    # Real arena entries (newest first, unique per nickname)
-    for e in ARENA_POOL:
-        if e["reported"] >= 3:
-            continue
-        nick = e["nickname"]
-        if nick in seen_nicknames:
-            continue
-        seen_nicknames.add(nick)
-        age_min = (now - e["ts"]) / 60
-        stories.append({
-            "id": e["id"],
-            "nickname": nick,
-            "ai_score": e["ai_score"],
-            "emoji": e["emoji"],
-            "has_image": bool(e.get("image")),
-            "total_votes": e["ups"] + e["downs"],
-            "age_min": round(age_min),
-            "is_fresh": age_min < 60,  # < 1 hour = neon bright ring
-        })
-        if len(stories) >= 15:
-            break
-
-    # If not enough real stories, pad with demo
-    if len(stories) < 8:
-        demo_needed = 8 - len(stories)
-        _rand.seed(int(now / 600))  # Refresh demo every 10min
-        for i in range(demo_needed):
-            u = _DEMO_USERS[i % len(_DEMO_USERS)]
-            if u[0] in seen_nicknames:
-                continue
-            seen_nicknames.add(u[0])
-            age = _rand.randint(5, 300)
-            stories.append({
-                "id": f"demo_{i}",
-                "nickname": u[0],
-                "ai_score": _rand.randint(45, 95),
-                "emoji": _rand.choice(["🔥", "💅", "😬", "💀", "✨"]),
-                "has_image": False,
-                "total_votes": _rand.randint(2, 80),
-                "age_min": age,
-                "is_fresh": age < 60,
-                "is_demo": True,
-            })
-
-    return {"success": True, "stories": stories}
-
-
-@app.get("/api/radar-story-entry/{entry_id}")
-async def radar_story_entry(entry_id: str):
-    """Get full Arena entry for story viewer."""
-    for e in ARENA_POOL:
-        if e["id"] == entry_id and e["reported"] < 3:
-            return {
-                "success": True,
-                "entry": {
-                    "id": e["id"],
-                    "image": e["image"],
-                    "nickname": e["nickname"],
-                    "ai_score": e["ai_score"],
-                    "emoji": e["emoji"],
-                    "roast": e.get("roast", ""),
-                    "ups": e["ups"],
-                    "downs": e["downs"],
-                    "total_votes": e["ups"] + e["downs"],
-                }
-            }
-    return {"success": False, "message": "Entry not found"}
 
 # ─── VIRTUAL TRY-ON (Sanal Kabin) ───
 VTON_STORE = {}
@@ -3633,10 +3627,27 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .rcard-action .rbtn-meh{background:rgba(244,67,54,.1);color:#f44336;border:1px solid rgba(244,67,54,.3)}
 .rcard-action .rbtn-gold{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;box-shadow:0 4px 15px rgba(255,215,0,.3)}
 .rcard-score{font-size:36px;font-weight:900;text-align:center;margin:8px 0}
+.rcard-roast{font-size:13px;font-style:italic;line-height:1.5;color:var(--text);padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);margin-bottom:12px}
 .rcard-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.06);margin:10px 0;overflow:hidden;display:flex}
 .rcard-bar .fire-fill{background:linear-gradient(90deg,var(--cyan),#4d00ff);height:100%;transition:width .5s}
 .rcard-bar .meh-fill{background:rgba(244,67,54,.4);height:100%;transition:width .5s}
+.rcard-blur{filter:blur(12px);pointer-events:none;user-select:none}
+.rcard-lock{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2;padding:20px}
+.rcard-items{display:flex;gap:8px;margin-bottom:10px}
+.rcard-items .ritem{flex:1;padding:8px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--border);text-align:center;font-size:11px;line-height:1.3}
+.rcard-items .ritem .ritem-name{font-weight:700;color:var(--text);margin-bottom:2px}
 .rcard-items .ritem .ritem-price{color:var(--cyan);font-weight:800;font-size:12px}
+
+/* 📡 Story Bar */
+.radar-stories{display:flex;gap:16px;padding:16px 20px;overflow-x:auto;border-bottom:1px solid rgba(255,255,255,0.05)}
+.radar-story{width:72px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;position:relative;transition:transform .2s}
+.radar-story:active{transform:scale(.95)}
+.story-ring{width:72px;height:72px;border-radius:50%;padding:3px;position:relative;background:linear-gradient(45deg,var(--gold),var(--accent),var(--cyan),var(--purple));background-size:300% 300%;animation:rotateRing 3s ease infinite;box-shadow:0 0 15px rgba(255,32,121,.3)}
+.story-ring.seen{background:rgba(255,255,255,.2);animation:none;box-shadow:none}
+.story-ring img{width:100%;height:100%;border-radius:50%;object-fit:cover;border:3px solid var(--bg);background:#1a1a2e}
+.story-name{font-size:11px;font-weight:600;color:var(--text);width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.live-badge-mini{position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);background:var(--cyan);color:#000;font-size:8px;font-weight:900;padding:3px 6px;border-radius:6px;border:2px solid var(--bg);box-shadow:0 2px 8px rgba(0,229,255,.4);white-space:nowrap}
+@keyframes rotateRing{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 
 /* 🥷 Drip Hırsızlığı - Product Visual */
 .rcard-product{display:flex;gap:12px;margin-bottom:14px;padding:12px;border-radius:14px;background:rgba(255,255,255,.02);border:1px solid var(--border)}
@@ -3669,8 +3680,8 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .rcard-shame-gauge::before{content:'';position:absolute;inset:0;border-radius:50%;border:4px solid rgba(255,255,255,.05)}
 .rcard-shame-gauge .gauge-score{font-size:32px;font-weight:900;line-height:1}
 .rcard-shame-gauge .gauge-max{font-size:12px;color:var(--muted);font-weight:600}
-.rcard-roast{font-size:13px;font-style:italic;line-height:1.5;color:var(--text);padding:12px 16px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);margin-bottom:10px;position:relative}
-.rcard-roast::before{content:'💬';position:absolute;top:-10px;left:12px;font-size:16px}
+.rcard-roast-bubble{font-size:13px;font-style:italic;line-height:1.5;color:var(--text);padding:12px 16px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);margin-bottom:10px;position:relative}
+.rcard-roast-bubble::before{content:'💬';position:absolute;top:-10px;left:12px;font-size:16px}
 .rcard-shame-tip{font-size:11px;line-height:1.4;color:var(--cyan);padding:8px 12px;border-radius:10px;background:rgba(0,229,255,.05);border:1px solid rgba(0,229,255,.12);margin-bottom:12px}
 .rcard-reactions{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:10px}
 
@@ -3689,24 +3700,6 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .rcard-collage-item .col-price{font-size:9px;font-weight:800;color:var(--cyan)}
 .rcard-folder-meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin-bottom:10px}
 .rcard-folder-val{font-weight:800;color:var(--accent)}
-
-/* 📡 Radar Story Bar */
-.radar-story-bar{display:flex;gap:14px;padding:14px 16px 10px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-shrink:0}
-.radar-story-bar::-webkit-scrollbar{display:none}
-.radar-story-item{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;scroll-snap-align:start;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.radar-story-item:active .story-ring{transform:scale(.93)}
-.story-ring{width:56px;height:56px;border-radius:50%;padding:2.5px;transition:transform .2s,opacity .2s}
-.story-ring.fresh{background:conic-gradient(from 0deg,var(--accent),var(--cyan),var(--purple),var(--accent));box-shadow:0 0 12px rgba(255,32,121,.35),0 0 24px rgba(0,229,255,.2)}
-.story-ring.seen{background:conic-gradient(from 0deg,rgba(255,32,121,.3),rgba(0,229,255,.3),rgba(77,0,255,.3),rgba(255,32,121,.3));opacity:.55}
-.story-ring-inner{width:100%;height:100%;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;border:2px solid var(--bg);overflow:hidden;position:relative}
-.story-ring-inner .story-score-badge{position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);font-size:8px;font-weight:900;padding:1px 5px;border-radius:6px;background:var(--bg);border:1.5px solid var(--cyan);color:var(--cyan);white-space:nowrap;line-height:1.3}
-.radar-story-name{font-size:10px;font-weight:600;color:var(--text);max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
-.radar-story-add{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.04);border:2px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:24px;transition:all .2s}
-.radar-story-add:hover{border-color:var(--accent);background:rgba(255,32,121,.08)}
-@keyframes storyPulse{0%,100%{box-shadow:0 0 12px rgba(255,32,121,.35),0 0 24px rgba(0,229,255,.2)}50%{box-shadow:0 0 18px rgba(255,32,121,.5),0 0 36px rgba(0,229,255,.35)}}
-@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-.story-ring.fresh{animation:storyPulse 2.5s ease-in-out infinite}
-.radar-story-bar .skeleton-story{width:56px;height:56px;border-radius:50%;background:linear-gradient(90deg,rgba(255,255,255,.03) 25%,rgba(255,255,255,.06) 50%,rgba(255,255,255,.03) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;flex-shrink:0}
 
 /* VTON Modal */
 .vton-modal{position:fixed;inset:0;z-index:1000;background:rgba(5,2,10,.95);backdrop-filter:blur(30px);display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px}
@@ -3847,18 +3840,7 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
     <div style="font-size:18px;font-weight:900;letter-spacing:1px"><span style="font-size:16px">📡</span> <span class="text-gradient">Radar</span></div>
     <div id="radarBadge" style="font-size:11px;color:var(--muted);font-weight:600"></div>
   </div>
-  <!-- Story Bar -->
-  <div class="radar-story-bar" id="radarStoryBar">
-    <div class="radar-story-item" onclick="storyAddTap()">
-      <div class="radar-story-add">＋</div>
-      <div class="radar-story-name" id="storyAddLabel">Sıra Sende</div>
-    </div>
-    <div class="skeleton-story"></div>
-    <div class="skeleton-story"></div>
-    <div class="skeleton-story"></div>
-    <div class="skeleton-story"></div>
-    <div class="skeleton-story"></div>
-  </div>
+  <div class="radar-stories" id="radarStoryTray"></div>
   <div id="radarFeed" style="flex:1;overflow-y:auto;padding:16px 16px 120px;display:flex;flex-direction:column;gap:14px">
   </div>
 </div>
@@ -4790,8 +4772,6 @@ function submitToHof(score,emoji,roast){
 
 // ─── 📡 RADAR FEED ───
 var _radarPage=0;
-var _seenStories={};  // Track seen story IDs
-
 function openRadar(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
   document.querySelectorAll('.bnav-item')[1].classList.add('active');
@@ -4807,124 +4787,64 @@ function closeRadar(){
   goHome();
 }
 
-// Story bar
+// ── RADAR STORY BAR ──
+var _radarStoryData=[];
 function loadRadarStories(){
-  var bar=document.getElementById('radarStoryBar');
-  var isTr=CC_LANG[CC]==='tr';
-  document.getElementById('storyAddLabel').textContent=isTr?'Sıra Sende':'Your Turn';
+  var tray=document.getElementById('radarStoryTray');
+  if(!tray)return;
   fetch('/api/radar-stories').then(function(r){return r.json()}).then(function(d){
-    // Remove skeleton loaders
-    var skeletons=bar.querySelectorAll('.skeleton-story');
-    skeletons.forEach(function(s){s.remove()});
-    // Remove old story items (keep the add button)
-    var oldItems=bar.querySelectorAll('.radar-story-user');
-    oldItems.forEach(function(s){s.remove()});
-
-    if(!d.success||!d.stories)return;
-    var colors=['#ff2079','#4d00ff','#00e5ff','#ffbe0b','#f44336','#00bcd4','#e040fb','#ff6e40'];
+    if(!d.success)return;
+    _radarStoryData=d.stories;
+    var h='';
+    // "+" button first
+    h+='<div class="radar-story" onclick="startFitCheck();closeRadar()">';
+    h+='<div class="story-ring" style="background:rgba(255,255,255,.05);border:1px dashed var(--muted);animation:none;padding:2px">';
+    h+='<div style="width:100%;height:100%;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--muted)">+</div>';
+    h+='</div>';
+    h+='<div style="position:absolute;bottom:14px;right:0;width:22px;height:22px;background:var(--cyan);color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;border:2px solid var(--bg)">+</div>';
+    h+='<div class="story-name" style="margin-top:2px">Sen</div>';
+    h+='</div>';
+    // Story items
     for(var i=0;i<d.stories.length;i++){
       var s=d.stories[i];
-      var el=document.createElement('div');
-      el.className='radar-story-item radar-story-user';
-      var isSeen=_seenStories[s.id];
-      var ringClass=(!isSeen&&s.is_fresh)?'fresh':'seen';
-      var avatarColor=colors[s.nickname.charCodeAt(0)%colors.length];
-      var initial=s.nickname[0].toUpperCase();
-      el.innerHTML='<div class="story-ring '+ringClass+'"><div class="story-ring-inner" style="background:'+avatarColor+'">'+initial+'<div class="story-score-badge">'+s.emoji+s.ai_score+'</div></div></div><div class="radar-story-name">'+s.nickname+'</div>';
-      el.setAttribute('data-story-id',s.id);
-      el.setAttribute('data-is-demo',s.is_demo?'1':'0');
-      el.setAttribute('data-nickname',s.nickname);
-      el.setAttribute('data-score',s.ai_score);
-      el.setAttribute('data-emoji',s.emoji);
-      el.onclick=(function(storyData,element){
-        return function(){openRadarStory(storyData,element)};
-      })(s,el);
-      bar.appendChild(el);
+      var ringClass=s.seen?'story-ring seen':'story-ring';
+      h+='<div class="radar-story" onclick="openRadarStoryItem('+i+')">';
+      h+='<div class="'+ringClass+'">';
+      h+='<img src="'+s.avatar+'" onerror="this.style.background=\'var(--purple)\'">';
+      if(s.is_live&&!s.seen)h+='<div class="live-badge-mini">⚔️ ARENA</div>';
+      h+='</div>';
+      h+='<div class="story-name" style="margin-top:2px">'+s.handle.split('.')[0]+'</div>';
+      h+='</div>';
     }
-  }).catch(function(){
-    var skeletons=bar.querySelectorAll('.skeleton-story');
-    skeletons.forEach(function(s){s.remove()});
-  });
+    tray.innerHTML=h;
+  }).catch(function(){});
 }
 
-function storyAddTap(){
-  closeRadar();
-  setTimeout(function(){startFitCheck()},200);
-}
-
-function openRadarStory(storyData,el){
-  var isTr=CC_LANG[CC]==='tr';
-
-  // Mark as seen
-  _seenStories[storyData.id]=true;
-  var ring=el.querySelector('.story-ring');
-  if(ring){ring.className='story-ring seen'}
-
-  // If demo entry, show teaser modal
-  if(storyData.is_demo||storyData.id.toString().startsWith('demo')){
-    showDemoStoryModal(storyData);
-    return;
+function openRadarStoryItem(idx){
+  var s=_radarStoryData[idx];
+  if(!s)return;
+  _activeStoryEntry={id:s.id,nickname:s.handle};
+  document.getElementById('storyAvatarImg').src=s.avatar;
+  document.getElementById('storyHandle').textContent='@'+s.handle;
+  if(s.has_image&&s.fit_img){
+    document.getElementById('storyMainImg').src=s.fit_img;
+  }else{
+    document.getElementById('storyMainImg').src='';
   }
-
-  // Real entry — fetch full data and open story modal
+  document.getElementById('storyScoreTxt').textContent='AI Skoru: '+s.emoji+' '+s.score;
+  document.getElementById('storyRoastTxt').textContent='"'+s.roast+'"';
+  var card=document.getElementById('storyArenaCard');
+  card.style.transition='none';
+  card.style.transform='translateX(0) rotate(0)';
+  card.style.opacity='1';
+  document.getElementById('storyLikeLabel').style.opacity='0';
+  document.getElementById('storyNopeLabel').style.opacity='0';
   document.getElementById('storyModal').style.display='flex';
-  document.body.style.overflow='hidden';
-
-  // Set header
-  document.getElementById('storyHandle').textContent='@'+storyData.nickname.toLowerCase().replace(/\s/g,'_');
-  document.getElementById('storyStatusTxt').textContent=isTr?'Arenada Yarışıyor':'Competing in Arena';
-
-  // Set avatar
-  var colors=['#ff2079','#4d00ff','#00e5ff','#ffbe0b','#f44336','#00bcd4','#e040fb','#ff6e40'];
-  var avatarColor=colors[storyData.nickname.charCodeAt(0)%colors.length];
-  var avatarEl=document.getElementById('storyAvatarImg');
-  avatarEl.src='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="'+encodeURIComponent(avatarColor)+'" width="100" height="100" rx="50"/><text x="50" y="62" text-anchor="middle" fill="white" font-size="40" font-weight="bold">'+storyData.nickname[0].toUpperCase()+'</text></svg>';
-
-  // Show loading state
-  document.getElementById('storyArenaCard').style.display='none';
-  document.getElementById('storyBtns').style.display='none';
-  var empty=document.getElementById('storyEmpty');
-  empty.style.display='block';
-  document.getElementById('storyEmptyTitle').textContent=isTr?'Yükleniyor...':'Loading...';
-  document.getElementById('storyEmptySub').innerHTML='<div class="loader-orb" style="width:32px;height:32px;margin:12px auto"></div>';
-
-  // Fetch full entry
-  fetch('/api/radar-story-entry/'+storyData.id).then(function(r){return r.json()}).then(function(d){
-    if(d.success&&d.entry){
-      _activeStoryEntry=d.entry;
-      renderStoryCard();
-    }else{
-      showStoryEmpty();
-    }
-  }).catch(function(){
-    showStoryEmpty();
-  });
+  // Mark as seen
+  s.seen=true;
+  loadRadarStories();
 }
 
-function showDemoStoryModal(storyData){
-  var isTr=CC_LANG[CC]==='tr';
-  document.getElementById('storyModal').style.display='flex';
-  document.body.style.overflow='hidden';
-
-  // Header
-  document.getElementById('storyHandle').textContent='@'+storyData.nickname.toLowerCase().replace(/\s/g,'.');
-  document.getElementById('storyStatusTxt').textContent=storyData.emoji+' '+storyData.ai_score+'/100';
-
-  // Avatar
-  var colors=['#ff2079','#4d00ff','#00e5ff','#ffbe0b','#f44336','#00bcd4','#e040fb','#ff6e40'];
-  var avatarColor=colors[storyData.nickname.charCodeAt(0)%colors.length];
-  document.getElementById('storyAvatarImg').src='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="'+encodeURIComponent(avatarColor)+'" width="100" height="100" rx="50"/><text x="50" y="62" text-anchor="middle" fill="white" font-size="40" font-weight="bold">'+storyData.nickname[0].toUpperCase()+'</text></svg>';
-
-  // Show demo placeholder
-  document.getElementById('storyArenaCard').style.display='none';
-  document.getElementById('storyBtns').style.display='none';
-  var empty=document.getElementById('storyEmpty');
-  empty.style.display='block';
-  document.getElementById('storyEmptyTitle').textContent=storyData.nickname+' '+storyData.emoji;
-  var voteStr=storyData.total_votes+(isTr?' oy aldı':' votes');
-  var scoreStr=(isTr?'AI Skoru: ':'AI Score: ')+storyData.ai_score+'/100';
-  document.getElementById('storyEmptySub').innerHTML='<div style="font-size:64px;margin-bottom:16px">'+storyData.emoji+'</div><div style="font-size:20px;font-weight:900;color:var(--text);margin-bottom:6px">'+scoreStr+'</div><div style="font-size:13px;color:var(--muted);margin-bottom:20px">'+voteStr+'</div><button onclick="closeStory();startFitCheck()" style="background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;padding:14px 28px;border-radius:16px;font:700 14px Outfit,sans-serif;cursor:pointer">🔥 '+(isTr?'Sen de Katıl':'Join the Arena')+'</button>';
-}
 function loadRadarFeed(){
   var feed=document.getElementById('radarFeed');
   if(_radarPage===0)feed.innerHTML='<div style="text-align:center;padding:40px"><div class="loader-orb" style="width:40px;height:40px;margin:0 auto 12px"></div><div style="color:var(--muted);font-size:13px">Radar taranıyor...</div></div>';
@@ -4952,10 +4872,12 @@ function loadRadarFeed(){
         h+='<div class="rcard-tag" style="background:rgba(255,32,121,.15);color:var(--accent)">🥷 '+(isTr?'Drip Hırsızlığı':'Drip Theft')+'</div>';
         // Chain: user → stole from → target
         h+='<div class="rcard-chain">';
-        h+='<div class="rcard-avatar" style="background:'+avatarColor+';width:28px;height:28px;font-size:11px">'+initial+'</div>';
+        if(c.avatar){h+='<img src="'+c.avatar+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover">';}
+        else{h+='<div class="rcard-avatar" style="background:'+avatarColor+';width:28px;height:28px;font-size:11px">'+initial+'</div>';}
         h+='<span class="rcard-chain-user">'+c.user+'</span>';
         h+='<span class="rcard-chain-arrow">→ 🥷 →</span>';
-        h+='<div class="rcard-avatar" style="background:'+tColor+';width:28px;height:28px;font-size:11px">'+tInit+'</div>';
+        if(c.target_avatar){h+='<img src="'+c.target_avatar+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover">';}
+        else{h+='<div class="rcard-avatar" style="background:'+tColor+';width:28px;height:28px;font-size:11px">'+tInit+'</div>';}
         h+='<span class="rcard-chain-user">'+c.target+'</span>';
         if(c.refitch_count>1)h+='<span class="rcard-refitch-badge">🔄 '+c.refitch_count+'x</span>';
         h+='</div>';
@@ -4995,7 +4917,9 @@ function loadRadarFeed(){
         // 💀 UTANÇ DUVARI — Mizah Viraldir
         card.classList.add('type-shame');
         h+='<div class="rcard-tag" style="background:rgba(244,67,54,.15);color:#f44336">💀 '+(isTr?'Utanç Duvarı':'Wall of Shame')+'</div>';
-        h+='<div class="rcard-head"><div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';
+        h+='<div class="rcard-head">';
+        if(c.avatar){h+='<img src="'+c.avatar+'" class="rcard-avatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover">';}
+        else{h+='<div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';}
         h+='<div class="rcard-user">'+c.user+' <span class="handle">@'+c.handle+'</span><br><span class="ago">'+c.ago+'</span></div></div>';
         // Score gauge
         var gaugeColor=c.score<40?'#f44336':'#ff9800';
@@ -5007,7 +4931,7 @@ function loadRadarFeed(){
         h+='<div style="font-size:28px">'+c.emoji+'</div>';
         h+='</div>';
         // AI Roast quote
-        h+='<div class="rcard-roast">'+c.roast+'</div>';
+        h+='<div class="rcard-roast-bubble">'+c.roast+'</div>';
         // AI tip
         if(c.tip){h+='<div class="rcard-shame-tip">'+c.tip+'</div>';}
         // Reactions + CTA
@@ -5018,7 +4942,9 @@ function loadRadarFeed(){
         // 🤫 GATEKEEP — Premium Kancası
         card.classList.add('type-gatekeep');
         h+='<div class="rcard-tag" style="background:rgba(255,215,0,.15);color:#ffd700">🤫 Gatekeep</div>';
-        h+='<div class="rcard-head"><div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';
+        h+='<div class="rcard-head">';
+        if(c.avatar){h+='<img src="'+c.avatar+'" class="rcard-avatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover">';}
+        else{h+='<div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';}
         h+='<div class="rcard-user">'+c.user+' <span class="handle">@'+c.handle+'</span><br><span class="ago">'+c.ago+'</span></div></div>';
         // Blurred product visual
         h+='<div class="rcard-gatekeep-visual">';
@@ -5042,7 +4968,9 @@ function loadRadarFeed(){
         // 📂 DOLAP RÖNTGENCİLİĞİ — Klasör Güncellemeleri
         card.classList.add('type-folder');
         h+='<div class="rcard-tag" style="background:rgba(0,229,255,.1);color:#00bcd4">📂 '+(isTr?'Dolap Güncellemesi':'Closet Update')+'</div>';
-        h+='<div class="rcard-head"><div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';
+        h+='<div class="rcard-head">';
+        if(c.avatar){h+='<img src="'+c.avatar+'" class="rcard-avatar" style="width:36px;height:36px;border-radius:50%;object-fit:cover">';}
+        else{h+='<div class="rcard-avatar" style="background:'+avatarColor+'">'+initial+'</div>';}
         h+='<div class="rcard-user">'+c.user+' <span class="handle">@'+c.handle+'</span><br><span class="ago">'+c.ago+'</span></div></div>';
         // Folder name + meta
         h+='<div class="rcard-body">✨ <b>'+c.user+'</b> <b>\''+c.folder_name+'\'</b> '+(isTr?'klasörüne':'folder')+' <b>'+c.item_count+'</b> '+(isTr?'yeni parça ekledi':'new pieces added')+'</div>';
