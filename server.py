@@ -101,6 +101,25 @@ def make_affiliate(url):
     if SKIMLINKS_ID: return f"https://go.skimresources.com/?id={SKIMLINKS_ID}&url={urllib.parse.quote(url, safe='')}"
     return url
 
+def enhance_thumbnail_url(url):
+    """Google Shopping thumbnail URL'sini yüksek çözünürlüğe çevir."""
+    if not url: return url
+    # Google encrypted thumbnails — request larger size
+    if "encrypted-tbn" in url and "gstatic.com" in url:
+        if "=s" in url:
+            url = re.sub(r'=s\d+', '=s500', url)
+        elif "=w" in url:
+            url = re.sub(r'=w\d+-h\d+', '=w500-h500', url)
+        else:
+            url += "=s500"
+    # Google Shopping image URLs
+    elif "gstatic.com/shopping" in url:
+        if "=s" in url:
+            url = re.sub(r'=s\d+', '=s500', url)
+        elif "=w" in url:
+            url = re.sub(r'=w\d+', '=w500', url)
+    return url
+
 # ─── URL Localization: yabancı marka linklerini hedef ülkeye çevir ───
 # Inditex (Bershka, Zara, Pull&Bear, Stradivarius, Massimo Dutti, Oysho):
 #   bershka.com/eg/product → bershka.com/tr/product
@@ -928,7 +947,7 @@ def _lens(url, cc="tr", lens_type="all"):
             price_val = "" if url_changed else (pr.get("value", "") if isinstance(pr, dict) else str(pr) if pr else "")
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
                 "link": make_affiliate(lnk), "price": price_val,
-                "thumbnail": m.get("thumbnail", ""), "image": m.get("image", ""),
+                "thumbnail": enhance_thumbnail_url(m.get("thumbnail", "")), "image": m.get("image", ""),
                 "is_local": is_local(lnk, src, cfg), "ai_verified": True, "_exact": True})
         exact_count = len(res)
         if exact_count > 0:
@@ -960,7 +979,7 @@ def _lens(url, cc="tr", lens_type="all"):
             price_val = "" if url_changed else (pr.get("value", "") if isinstance(pr, dict) else str(pr) if pr else "")
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
                 "link": make_affiliate(lnk), "price": price_val,
-                "thumbnail": m.get("thumbnail", ""), "image": m.get("image", ""),
+                "thumbnail": enhance_thumbnail_url(m.get("thumbnail", "")), "image": m.get("image", ""),
                 "is_local": is_local(lnk, src, cfg)})
             if len(res) >= 25: break
 
@@ -1010,7 +1029,7 @@ def _shop(q, cc="tr", limit=6):
             if cc == "tr" and has_foreign_clothing_word(ttl): continue
             seen.add(lnk)
             lnk = localize_url(lnk, cc)
-            res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src, "link": make_affiliate(lnk), "price": item.get("price", str(item.get("extracted_price", ""))), "thumbnail": item.get("thumbnail", ""), "image": "", "is_local": is_local(lnk, src, cfg)})
+            res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src, "link": make_affiliate(lnk), "price": item.get("price", str(item.get("extracted_price", ""))), "thumbnail": enhance_thumbnail_url(item.get("thumbnail", "")), "image": "", "is_local": is_local(lnk, src, cfg)})
             if len(res) >= limit: break
     except Exception as e: print(f"Shop err: {e}")
     if res: cache_set(cache_key, res)
@@ -1040,7 +1059,7 @@ def _google_organic(q, cc="tr", limit=8):
             pr = item.get("price", item.get("extracted_price", ""))
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
                 "link": make_affiliate(lnk), "price": str(pr) if pr else "",
-                "thumbnail": item.get("thumbnail", ""), "image": "",
+                "thumbnail": enhance_thumbnail_url(item.get("thumbnail", "")), "image": "",
                 "is_local": is_local(lnk, src, cfg), "_src": "google_inline"})
             if len(res) >= limit: break
 
@@ -1061,7 +1080,7 @@ def _google_organic(q, cc="tr", limit=8):
                 price = price_match.group(0)
             res.append({"title": ttl, "brand": get_brand(lnk, src), "source": src,
                 "link": make_affiliate(lnk), "price": price,
-                "thumbnail": item.get("thumbnail", ""), "image": "",
+                "thumbnail": enhance_thumbnail_url(item.get("thumbnail", "")), "image": "",
                 "is_local": is_local(lnk, src, cfg), "_src": "google_organic"})
             if len(res) >= limit: break
 
@@ -1737,7 +1756,7 @@ def _fetch_trending_products(lang="tr"):
                     products.append({
                         "title": ttl[:40],
                         "brand": src,
-                        "img": thumb,
+                        "img": enhance_thumbnail_url(thumb),
                         "price": pr,
                         "link": make_affiliate(best_link),
                     })
@@ -1766,7 +1785,7 @@ def _fetch_trending_products(lang="tr"):
                     products.append({
                         "title": ttl[:40],
                         "brand": get_brand(lnk, src) or src,
-                        "img": thumb or "",
+                        "img": enhance_thumbnail_url(thumb) or "",
                         "price": pr_match.group(0) if pr_match else "",
                         "link": make_affiliate(lnk),
                     })
