@@ -225,22 +225,26 @@ def is_category_mismatch(title, category):
         if score > 0:
             cat_scores[cat] = score
     
-    # Hiçbir kategori tespit edilmediyse → geçir (engellemeyiz)
-    if not cat_scores:
-        return False
-    
-    # En güçlü tespit edilen kategori
-    detected_cat = max(cat_scores, key=cat_scores.get)
-    detected_score = cat_scores[detected_cat]
-    
-    # Aranan kategori de tespit edilenler arasındaysa → geçir
+    # Aranan kategori tespit edilenler arasındaysa → geçir
     if category in cat_scores:
         return False
     
-    # Aranan kategori tespit edilmedi AMA başka bir kategori tespit edildi → engelle
-    # Minimum 1 keyword eşleşmesi yeterli (ceket, bomber, pants vs. açık kelimeler)
-    if detected_score >= 1:
+    # Başka bir kategori tespit edildi AMA aranan değil → engelle
+    if cat_scores:
         return True
+    
+    # Hiçbir kategori tespit edilmedi — genel başlık
+    # Aksesuar kategorileri (watch, bag, sunglasses, hat, scarf) için
+    # "giyim/dış giyim/outfit" gibi genel ifadeler → muhtemelen kıyafet, aksesuar değil
+    SPECIFIC_CATS = {"watch", "bag", "sunglasses", "hat", "scarf", "accessory"}
+    if category in SPECIFIC_CATS:
+        # Genel giyim kelimeleri varsa → aksesuar aramada uyumsuz
+        clothing_generics = ["giyim", "giysi", "clothing", "outfit", "kıyafet", "dış giyim",
+                             "iç giyim", "modelleri", "koleksiyon", "collection", "fashion",
+                             "sezon", "yeni sezon", "oversize", "regular fit", "slim fit",
+                             "erkek", "kadın", "unisex"]
+        if any(cg in tl for cg in clothing_generics):
+            return True
     
     return False
 NON_CLOTHING_PRODUCTS = [
@@ -1326,6 +1330,14 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                     score -= 25
                     print(f"      👕 SUBTYPE PENALTY: [{piece_style}] vs '{rtitle[:40]}'")
 
+                # v42: CATEGORY RELEVANCE — sonuçta aranan kategorinin kelimesi var mı?
+                cat_keywords = PIECE_KEYWORDS.get(cat, [])
+                has_target_kw = any(kw in rtitle.lower() for kw in cat_keywords if len(kw) >= 3)
+                if has_target_kw:
+                    score += 15  # Bonus: sonuçta "saat/watch" veya "çanta/bag" geçiyor
+                elif cat in ("watch", "bag", "sunglasses", "hat", "scarf", "accessory"):
+                    score -= 20  # Aksesuar aramasında kategori kelimesi yoksa penaltı
+
                 return score
 
             seen = set()
@@ -1986,6 +1998,13 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
             # v42: SUB-TYPE PENALTY
             if detect_subtype_conflict(piece_style, rtitle, cat):
                 score -= 25
+            # v42: CATEGORY RELEVANCE
+            cat_keywords = PIECE_KEYWORDS.get(cat, [])
+            has_target_kw = any(kw in rtitle.lower() for kw in cat_keywords if len(kw) >= 3)
+            if has_target_kw:
+                score += 15
+            elif cat in ("watch", "bag", "sunglasses", "hat", "scarf", "accessory"):
+                score -= 20
             return score
 
         seen = set()
