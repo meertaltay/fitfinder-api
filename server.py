@@ -5875,9 +5875,11 @@ function closePodyum(){
 
 function loadPodyumCards(){
   var stack=document.getElementById('podyumStack');
-  document.getElementById('podyumEmpty').style.display='none';
+  var emptyEl=document.getElementById('podyumEmpty');
+  if(emptyEl){emptyEl.style.display='none';emptyEl.remove();}
   document.getElementById('podyumBtns').style.display='none';
   stack.innerHTML='<div style="text-align:center"><div class="loader-orb" style="width:48px;height:48px;margin:0 auto 16px"></div><div style="color:var(--muted);font-size:14px;font-weight:600">Stil Vitrini hazırlanıyor...</div></div>';
+  if(emptyEl)stack.appendChild(emptyEl);
 
   fetch('/api/podyum-next?session='+_podyumSession+'&count=10').then(function(r){return r.json()}).then(function(d){
     if(!d.success||!d.entries||!d.entries.length){
@@ -5894,8 +5896,15 @@ function loadPodyumCards(){
 function showPodyumEmpty(){
   var stack=document.getElementById('podyumStack');
   stack.innerHTML='';
-  document.getElementById('podyumEmpty').style.display='block';
-  stack.appendChild(document.getElementById('podyumEmpty'));
+  var emptyEl=document.getElementById('podyumEmpty');
+  if(!emptyEl){
+    emptyEl=document.createElement('div');
+    emptyEl.id='podyumEmpty';
+    emptyEl.style.cssText='text-align:center;padding:40px 20px';
+    emptyEl.innerHTML='<div style="font-size:64px;margin-bottom:16px;filter:drop-shadow(0 0 20px rgba(255,215,0,.4))">🥂</div><h2 style="font-size:20px;font-weight:900;color:#fff;margin-bottom:12px;letter-spacing:-.5px">Tüm Stiller İncelendi!</h2><p style="font-size:13px;color:var(--muted);margin-bottom:30px;line-height:1.6">Dijital cemiyette şu an başka kombin kalmadı.<br>Sahneye çıkma sırası artık sende.</p><button onclick="startFitCheck();closePodyum()" class="btn-main" style="background:linear-gradient(135deg,var(--accent),var(--purple));box-shadow:0 8px 30px rgba(255,32,121,.4)">📸 Kendi Stilini Değerlendir</button>';
+  }
+  emptyEl.style.display='block';
+  stack.appendChild(emptyEl);
   document.getElementById('podyumBtns').style.display='none';
   document.getElementById('podyumCount').textContent='Podyum Temiz';
 }
@@ -5965,8 +5974,8 @@ function renderPodyumStack(){
     }
     stack.appendChild(card);
   }
-  document.getElementById('podyumEmpty').style.display='none';
-  stack.appendChild(document.getElementById('podyumEmpty'));
+  var emptyEl=document.getElementById('podyumEmpty');
+  if(emptyEl){emptyEl.style.display='none';stack.appendChild(emptyEl);}
 }
 
 // ─── SWIPE FİZİK MOTORU ───
