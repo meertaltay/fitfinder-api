@@ -3496,7 +3496,7 @@ body::after{content:"";position:fixed;bottom:-10%;right:-20%;width:70%;height:70
 .piece-card .pc-text{font-size:10px;color:var(--accent);font-style:italic;margin-top:4px}
 .piece-card .pc-noimg{width:100%;height:160px;display:flex;align-items:center;justify-content:center;font-size:48px;background:rgba(255,255,255,.02)}
 
-.bnav{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:calc(100% - 40px);max-width:400px;background:rgba(10,5,20,.7);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:30px;display:flex;padding:12px 20px;justify-content:space-around;box-shadow:0 20px 40px rgba(0,0,0,.8);z-index:50}
+.bnav{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:calc(100% - 40px);max-width:400px;background:rgba(10,5,20,.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:30px;display:flex;padding:12px 20px;justify-content:space-around;box-shadow:0 20px 40px rgba(0,0,0,.8);z-index:200}
 .bnav-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;opacity:.5;transition:all .2s}
 .bnav-item.active{opacity:1}
 .bnav-item .icon{font-size:22px;color:#fff}
@@ -3570,7 +3570,7 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .item-card .card-info{padding:12px;background:rgba(10,5,20,.4);border-top:1px solid var(--border)}
 .item-card .card-title{font-size:13px;font-weight:700;color:#fff;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px}
 .item-card .card-brand{font-size:11px;color:var(--cyan);font-weight:600;display:flex;align-items:center;gap:4px}
-.story-modal{display:none;position:fixed;inset:0;z-index:1100;background:rgba(5,2,10,.95);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);flex-direction:column}
+.story-modal{display:none;position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;z-index:1100;background:rgba(5,2,10,.95);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);flex-direction:column}
 .live-badge{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);font-size:8px;font-weight:900;padding:3px 8px;border-radius:6px;white-space:nowrap;letter-spacing:.5px;z-index:2}
 
 /* Fit-Check Score */
@@ -3593,7 +3593,7 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .hof-card .hof-time{font-size:9px;color:var(--muted);margin-top:2px}
 .hof-join{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;border:none;padding:14px 28px;border-radius:16px;font:800 14px 'Outfit',sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;width:100%;margin-top:12px;box-shadow:0 4px 20px rgba(255,215,0,.3);transition:transform .2s}
 .hof-join:active{transform:scale(.97)}
-.arena-screen{position:fixed;inset:0;z-index:100;background:var(--bg);display:none;flex-direction:column}
+.arena-screen{position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;z-index:100;background:var(--bg);display:none;flex-direction:column}
 .arena-screen.show{display:flex}
 .arena-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
 .arena-stack{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:20px}
@@ -3825,7 +3825,7 @@ img.rcard-avatar{border:1px solid var(--border)}
     <div class="bnav-item active" onclick="goHome()"><div class="icon">✧</div><div id="navHome" class="lbl"></div></div>
     <div class="bnav-item" onclick="openRadar()"><div class="icon">📡</div><div class="lbl">Radar</div></div>
     <div class="bnav-item" onclick="openArena()"><div class="icon">🏟️</div><div class="lbl">Arena</div></div>
-    <div class="bnav-item" onclick="showFavs()"><div class="icon">👤</div><div id="navFav" class="lbl"></div></div>
+    <div class="bnav-item" onclick="showFavs()"><div class="icon">♡</div><div id="navFav" class="lbl"></div></div>
   </div>
 
   <!-- 🏟️ KOMBİN ARENA -->
@@ -3855,8 +3855,8 @@ img.rcard-avatar{border:1px solid var(--border)}
 <div class="arena-screen" id="radarScreen">
   <div class="arena-header">
     <div onclick="closeRadar()" style="cursor:pointer;color:var(--muted);font-size:14px;font-weight:600">← Geri</div>
-    <div style="font-size:18px;font-weight:900;letter-spacing:1px"><span style="font-size:16px">📡</span> <span class="text-gradient">Radar</span></div>
-    <div id="radarBadge" style="font-size:11px;color:var(--muted);font-weight:600"></div>
+    <div style="font-size:18px;font-weight:900;letter-spacing:1px"><span class="text-gradient" style="font-style:italic">fitchy.</span> <span style="color:var(--muted);font-weight:600;font-size:14px">radar</span></div>
+    <div id="radarBadge" style="font-size:16px;cursor:pointer" onclick="alert('Bildirimler yakında!')">🔔</div>
   </div>
   <div class="radar-stories" id="radarStoryTray"></div>
   <div id="radarFeed" style="flex:1;overflow-y:auto;padding:16px 16px 120px;display:flex;flex-direction:column;gap:14px">
@@ -3903,7 +3903,7 @@ img.rcard-avatar{border:1px solid var(--border)}
 var IC={hat:"\uD83E\uDDE2",sunglasses:"\uD83D\uDD76\uFE0F",top:"\uD83D\uDC55",jacket:"\uD83E\uDDE5",bag:"\uD83D\uDC5C",accessory:"\uD83D\uDC8D",watch:"\u231A",bottom:"\uD83D\uDC56",dress:"\uD83D\uDC57",shoes:"\uD83D\uDC5F",scarf:"\uD83E\uDDE3"};
 var cF=null,cPrev=null,cropper=null,CC='us';
 var L={
-  tr:{heroTitle:'G\u00f6rseldeki kombini<br><span class="text-gradient">birebir</span> bul.',heroSub:'Instagram\'da, TikTok\'ta veya sokakta be\u011fendi\u011fin o kombini an\u0131nda bul.<br>Ekran g\u00f6r\u00fcnt\u00fcs\u00fcn\u00fc y\u00fckle, gerisini fitchy\'ye b\u0131rak.',upload:'\u2728 Kombini Tarat',auto:'\u2728 Ak\u0131ll\u0131 Tarama (\u00d6nerilen)',manual:'\u2702\uFE0F Sadece Bir Par\u00e7a Se\u00e7',trustBadge:'\uD83D\uDD0D ZARA, NIKE, TRENDYOL ve 500+ markada aran\u0131yor...',trendTitle:'\uD83D\uDD25 \u015eu An Trend Olanlar',back:'\u2190 Geri',cropHint:'\uD83D\uDC47 Aramak istedi\u011fin par\u00e7ay\u0131 \u00e7er\u00e7evele',manualPh:'Ne ar\u0131yorsun? (Opsiyonel)',find:'\uD83D\uDD0D Par\u00e7ay\u0131 Bul',cancel:'\u0130ptal',loading:'Siber a\u011fa ba\u011flan\u0131l\u0131yor...',loadingManual:'AI e\u015fle\u015ftiriyor...',noResult:'Par\u00e7a tespit edilemedi.',noProd:'Bu par\u00e7a i\u00e7in e\u015fle\u015fme bulunamad\u0131.',retry:'\u2702\uFE0F Manuel Se\u00e7imi Dene',another:'\u2702\uFE0F Ba\u015fka Par\u00e7a Se\u00e7',selected:'Se\u00e7imin',lensMatch:'g\u00f6rsel e\u015fle\u015fme',recommended:'\u2728 \u00d6nerilen',lensLabel:'\uD83C\uDFAF AI E\u015fle\u015fmesi',goStore:'Sat\u0131n Al \u2197',noPrice:'Fiyat\u0131 G\u00f6r',alts:'\uD83D\uDCB8 Alternatifler \u2192',navHome:'Ke\u015ffet',navFav:'Profil',aiMatch:'AI Onayl\u0131',matchExact:'\u2705 Birebir E\u015fle\u015fme',matchClose:'\uD83D\uDD25 Y\u00fcksek Benzerlik',matchSimilar:'\u2728 Benzer \u00dcr\u00fcnler',step_detect:'K\u0131yafetler tespit ediliyor...',step_bg:'G\u00f6rsel haz\u0131rlan\u0131yor...',step_lens:'Ma\u011fazalar taran\u0131yor...',step_ai:'AI \u00fcr\u00fcnleri k\u0131yasl\u0131yor...',step_verify:'E\u015fle\u015fmeler do\u011frulan\u0131yor...',step_done:'Sonu\u00e7lar haz\u0131r!',piecesFound:'par\u00e7a bulundu',pickPiece:'Aramak istedi\u011fin par\u00e7aya dokun',searchingPiece:'\u00dcr\u00fcn aran\u0131yor...',backToPieces:'\u2190 Di\u011fer Par\u00e7alar',noDetect:'Par\u00e7a bulunamad\u0131. Manuel se\u00e7imi deneyin.',loadMore:'A\u011f\u0131 Geni\u015flet \u2193',loadingMore:'Taran\u0131yor...',linkPaste:'Link Yap\u0131\u015ft\u0131r & Tarat',linkGo:'Tarat',linkLoading:'Link taran\u0131yor...',comboBtn:'\u2728 Bunu Neyle Giyerim?',comboLoading:'AI kombin \u00f6nerisi haz\u0131rl\u0131yor...',comboTitle:'\uD83D\uDC57 AI Kombin \u00d6nerisi',verified:'Resmi Ma\u011faza',sponsored:'Sponsorlu Muadil',fitCheck:'\uD83D\uDD25 AI Fit-Check',fitCheckSub:'Kombinin ka\u00e7 puan? AI yargilat!',fitCheckLoading:'AI stilist inceliyor...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 \u00d6neriler',fitCheckShare:'Sonucu Payla\u015f',fitCheckAnother:'Ba\u015fka Kombin Dene',vtonBtn:'\u2728 \u00dczerimde G\u00f6r',vtonSaveBody:'Tam boy foto\u011fraf\u0131n\u0131 y\u00fckle',vtonLoading:'Sanal kabin haz\u0131rlan\u0131yor...',vtonResult:'AI Fit Analizi',vtonNoBody:'\u00d6nce foto\u011fraf\u0131n\u0131 y\u00fckle'},
+  tr:{heroTitle:'G\u00f6rseldeki kombini<br><span class="text-gradient">birebir</span> bul.',heroSub:'Instagram\'da, TikTok\'ta veya sokakta be\u011fendi\u011fin o kombini an\u0131nda bul.<br>Ekran g\u00f6r\u00fcnt\u00fcs\u00fcn\u00fc y\u00fckle, gerisini fitchy\'ye b\u0131rak.',upload:'\u2728 Kombini Tarat',auto:'\u2728 Ak\u0131ll\u0131 Tarama (\u00d6nerilen)',manual:'\u2702\uFE0F Sadece Bir Par\u00e7a Se\u00e7',trustBadge:'\uD83D\uDD0D ZARA, NIKE, TRENDYOL ve 500+ markada aran\u0131yor...',trendTitle:'\uD83D\uDD25 \u015eu An Trend Olanlar',back:'\u2190 Geri',cropHint:'\uD83D\uDC47 Aramak istedi\u011fin par\u00e7ay\u0131 \u00e7er\u00e7evele',manualPh:'Ne ar\u0131yorsun? (Opsiyonel)',find:'\uD83D\uDD0D Par\u00e7ay\u0131 Bul',cancel:'\u0130ptal',loading:'Siber a\u011fa ba\u011flan\u0131l\u0131yor...',loadingManual:'AI e\u015fle\u015ftiriyor...',noResult:'Par\u00e7a tespit edilemedi.',noProd:'Bu par\u00e7a i\u00e7in e\u015fle\u015fme bulunamad\u0131.',retry:'\u2702\uFE0F Manuel Se\u00e7imi Dene',another:'\u2702\uFE0F Ba\u015fka Par\u00e7a Se\u00e7',selected:'Se\u00e7imin',lensMatch:'g\u00f6rsel e\u015fle\u015fme',recommended:'\u2728 \u00d6nerilen',lensLabel:'\uD83C\uDFAF AI E\u015fle\u015fmesi',goStore:'Sat\u0131n Al \u2197',noPrice:'Fiyat\u0131 G\u00f6r',alts:'\uD83D\uDCB8 Alternatifler \u2192',navHome:'Ke\u015ffet',navFav:'Dolab\u0131m',aiMatch:'AI Onayl\u0131',matchExact:'\u2705 Birebir E\u015fle\u015fme',matchClose:'\uD83D\uDD25 Y\u00fcksek Benzerlik',matchSimilar:'\u2728 Benzer \u00dcr\u00fcnler',step_detect:'K\u0131yafetler tespit ediliyor...',step_bg:'G\u00f6rsel haz\u0131rlan\u0131yor...',step_lens:'Ma\u011fazalar taran\u0131yor...',step_ai:'AI \u00fcr\u00fcnleri k\u0131yasl\u0131yor...',step_verify:'E\u015fle\u015fmeler do\u011frulan\u0131yor...',step_done:'Sonu\u00e7lar haz\u0131r!',piecesFound:'par\u00e7a bulundu',pickPiece:'Aramak istedi\u011fin par\u00e7aya dokun',searchingPiece:'\u00dcr\u00fcn aran\u0131yor...',backToPieces:'\u2190 Di\u011fer Par\u00e7alar',noDetect:'Par\u00e7a bulunamad\u0131. Manuel se\u00e7imi deneyin.',loadMore:'A\u011f\u0131 Geni\u015flet \u2193',loadingMore:'Taran\u0131yor...',linkPaste:'Link Yap\u0131\u015ft\u0131r & Tarat',linkGo:'Tarat',linkLoading:'Link taran\u0131yor...',comboBtn:'\u2728 Bunu Neyle Giyerim?',comboLoading:'AI kombin \u00f6nerisi haz\u0131rl\u0131yor...',comboTitle:'\uD83D\uDC57 AI Kombin \u00d6nerisi',verified:'Resmi Ma\u011faza',sponsored:'Sponsorlu Muadil',fitCheck:'\uD83D\uDD25 AI Fit-Check',fitCheckSub:'Kombinin ka\u00e7 puan? AI yargilat!',fitCheckLoading:'AI stilist inceliyor...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 \u00d6neriler',fitCheckShare:'Sonucu Payla\u015f',fitCheckAnother:'Ba\u015fka Kombin Dene',vtonBtn:'\u2728 \u00dczerimde G\u00f6r',vtonSaveBody:'Tam boy foto\u011fraf\u0131n\u0131 y\u00fckle',vtonLoading:'Sanal kabin haz\u0131rlan\u0131yor...',vtonResult:'AI Fit Analizi',vtonNoBody:'\u00d6nce foto\u011fraf\u0131n\u0131 y\u00fckle'},
   en:{heroTitle:'Find the outfit<br>in the photo, <span class="text-gradient">exactly</span>.',heroSub:'Spot a fire outfit on Instagram, TikTok or IRL?<br>Screenshot it, let fitchy find every piece.',upload:'\u2728 Scan Outfit',auto:'\u2728 Auto Scan (Recommended)',manual:'\u2702\uFE0F Select Manually',trustBadge:'\uD83D\uDD0D Searching ZARA, NIKE, H&M and 500+ brands...',trendTitle:'\uD83D\uDD25 Trending Now',back:'\u2190 Back',cropHint:'\uD83D\uDC47 Frame the piece you want to search',manualPh:'What are you looking for?',find:'\uD83D\uDD0D Find Piece',cancel:'Cancel',loading:'Analyzing image...',loadingManual:'AI matching...',noResult:'No pieces detected.',noProd:'No exact match found.',retry:'\u2702\uFE0F Try Manual Selection',another:'\u2702\uFE0F Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u2728 Recommended',lensLabel:'\uD83C\uDFAF AI Match',goStore:'Shop \u2197',noPrice:'Check Price',alts:'\uD83D\uDCB8 Alternatives \u2192',navHome:'Explore',navFav:'Profile',aiMatch:'AI Verified',matchExact:'\u2705 Exact Match',matchClose:'\uD83D\uDD25 Close Match',matchSimilar:'\u2728 Similar Items',step_detect:'Detecting garments...',step_lens:'Scanning global stores...',step_match:'Matching products...',step_done:'Ready!',step_bg:'Preparing image...',step_search:'Scanning...',step_ai:'AI comparing details...',step_verify:'Verifying matches...',piecesFound:'pieces found',pickPiece:'Tap a piece to search',searchingPiece:'Searching...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces found. Try manual selection.',loadMore:'Expand Search \u2193',loadingMore:'Scanning...',linkPaste:'Paste Link & Scan',linkGo:'Scan',linkLoading:'Scanning link...',comboBtn:'\u2728 What Goes With This?',comboLoading:'AI building outfit...',comboTitle:'\uD83D\uDC57 AI Outfit Suggestion',verified:'Official Store',sponsored:'Sponsored Dupe',fitCheck:'\uD83D\uDD25 Fit-Check',fitCheckSub:'Rate your outfit!',fitCheckLoading:'AI stylist analyzing...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 Tips',fitCheckShare:'Share Result',fitCheckAnother:'Try Another Outfit',vtonBtn:'\u2728 Try On Me',vtonSaveBody:'Upload your full-body photo',vtonLoading:'Virtual fitting room loading...',vtonResult:'AI Fit Analysis',vtonNoBody:'Upload your photo first'}
 };
 var CC_LANG={tr:'tr',us:'en',uk:'en',de:'en',fr:'en',sa:'en',ae:'en',eg:'en'};
@@ -4811,7 +4811,7 @@ function loadRadarStories(){
   tray.innerHTML='';
   var addBtn=document.createElement('div');
   addBtn.className='radar-story';
-  addBtn.innerHTML='<div class="story-ring" style="background:rgba(255,255,255,.08);animation:none"><div style="font-size:28px;line-height:66px;text-align:center;width:66px;height:66px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.04);color:var(--cyan);cursor:pointer" onclick="startFitCheck();closeRadar()">+</div></div><div class="story-name" style="color:var(--cyan)">Fit-Check</div>';
+  addBtn.innerHTML='<div style="width:72px;height:72px;border-radius:50%;border:2px dashed rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative" onclick="startFitCheck();closeRadar()"><div style="font-size:26px;color:var(--cyan)">+</div></div><div class="story-name" style="color:var(--cyan)">Sen</div>';
   tray.appendChild(addBtn);
   fetch('/api/radar-stories').then(function(r){return r.json()}).then(function(d){
     if(!d.success) return;
@@ -4835,17 +4835,14 @@ function openRadarStoryItem(idx){
   if(!s) return;
   var modal=document.getElementById('storyModal');
   if(!modal) return;
-  document.getElementById('storyAvatar').src=s.avatar;
-  document.getElementById('storyNickname').textContent='@'+s.handle;
-  var scoreEl=document.getElementById('storyScore');
-  if(scoreEl)scoreEl.innerHTML=s.emoji+' '+s.score+'<span style="font-size:14px;color:var(--muted)">/100</span>';
-  var roastEl=document.getElementById('storyRoast');
-  if(roastEl)roastEl.textContent=s.roast;
-  var imgEl=document.getElementById('storyFitImg');
-  if(imgEl){
-    if(s.has_image && s.fit_img){imgEl.src=s.fit_img;imgEl.style.display='block'}
-    else{imgEl.style.display='none'}
-  }
+  var avatarEl=document.getElementById('storyAvatarImg');
+  if(avatarEl) avatarEl.src=s.avatar;
+  var handleEl=document.getElementById('storyHandle');
+  if(handleEl) handleEl.textContent='@'+s.handle;
+  var scoreEl=document.getElementById('storyScoreTxt');
+  if(scoreEl) scoreEl.textContent='AI: '+s.emoji+' '+s.score;
+  var roastEl=document.getElementById('storyRoastTxt');
+  if(roastEl) roastEl.textContent=s.roast;
   modal.classList.add('show');
   s.seen=true;
   loadRadarStories();
