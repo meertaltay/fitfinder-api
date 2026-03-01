@@ -3457,7 +3457,7 @@ body::after{content:"";position:fixed;bottom:-10%;right:-20%;width:70%;height:70
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes bounce{0%{transform:scale(0)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
-.app{width:100%;max-width:390px;min-height:100vh;padding-bottom:120px;position:relative}
+.app{width:100%;max-width:440px;min-height:100vh;padding-bottom:120px;position:relative}
 .glass{background:var(--card);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:20px}
 .text-gradient{background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 
@@ -3496,7 +3496,7 @@ body::after{content:"";position:fixed;bottom:-10%;right:-20%;width:70%;height:70
 .piece-card .pc-text{font-size:10px;color:var(--accent);font-style:italic;margin-top:4px}
 .piece-card .pc-noimg{width:100%;height:160px;display:flex;align-items:center;justify-content:center;font-size:48px;background:rgba(255,255,255,.02)}
 
-.bnav{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:calc(100% - 40px);max-width:350px;background:rgba(10,5,20,.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:30px;display:flex;padding:12px 20px;justify-content:space-around;box-shadow:0 20px 40px rgba(0,0,0,.8);z-index:200}
+.bnav{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:calc(100% - 40px);max-width:400px;background:rgba(10,5,20,.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:30px;display:flex;padding:12px 20px;justify-content:space-around;box-shadow:0 20px 40px rgba(0,0,0,.8);z-index:200}
 .bnav-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;opacity:.5;transition:all .2s}
 .bnav-item.active{opacity:1}
 .bnav-item .icon{font-size:22px;color:#fff}
@@ -3570,7 +3570,7 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .item-card .card-info{padding:12px;background:rgba(10,5,20,.4);border-top:1px solid var(--border)}
 .item-card .card-title{font-size:13px;font-weight:700;color:#fff;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px}
 .item-card .card-brand{font-size:11px;color:var(--cyan);font-weight:600;display:flex;align-items:center;gap:4px}
-.story-modal{display:none;position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:390px;z-index:1100;background:rgba(5,2,10,.95);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);flex-direction:column}
+.story-modal{display:none;position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;z-index:1100;background:rgba(5,2,10,.95);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);flex-direction:column}
 .live-badge{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);font-size:8px;font-weight:900;padding:3px 8px;border-radius:6px;white-space:nowrap;letter-spacing:.5px;z-index:2}
 
 /* Fit-Check Score */
@@ -3593,7 +3593,7 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .hof-card .hof-time{font-size:9px;color:var(--muted);margin-top:2px}
 .hof-join{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;border:none;padding:14px 28px;border-radius:16px;font:800 14px 'Outfit',sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;width:100%;margin-top:12px;box-shadow:0 4px 20px rgba(255,215,0,.3);transition:transform .2s}
 .hof-join:active{transform:scale(.97)}
-.arena-screen{position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:390px;z-index:100;background:var(--bg);display:none;flex-direction:column}
+.arena-screen{position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;z-index:100;background:var(--bg);display:none;flex-direction:column}
 .arena-screen.show{display:flex}
 .arena-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
 .arena-stack{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:20px}
@@ -3859,7 +3859,7 @@ img.rcard-avatar{border:1px solid var(--border)}
     <div id="radarBadge" style="font-size:16px;cursor:pointer" onclick="alert('Bildirimler yakında!')">🔔</div>
   </div>
   <div class="radar-stories" id="radarStoryTray"></div>
-  <div id="radarFeed" style="flex:1;overflow-y:auto;padding:16px 16px 120px;display:flex;flex-direction:column;gap:14px">
+  <div id="radarFeed" style="flex:1;overflow-y:auto;padding:16px 16px 120px;display:flex;flex-direction:column;gap:24px">
   </div>
 </div>
 
