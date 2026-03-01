@@ -2731,11 +2731,25 @@ async def sponsored_search(request: Request):
 # ─── FIT-CHECK: AI Outfit Roast & Score ───
 FITCHECK_PROMPT = """Sen fitchy.'nin efsanevi, acımasız ama sevilen moda yargıcısın. Herkes senin yorumlarını SS alıp paylaşıyor çünkü çok komiksin.
 
-Kullanıcı kendi kombinini çekip sana gönderdi. Sahne senin.
+Kullanıcı kendi kombinini çekip sana gönderdi.
+
+ÖNCELİKLE DOĞRULAMA:
+Fotoğrafa bak. Aşağıdakilerden biri varsa REDDET:
+- Sadece yüz/kafa gösteren yakın selfie (omuzdan aşağısı görünmüyor)
+- Kıyafet/kombin görünmeyen fotoğraf (manzara, yemek, nesne, hayvan vs.)
+- Bulanık, karanlık veya ne olduğu anlaşılmayan fotoğraf
+- Ekran görüntüsü (telefon çerçevesi, UI elementleri görünüyor)
+
+Kombin görmek için EN AZ göğüs+bel bölgesi görünmeli. İdeal olarak tam boy veya yarım boy (belden yukarı tüm üst giyim görünmeli).
+
+Eğer reddediyorsan şu JSON'ı döndür:
+{"rejected": true, "reason": "Kısa ve esprili bir ret mesajı yaz. Örnek: Güzel selfie ama kombini göremiyorum ki 😅 Biraz uzaktan, tam boy çeksene!"}
+
+Eğer geçerli bir kombin fotoğrafıysa devam et:
 
 GÖREV:
 1) Kombine 0-100 arası "Drip Score" ver
-2) Acımasız ama sevecen bir yorum yaz (4-5 cümle). Fotoğraftaki parçalara spesifik değin! Somut ol. Genel konuşma.
+2) Acımasız ama sevecen bir yorum yaz (4-5 cümle). Fotoğraftaki parçalara spesifik değin! Somut ol.
 3) 2-3 somut öneri ver (hangi parça değişmeli, ne eklenmeli)
 
 PUANLAMA KRİTERLERİ (ÇOK ÖNEMLİ - HER KOMBİN FARKLI PUAN ALMALI!):
@@ -2757,7 +2771,6 @@ HER ZAMAN 75-80 ARASI VERME! Gerçekten iyi değilse 60 ver, gerçekten kötüys
 
 YORUM STİLİ ÖRNEKLERİ:
 - "Deri ceket efsane duruyor, karanlık prens havasını yakalamışsın... AMA altındaki beyaz spor ayakkabılar bütün büyüyü bozuyor. Chelsea bot lazım buraya acil 🔥"
-- "Oversize kazağı sevgiyle giymişsin belli ama altındaki dar pantolon çağ dışı kalmış. Bol paça dene, silüetin bambaşka olur 💀"
 - "Dostum bu kombin ne diyor bilemedim, üst kış alt yaz, ayakkabılar sonbahar... Mevsim konferansı mı yapıyorsun? 😭"
 
 KRİTİK KURALLAR:
@@ -2767,11 +2780,26 @@ KRİTİK KURALLAR:
 - Fotoğrafta gördüğün GERÇEK parçalara referans ver (renk, tür, detay)
 
 YANIT FORMATI (sadece JSON, başka hiçbir şey yazma):
-{"score": 58, "emoji": "😬", "roast": "...", "tips": ["...", "...", "..."]}"""
+Geçerli kombin: {"rejected": false, "score": 58, "emoji": "😬", "roast": "...", "tips": ["...", "...", "..."]}
+Geçersiz fotoğraf: {"rejected": true, "reason": "..."}"""
 
 FITCHECK_PROMPT_EN = """You are fitchy.'s legendary, brutally honest but beloved fashion judge. People screenshot your reviews and share them on social media because you're hilarious.
 
-The user sent their own outfit photo. The stage is yours.
+The user sent their outfit photo.
+
+VALIDATION FIRST:
+Look at the photo. REJECT if any of these apply:
+- Close-up selfie showing only face/head (nothing below shoulders visible)
+- No clothing/outfit visible (landscape, food, object, animal, etc.)
+- Blurry, dark, or unrecognizable photo
+- Screenshot (phone frame, UI elements visible)
+
+To evaluate an outfit, AT LEAST the chest+waist area must be visible. Ideally full-body or half-body.
+
+If rejecting, return this JSON:
+{"rejected": true, "reason": "A short, witty rejection message. Example: Nice selfie but I can't see the fit! Step back and show me the full look 😅"}
+
+If it's a valid outfit photo, continue:
 
 TASK:
 1) Give a "Drip Score" out of 100
@@ -2780,20 +2808,20 @@ TASK:
 
 SCORING CRITERIA (VERY IMPORTANT - EACH OUTFIT GETS A DIFFERENT SCORE!):
 Evaluate these 5 criteria separately, each worth 20 points:
-1. Color harmony (20p): Do colors complement each other? Is contrast appropriate?
-2. Silhouette/fit (20p): Do the cuts suit the body type? Proportional?
-3. Shoe-outfit match (20p): Do the shoes match the spirit of the outfit?
-4. Accessories/details (20p): Watch, bag, belt, jewelry present? Do details complete the look?
-5. Overall vibe/coherence (20p): Does the outfit tell a style story? Is it cohesive?
+1. Color harmony (20p): Do colors complement each other?
+2. Silhouette/fit (20p): Do the cuts suit the body type?
+3. Shoe-outfit match (20p): Do the shoes match the outfit?
+4. Accessories/details (20p): Watch, bag, belt, jewelry present?
+5. Overall vibe/coherence (20p): Does the outfit tell a style story?
 
 SCORE DISTRIBUTION:
-- 90-100: ONLY for perfect outfits. Every piece harmonious, accessories on point, shoes perfect. RARE.
-- 75-89: Good outfit but 1-2 things missing (no accessories, wrong shoes, etc.)
-- 55-74: Average. Some pieces work but significant mismatches exist.
-- 35-54: Weak. Color clashes, silhouette issues, general incoherence.
+- 90-100: ONLY for perfect outfits. RARE.
+- 75-89: Good but 1-2 things missing.
+- 55-74: Average. Some pieces work but significant mismatches.
+- 35-54: Weak. Color clashes, silhouette issues.
 - 0-34: Disaster. Nothing goes together.
 
-DO NOT ALWAYS GIVE 75-80! If it's truly mediocre, give 60. If it's bad, give 40. Be bold.
+DO NOT ALWAYS GIVE 75-80! Be bold.
 
 IMPORTANT:
 - Gen-Z language: emojis, "bestie", "slay", "ate" slang
@@ -2801,7 +2829,8 @@ IMPORTANT:
 - Reference ACTUAL pieces you see in the photo
 
 RESPONSE FORMAT (JSON only, nothing else):
-{"score": 58, "emoji": "😬", "roast": "...", "tips": ["...", "...", "..."]}"""
+Valid outfit: {"rejected": false, "score": 58, "emoji": "😬", "roast": "...", "tips": ["...", "...", "..."]}
+Invalid photo: {"rejected": true, "reason": "..."}"""
 
 @app.post("/api/fit-check")
 async def fit_check(request: Request):
@@ -2843,7 +2872,12 @@ async def fit_check(request: Request):
         if text.startswith("```"):
             text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
         result = json.loads(text)
-        return {"success": True, **result}
+
+        # Check if AI rejected the photo
+        if result.get("rejected"):
+            return {"success": True, "rejected": True, "reason": result.get("reason", "Kombin görünmüyor, tekrar dene!")}
+
+        return {"success": True, "rejected": False, **result}
     except Exception as e:
         return {"success": False, "message": str(e), "score": 50, "emoji": "🤔", "roast": "Fotoğrafı analiz edemedim ama eminim harika görünüyorsundur bestie! 💅", "tips": []}
 
@@ -3992,11 +4026,32 @@ function handleFitCheck(e){
     ra.innerHTML='<div style="text-align:center;padding:40px 20px"><img src="'+imgData+'" style="width:160px;height:220px;object-fit:cover;border-radius:24px;border:2px solid var(--border);box-shadow:0 0 30px rgba(255,32,121,.2);margin-bottom:24px"><div class="loader-orb" style="width:48px;height:48px;margin:0 auto 16px"></div><div style="font-size:16px;font-weight:800;color:var(--text)">'+t('fitCheckLoading')+'</div><div style="font-size:13px;color:var(--muted);margin-top:8px">'+(CC_LANG[CC]==='tr'?'AI stilist kombinine bakıyor... 👀<br><span style="font-size:11px;opacity:.6">Acımasız olabilir, hazır ol bestie 💅</span>':'AI stylist is judging... 👀<br><span style="font-size:11px;opacity:.6">Might be savage, brace yourself bestie 💅</span>')+'</div></div>';
     fetch('/api/fit-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:imgData,lang:CC_LANG[CC]||'tr'})})
     .then(function(r){return r.json()})
-    .then(function(d){showFitCheckResult(d,imgData)})
+    .then(function(d){
+      if(d.rejected){showFitCheckRejected(d.reason,imgData)}
+      else{showFitCheckResult(d,imgData)}
+    })
     .catch(function(){showFitCheckResult({success:false,score:50,emoji:'🤔',roast:'Bir sorun oluştu ama eminim harika görünüyorsun bestie! 💅',tips:[]},imgData)});
   };
   reader.readAsDataURL(file);
   e.target.value='';
+}
+function showFitCheckRejected(reason,imgData){
+  var ra=document.getElementById('res');
+  var isTr=CC_LANG[CC]==='tr';
+  var h='<div class="fitcheck-result">';
+  h+='<div style="font-family:Outfit,sans-serif;font-size:16px;font-weight:800;margin-bottom:16px"><span class="text-gradient">fitchy.</span> <span style="color:var(--muted);font-weight:500;font-size:12px">fit-check</span></div>';
+  h+='<div style="position:relative;display:inline-block"><img src="'+imgData+'" style="width:140px;height:180px;object-fit:cover;border-radius:24px;border:3px solid #f44336;box-shadow:0 0 30px rgba(244,67,54,.3);opacity:.7">';
+  h+='<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:56px">🚫</div></div>';
+  h+='<div style="margin-top:20px;font-size:20px;font-weight:900;color:#f44336">'+(isTr?'Kombin Görünmüyor!':'No Outfit Detected!')+'</div>';
+  h+='<div style="margin-top:12px;font-size:15px;line-height:1.6;color:var(--text);padding:0 12px">'+reason+'</div>';
+  h+='<div style="margin-top:20px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);text-align:left">';
+  h+='<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">'+(isTr?'💡 İpuçları:':'💡 Tips:')+'</div>';
+  h+='<div style="font-size:12px;color:var(--muted);line-height:1.6">'+(isTr?'• Tam boy veya yarım boy çek (en az göğüs+bel görünmeli)<br>• Aynalı selfie veya telefon zamanlayıcısı ile çek<br>• İyi aydınlatılmış bir ortamda çek':'• Take a full or half-body shot (at least chest+waist visible)<br>• Use a mirror selfie or phone timer<br>• Shoot in a well-lit area')+'</div></div>';
+  h+='<div style="margin-top:20px;display:flex;gap:8px;justify-content:center">';
+  h+='<button class="share-fitcheck" onclick="startFitCheck()">📸 '+(isTr?'Tekrar Çek':'Try Again')+'</button>';
+  h+='<button class="share-fitcheck" style="background:rgba(255,255,255,.06);box-shadow:none;border:1px solid var(--border)" onclick="goHome()">'+t('back')+'</button>';
+  h+='</div></div>';
+  ra.innerHTML=h;
 }
 function showFitCheckResult(d,imgData){
   var ra=document.getElementById('res');
