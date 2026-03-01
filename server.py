@@ -303,7 +303,6 @@ NON_CLOTHING_PRODUCTS = [
     # v42: Search engines / image aggregators in title
     "yandex", "pinterest", "google görsel", "google images", "bing images",
     "görselleri görüntüle", "görselleri indirin", "görsel ara",
-    "kombinleri", "kombin öner",
 ]
 
 # v42: Dropshipping / scam / spam site patterns
@@ -1384,13 +1383,15 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
             # Lens results (per-piece crop + full exact = most reliable)
             for r in matched_lens:
                 if r["link"] in seen: continue
-                # v42: Category mismatch filter (çanta ararken bardak gelmesin)
-                if is_category_mismatch(r.get("title", ""), cat):
-                    print(f"    ⛔ CAT MISMATCH [{cat}]: {r.get('title','')[:50]}")
-                    continue
-                if is_non_clothing_product(r.get("title", "")):
-                    print(f"    ⛔ NON-CLOTHING [{cat}]: {r.get('title','')[:50]}")
-                    continue
+                # _exact items (same photo found online) — NEVER filter, always include
+                if not r.get("_exact"):
+                    # v42: Category mismatch filter (çanta ararken bardak gelmesin)
+                    if is_category_mismatch(r.get("title", ""), cat):
+                        print(f"    ⛔ CAT MISMATCH [{cat}]: {r.get('title','')[:50]}")
+                        continue
+                    if is_non_clothing_product(r.get("title", "")):
+                        print(f"    ⛔ NON-CLOTHING [{cat}]: {r.get('title','')[:50]}")
+                        continue
                 seen.add(r["link"])
                 r["_score"] = score_result(r, 18)
                 all_items.append(r)
@@ -1405,8 +1406,8 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                 r["_score"] = score_result(r, base)
                 all_items.append(r)
 
-            # Sort by score
-            all_items.sort(key=lambda x: -x.get("_score", 0))
+            # Sort: _exact items first (regardless of penalty), then by score
+            all_items.sort(key=lambda x: (-int(x.get("_exact", False)), -x.get("_score", 0)))
 
             # 🇹🇷 TR-FIRST: Local results first, foreign only fills remaining slots
             local_items = [r for r in all_items if r.get("is_local")]
@@ -1429,9 +1430,13 @@ async def full_analyze(file: UploadFile = File(...), country: str = Form("tr")):
                     t = r.get("title", "").lower()
                     if any(w in t for w in vt_words): has_text_match = True; break
 
-            if top_score >= 50:
+            # Check if any top result has _exact flag (regardless of score penalties)
+            has_exact_flag = any(r.get("_exact") for r in all_items[:5])
+            has_ai_verified = any(r.get("ai_verified") for r in all_items[:3])
+
+            if has_exact_flag or top_score >= 50:
                 match_level = "exact"  # Lens exact match (same photo found online)
-            elif top_score >= 25 and (has_brand_match or has_text_match):
+            elif has_ai_verified or (top_score >= 25 and (has_brand_match or has_text_match)):
                 match_level = "exact"
             elif top_score >= 15 or has_brand_match:
                 match_level = "close"
@@ -2051,9 +2056,9 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
         # Lens (highest priority)
         for r in all_lens:
             if r.get("link") and r["link"] not in seen:
-                # v42: Category mismatch + non-clothing filters
-                if is_category_mismatch(r.get("title", ""), cat): continue
-                if is_non_clothing_product(r.get("title", "")): continue
+                if not r.get("_exact"):
+                    if is_category_mismatch(r.get("title", ""), cat): continue
+                    if is_non_clothing_product(r.get("title", "")): continue
                 seen.add(r["link"])
                 r["_score"] = score_result(r, 18)
                 all_items.append(r)
@@ -2067,7 +2072,7 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
                 r["_score"] = score_result(r, 15)
                 all_items.append(r)
 
-        all_items.sort(key=lambda x: -x.get("_score", 0))
+        all_items.sort(key=lambda x: (-int(x.get("_exact", False)), -x.get("_score", 0)))
 
         # 🇹🇷 TR-FIRST: Local results first, foreign only fills remaining slots
         local_items = [r for r in all_items if r.get("is_local")]
@@ -2085,8 +2090,11 @@ async def search_piece(detect_id: str = Form(""), piece_index: int = Form(0), co
             for r in all_items[:3]:
                 if any(w in r.get("title", "").lower() for w in vt_words): has_text = True; break
 
-        if top_score >= 50: match_level = "exact"
-        elif top_score >= 25 and (has_brand or has_text): match_level = "exact"
+        has_exact_flag = any(r.get("_exact") for r in all_items[:5])
+        has_ai_verified = any(r.get("ai_verified") for r in all_items[:3])
+
+        if has_exact_flag or top_score >= 50: match_level = "exact"
+        elif has_ai_verified or (top_score >= 25 and (has_brand or has_text)): match_level = "exact"
         elif top_score >= 15 or has_brand: match_level = "close"
         else: match_level = "similar"
 
