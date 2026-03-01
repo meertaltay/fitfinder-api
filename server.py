@@ -104,9 +104,17 @@ def make_affiliate(url):
 def enhance_thumbnail_url(url):
     """Google Shopping thumbnail URL'sini yüksek çözünürlüğe çevir."""
     if not url: return url
-    # Fix relative Google thumbnail URLs (missing domain)
-    if url.startswith("images?q=tbn:") or url.startswith("/images?q=tbn:"):
+    url = url.strip()
+    # Fix ANY relative Google thumbnail URL (missing domain)
+    # Catches: "images?q=tbn:...", "/images?q=tbn:...", "images?q=tbn%3A..."
+    if "q=tbn" in url and "gstatic.com" not in url and not url.startswith("http"):
         url = "https://encrypted-tbn0.gstatic.com/" + url.lstrip("/")
+    # Also fix protocol-relative URLs: "//encrypted-tbn0.gstatic.com/..."
+    elif url.startswith("//"):
+        url = "https:" + url
+    # Fix domain-only without protocol: "encrypted-tbn0.gstatic.com/..."
+    elif "encrypted-tbn" in url and not url.startswith("http"):
+        url = "https://" + url.lstrip("/")
     # Google encrypted thumbnails — request larger size
     if "encrypted-tbn" in url and "gstatic.com" in url:
         if "=s" in url:
@@ -3190,8 +3198,8 @@ function applyLang(){
 applyLang();
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}
 function getCC(){return CC}
-// Fix relative Google thumbnail URLs
-function _fixThumb(u){if(!u)return u;if((u.indexOf('images?q=tbn:')===0||u.indexOf('/images?q=tbn:')===0)&&u.indexOf('gstatic.com')===-1)return 'https://encrypted-tbn0.gstatic.com/'+u.replace(/^\//,'');return u}
+// Fix relative Google thumbnail URLs — catches all formats
+function _fixThumb(u){if(!u)return u;u=u.trim();if(u.indexOf('q=tbn')>-1&&u.indexOf('gstatic.com')===-1&&u.indexOf('http')!==0)return 'https://encrypted-tbn0.gstatic.com/'+u.replace(/^\//,'');if(u.indexOf('//')===0)return 'https:'+u;if(u.indexOf('encrypted-tbn')>-1&&u.indexOf('http')!==0)return 'https://'+u.replace(/^\//,'');return u}
 
 document.getElementById('fi').addEventListener('change',function(e){if(e.target.files[0])loadF(e.target.files[0])});
 document.getElementById('linkInput').addEventListener('keyup',function(e){if(e.key==='Enter')scanFromLink()});
@@ -3243,8 +3251,8 @@ function imgErr(el){
   el.onerror=null;
   var orig=el.getAttribute('data-orig')||el.src;
   var tried=el.getAttribute('data-tried')||'0';
-  // Fix relative Google thumbnail URLs
-  if(tried==='0'&&orig&&(orig.indexOf('images?q=tbn:')>-1||orig.match(/^images\?/))&&orig.indexOf('gstatic.com')===-1){
+  // Fix relative Google thumbnail URLs (any format)
+  if(tried==='0'&&orig&&orig.indexOf('q=tbn')>-1&&orig.indexOf('gstatic.com')===-1&&orig.indexOf('http')!==0){
     el.setAttribute('data-tried','0.5');
     el.onerror=function(){imgErr(this)};
     el.src='https://encrypted-tbn0.gstatic.com/'+orig.replace(/^\//,'');
@@ -3253,7 +3261,7 @@ function imgErr(el){
   if((tried==='0'||tried==='0.5')&&orig){
     el.setAttribute('data-tried','1');
     el.onerror=function(){imgErr(this)};
-    var proxyUrl=orig.indexOf('gstatic.com')>-1?orig:(el.getAttribute('data-orig')||orig);
+    var proxyUrl=(orig.indexOf('gstatic.com')>-1||orig.indexOf('http')===0)?orig:(el.getAttribute('data-orig')||orig);
     el.src='/api/img?url='+encodeURIComponent(proxyUrl);
   }else{
     var d=document.createElement('div');
