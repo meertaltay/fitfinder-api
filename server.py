@@ -3690,6 +3690,34 @@ body::after{content:"";position:fixed;bottom:-10%;right:-20%;width:70%;height:70
 .bnav-item .lbl{font-size:10px;font-weight:600;color:#fff}
 .kesf-sr:hover{background:rgba(255,255,255,.06)}
 .kesf-sr:active{background:rgba(255,255,255,.1)}
+/* User Profile */
+.up-cover{height:160px;position:relative;background:linear-gradient(135deg,rgba(255,32,121,.3),rgba(77,0,255,.3))}
+.up-back{position:absolute;top:14px;left:14px;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;z-index:5}
+.up-more{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;z-index:5}
+.up-avatar-wrap{position:absolute;bottom:-44px;left:20px}
+.up-avatar{width:88px;height:88px;border-radius:50%;border:4px solid var(--bg);object-fit:cover;background:linear-gradient(135deg,var(--accent),var(--purple))}
+.up-avatar-letter{width:88px;height:88px;border-radius:50%;border:4px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--accent),var(--purple))}
+.up-info{padding:52px 20px 0}
+.up-name{font-size:20px;font-weight:800;color:#fff}
+.up-handle{font-size:13px;color:var(--cyan);font-weight:600;margin-top:2px}
+.up-bio{font-size:13px;color:var(--muted);line-height:1.5;margin-top:10px}
+.up-stats{display:flex;gap:0;margin-top:16px}
+.up-stat{flex:1;text-align:center;padding:12px 0}
+.up-stat .n{font-size:18px;font-weight:800;color:#fff}
+.up-stat .l{font-size:10px;color:var(--muted);font-weight:600;margin-top:3px;letter-spacing:.5px}
+.up-actions{display:flex;gap:10px;padding:16px 20px 0}
+.up-follow{flex:1;padding:12px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;border:none;font:700 14px 'Outfit',sans-serif;cursor:pointer;text-align:center;box-shadow:0 4px 16px rgba(255,32,121,.3)}
+.up-follow.following{background:transparent;border:1px solid var(--border);color:var(--muted);box-shadow:none}
+.up-msg{width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;flex-shrink:0}
+.up-tabs{display:flex;border-bottom:1px solid var(--border);margin-top:20px}
+.up-tab{flex:1;text-align:center;padding:12px 0;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;position:relative;transition:color .2s}
+.up-tab.active{color:var(--cyan)}
+.up-tab.active::after{content:'';position:absolute;bottom:-1px;left:20%;right:20%;height:2px;background:var(--cyan);border-radius:2px}
+.up-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;padding:2px}
+.up-grid-item{aspect-ratio:1;overflow:hidden;position:relative;cursor:pointer;background:rgba(255,255,255,.03)}
+.up-grid-item img{width:100%;height:100%;object-fit:cover;transition:transform .2s}
+.up-grid-item:active img{transform:scale(1.05)}
+.up-grid-badge{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);padding:3px 7px;border-radius:8px;font-size:10px;font-weight:700}
 .bnav-logo{opacity:1 !important}
 .bnav-logo-ring{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));padding:3px;margin-top:-28px;box-shadow:0 4px 20px rgba(255,32,121,.4);display:flex;align-items:center;justify-content:center}
 .bnav-logo-ring>span{width:58px;height:58px;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden}
@@ -4085,6 +4113,11 @@ img.rcard-avatar{border:1px solid var(--border)}
     </div>
   </div>
 
+  <!-- 👤 USER PROFILE OVERLAY -->
+  <div id="userProfileScreen" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg);overflow-y:auto;transition:transform .3s cubic-bezier(.4,0,.2,1)">
+    <div id="userProfileContent"></div>
+  </div>
+
   <div id="rScreen" style="display:none">
     <div style="position:sticky;top:0;z-index:40;background:rgba(3,1,8,.7);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
       <div onclick="goHome()" style="cursor:pointer;color:var(--muted);font-size:14px;font-weight:600" id="backBtn"></div>
@@ -4187,8 +4220,8 @@ img.rcard-avatar{border:1px solid var(--border)}
 <div class="story-modal" id="storyModal">
   <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
     <div style="display:flex;align-items:center;gap:12px">
-      <div style="width:44px;height:44px;border-radius:50%;padding:2px;background:var(--cyan);flex-shrink:0"><img src="" id="storyAvatarImg" style="width:100%;height:100%;border-radius:50%;object-fit:cover;border:2px solid var(--bg)"></div>
-      <div><div style="font-size:14px;font-weight:800;color:#fff" id="storyHandle">@fitchy_user</div><div style="font-size:11px;color:var(--cyan);font-weight:600;margin-top:2px">✨ <span id="storyStatusTxt">Podyumda İlham Veriyor</span></div></div>
+      <div style="width:44px;height:44px;border-radius:50%;padding:2px;background:var(--cyan);flex-shrink:0;cursor:pointer" onclick="var h=document.getElementById('storyHandle');if(h)openUserProfile(h.textContent)"><img src="" id="storyAvatarImg" style="width:100%;height:100%;border-radius:50%;object-fit:cover;border:2px solid var(--bg)"></div>
+      <div><div style="font-size:14px;font-weight:800;color:#fff;cursor:pointer" id="storyHandle" onclick="openUserProfile(this.textContent)">@fitchy_user</div><div style="font-size:11px;color:var(--cyan);font-weight:600;margin-top:2px">✨ <span id="storyStatusTxt">Podyumda İlham Veriyor</span></div></div>
     </div>
     <div onclick="closeStory()" style="font-size:36px;color:var(--muted);cursor:pointer;line-height:1;padding:0 10px">×</div>
   </div>
@@ -4606,12 +4639,139 @@ function kesfSelectResult(val,type){
   document.getElementById('kesfSearch').value=val;
   document.getElementById('kesfDropdown').style.display='none';
   if(type==='profile'){
-    alert('Profil: '+val+' (yakında)');
+    openUserProfile(val);
   } else if(type==='brand'){
     alert('Marka: '+val+' (yakında)');
   } else {
     alert('Trend: '+val+' (yakında)');
   }
+}
+
+/* ── User Profile System ── */
+var _mockUsers={
+  '@mertaltay':{name:'Mert Altay',handle:'@mertaltay',bio:'Streetwear minimalist. Less is more, but make it loud. 🖤\nİstanbul / Berlin',followers:12400,following:340,posts:47,avgScore:88,hofCount:5,style:'Streetwear',joined:'2024',verified:true,
+    grid:[{img:'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=400',score:94},{img:'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',score:87},{img:'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400',score:91},{img:'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400',score:82},{img:'https://images.unsplash.com/photo-1488161628813-04466f0cc7d4?w=400',score:79},{img:'https://images.unsplash.com/photo-1534030347209-467a5b0ad3e6?w=400',score:93}]},
+  '@stilkolik':{name:'Ayşe Demir',handle:'@stilkolik',bio:'Minimal estetik ✨ Sade ama etkili.\nModa editörü @fitchy',followers:8500,following:210,posts:63,avgScore:85,hofCount:3,style:'Minimal',joined:'2024',verified:false,
+    grid:[{img:'https://images.unsplash.com/photo-1485462537746-965f33f7f6a7?w=400',score:90},{img:'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=400',score:86},{img:'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400',score:83},{img:'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',score:88},{img:'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=400',score:92},{img:'https://images.unsplash.com/photo-1544957992-20514f595d6f?w=400',score:81}]},
+  '@modahane':{name:'Modahane',handle:'@modahane',bio:'Vintage & Retro 🕰️ Eskiyi yeniden keşfet.\nAnkara vintage koleksiyoner',followers:22000,following:180,posts:124,avgScore:82,hofCount:8,style:'Vintage',joined:'2023',verified:true,
+    grid:[{img:'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400',score:88},{img:'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400',score:84},{img:'https://images.unsplash.com/photo-1523359346063-d879354c0ea5?w=400',score:91},{img:'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400',score:79},{img:'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400',score:86},{img:'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=400',score:90}]},
+  '@urbanfit_tr':{name:'Can Yıldız',handle:'@urbanfit_tr',bio:'Urban / Techwear 🏙️ Fonksiyonel estetik.',followers:5000,following:420,posts:31,avgScore:80,hofCount:1,style:'Urban',joined:'2024',verified:false,
+    grid:[{img:'https://images.unsplash.com/photo-1547149600-a5e023099520?w=400',score:85},{img:'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=400',score:78},{img:'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=400',score:82},{img:'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400',score:90},{img:'https://images.unsplash.com/photo-1520367445093-50dc08a59d9d?w=400',score:76},{img:'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',score:83}]},
+  '@fitchy_official':{name:'fitchy.',handle:'@fitchy_official',bio:'Resmi fitchy editör hesabı 🔮\nHaftanın en iyi kombinleri burada.',followers:50000,following:50,posts:200,avgScore:92,hofCount:42,style:'Editör',joined:'2023',verified:true,
+    grid:[{img:'https://images.unsplash.com/photo-1558171813-4c088753af8f?w=400',score:96},{img:'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400',score:93},{img:'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',score:94},{img:'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=400',score:91},{img:'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=400',score:95},{img:'https://images.unsplash.com/photo-1485462537746-965f33f7f6a7?w=400',score:90}]},
+  '@denizkizi.style':{name:'Deniz Kaya',handle:'@denizkizi.style',bio:'Boho hayat 🌊🌸 Doğadan ilham, rüzgardan stil.',followers:15000,following:290,posts:78,avgScore:84,hofCount:4,style:'Boho',joined:'2024',verified:false,
+    grid:[{img:'https://images.unsplash.com/photo-1518577915332-c2a19f149a75?w=400',score:87},{img:'https://images.unsplash.com/photo-1544957992-20514f595d6f?w=400',score:83},{img:'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=400',score:89},{img:'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400',score:91},{img:'https://images.unsplash.com/photo-1485462537746-965f33f7f6a7?w=400',score:80},{img:'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400',score:86}]},
+  '@celocan':{name:'Celo Can',handle:'@celocan',bio:'Y2K + Cyberpunk 💿⚡ Gelecek retro.',followers:9000,following:500,posts:55,avgScore:81,hofCount:2,style:'Y2K',joined:'2024',verified:false,
+    grid:[{img:'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400',score:84},{img:'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=400',score:88},{img:'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=400',score:79},{img:'https://images.unsplash.com/photo-1547149600-a5e023099520?w=400',score:92},{img:'https://images.unsplash.com/photo-1520367445093-50dc08a59d9d?w=400',score:77},{img:'https://images.unsplash.com/photo-1534030347209-467a5b0ad3e6?w=400',score:85}]}
+};
+
+function _fmtK(n){return n>=1000?(n/1000).toFixed(n>=10000?0:1)+'K':n.toString()}
+
+var _currentProfileUser=null;
+
+function openUserProfile(handle){
+  var u=_mockUsers[handle];
+  if(!u){u={name:handle.replace('@',''),handle:handle,bio:'Henüz biyografi yok.',followers:0,following:0,posts:0,avgScore:0,hofCount:0,style:'?',joined:'2025',verified:false,grid:[]};}
+  _currentProfileUser=u;
+  var scr=document.getElementById('userProfileScreen');
+  var c=document.getElementById('userProfileContent');
+  var h='';
+
+  /* Cover + Back */
+  h+='<div class="up-cover">';
+  h+='<div class="up-back" onclick="closeUserProfile()">←</div>';
+  h+='<div class="up-more" onclick="alert(\'Paylaş / Engelle / Bildir\')">⋯</div>';
+  /* Avatar */
+  h+='<div class="up-avatar-wrap">';
+  h+='<div class="up-avatar-letter">'+u.name.charAt(0).toUpperCase()+'</div>';
+  h+='</div>';
+  h+='</div>';
+
+  /* Info */
+  h+='<div class="up-info">';
+  h+='<div style="display:flex;align-items:center;gap:8px">';
+  h+='<div class="up-name">'+u.name+'</div>';
+  if(u.verified)h+='<span style="font-size:14px" title="Onaylı">✓</span>';
+  h+='</div>';
+  h+='<div class="up-handle">'+u.handle+'</div>';
+  /* Style tag */
+  h+='<div style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:4px 12px;border-radius:20px;background:rgba(255,255,255,.04);border:1px solid var(--border);font-size:11px;font-weight:700;color:var(--cyan)">'+u.style+'</div>';
+  h+='<div class="up-bio">'+u.bio.replace(/\n/g,'<br>')+'</div>';
+  h+='</div>';
+
+  /* Stats */
+  h+='<div class="up-stats">';
+  h+='<div class="up-stat"><div class="n">'+u.posts+'</div><div class="l">KOMBIN</div></div>';
+  h+='<div class="up-stat"><div class="n">'+_fmtK(u.followers)+'</div><div class="l">TAKİPÇİ</div></div>';
+  h+='<div class="up-stat"><div class="n">'+_fmtK(u.following)+'</div><div class="l">TAKİP</div></div>';
+  h+='<div class="up-stat"><div class="n" style="color:var(--gold)">'+u.avgScore+'</div><div class="l">ORT. SKOR</div></div>';
+  h+='</div>';
+
+  /* Action buttons */
+  h+='<div class="up-actions">';
+  h+='<button class="up-follow" onclick="this.classList.toggle(\'following\');this.textContent=this.classList.contains(\'following\')?\'Takip Ediliyor\':\'Takip Et\'">Takip Et</button>';
+  h+='<div class="up-msg" onclick="alert(\'DM yakında!\')">💬</div>';
+  h+='</div>';
+
+  /* HOF Badge Bar (if has HOF entries) */
+  if(u.hofCount>0){
+    h+='<div style="margin:16px 20px 0;padding:12px 16px;border-radius:14px;background:linear-gradient(135deg,rgba(255,215,0,.08),rgba(255,215,0,.02));border:1px solid rgba(255,215,0,.2);display:flex;align-items:center;gap:12px">';
+    h+='<span style="font-size:22px">🏆</span>';
+    h+='<div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--gold)">90+ Kulübü Üyesi</div>';
+    h+='<div style="font-size:11px;color:var(--muted);margin-top:2px">'+u.hofCount+' kez Hall of Fame girişi • Ort. '+u.avgScore+' puan</div></div>';
+    h+='</div>';
+  }
+
+  /* Tabs */
+  h+='<div class="up-tabs">';
+  h+='<div class="up-tab active" onclick="switchProfileTab(this,\'grid\')">📷 Kombinler</div>';
+  h+='<div class="up-tab" onclick="switchProfileTab(this,\'favs\')">♡ Beğenilenler</div>';
+  h+='<div class="up-tab" onclick="switchProfileTab(this,\'cv\')">📋 Stil CV</div>';
+  h+='</div>';
+
+  /* Grid */
+  h+='<div id="upTabContent">';
+  h+=_renderProfileGrid(u.grid);
+  h+='</div>';
+
+  h+='<div style="height:100px"></div>';
+
+  c.innerHTML=h;
+  scr.style.display='block';
+  scr.scrollTop=0;
+}
+
+function _renderProfileGrid(grid){
+  if(!grid||grid.length===0) return '<div style="padding:40px;text-align:center"><div style="font-size:40px;margin-bottom:12px">📷</div><div style="font-size:14px;color:var(--muted)">Henüz kombin yok</div></div>';
+  var h='<div class="up-grid">';
+  grid.forEach(function(item){
+    h+='<div class="up-grid-item">';
+    h+='<img src="'+item.img+'" loading="lazy" onerror="this.parentElement.style.background=\'linear-gradient(135deg,rgba(255,32,121,.1),rgba(77,0,255,.1))\'">';
+    if(item.score){
+      var clr=item.score>=90?'var(--gold)':item.score>=80?'var(--cyan)':'var(--muted)';
+      h+='<div class="up-grid-badge" style="color:'+clr+'">'+(item.score>=90?'🔥 ':'')+item.score+'</div>';
+    }
+    h+='</div>';
+  });
+  h+='</div>';
+  return h;
+}
+
+function switchProfileTab(el,tab){
+  document.querySelectorAll('.up-tab').forEach(function(t){t.classList.remove('active')});
+  el.classList.add('active');
+  var c=document.getElementById('upTabContent');
+  if(tab==='grid'){
+    c.innerHTML=_currentProfileUser?_renderProfileGrid(_currentProfileUser.grid):'';
+  } else if(tab==='favs'){
+    c.innerHTML='<div style="padding:40px;text-align:center"><div style="font-size:40px;margin-bottom:12px">♡</div><div style="font-size:14px;color:var(--muted);font-weight:600">Beğenilen kombinler</div><div style="font-size:12px;color:var(--muted);margin-top:6px">Bu kullanıcının beğendiği stiller burada görünecek</div></div>';
+  } else {
+    c.innerHTML='<div style="padding:40px;text-align:center"><div style="font-size:40px;margin-bottom:12px">📋</div><div style="font-size:14px;color:var(--muted);font-weight:600">Stil CV</div><div style="font-size:12px;color:var(--muted);margin-top:6px">Stil DNA, favori markalar, HOF istatistikleri</div></div>';
+  }
+}
+
+function closeUserProfile(){
+  document.getElementById('userProfileScreen').style.display='none';
 }
 
 function loadKesfContent(){
@@ -4627,10 +4787,11 @@ function loadHOF_kesf(){
     if(d.ranked&&d.ranked.length>0){
       d.ranked.forEach(function(e){
         var src=e.image?(e.image.startsWith('http')?e.image:'data:image/jpeg;base64,'+e.image):'';
-        h+='<div style="width:130px;height:170px;border-radius:16px;position:relative;flex-shrink:0;border:2px solid rgba(255,215,0,.5);overflow:hidden;background:#1a1a2e">';
+        var nick=e.nickname||'anonim';
+        h+='<div onclick="openUserProfile(\'@'+nick+'\')" style="width:130px;height:170px;border-radius:16px;position:relative;flex-shrink:0;border:2px solid rgba(255,215,0,.5);overflow:hidden;background:#1a1a2e;cursor:pointer">';
         if(src)h+='<img src="'+src+'" style="width:100%;height:100%;object-fit:cover">';
         h+='<div style="position:absolute;top:8px;left:8px;background:rgba(0,0,0,.8);color:#ffd700;font-size:11px;font-weight:800;padding:4px 8px;border-radius:8px">'+(e.emoji||'✨')+' '+e.ai_score+'</div>';
-        h+='<div style="position:absolute;bottom:8px;left:8px;right:8px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8)">@'+(e.nickname||'anonim')+'</div>';
+        h+='<div style="position:absolute;bottom:8px;left:8px;right:8px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.8)">@'+nick+'</div>';
         h+='</div>';
       });
     } else {
@@ -5442,7 +5603,7 @@ function loadRadarFeed(){
         h+='</div>';
         h+='<div class="rcard-capsule-meta"><span class="rcard-capsule-val">'+c.total_value+'</span><span style="color:var(--muted)">\u00B7</span><span style="color:var(--muted)">'+c.saves+' kay\u0131t</span></div>';
         h+='<div class="rcard-body">\u2728 <b>@'+c.handle+'</b>, <b>\''+c.capsule_name+'\'</b> kaps\u00FCl dolab\u0131na '+c.items.length+' yeni ikonik par\u00E7a ekledi. Kusursuz bir renk paleti.</div>';
-        h+='<div class="rcard-action"><button class="rbtn rbtn-primary" onclick="alert(\'Dolap \u00F6zelli\u011Fi yak\u0131nda!\')">\uD83D\uDC40 Dolab\u0131 Ke\u015Ffet</button><button class="rbtn rbtn-secondary">\uD83D\uDCCC Kaydet</button></div>';
+        h+='<div class="rcard-action"><button class="rbtn rbtn-primary" onclick="openUserProfile(\'@'+c.handle+'\')">\uD83D\uDC40 Profili G\u00F6r</button><button class="rbtn rbtn-secondary">\uD83D\uDCCC Kaydet</button></div>';
       }
 
       /* === PREMIUM RE-FITCH === */
@@ -5546,7 +5707,7 @@ function loadRadarFeed(){
 function _avatarHead(url,name,handle,ago,colors){
   var col=colors[(name||'X').charCodeAt(0)%colors.length];
   var ini=(name||'?')[0].toUpperCase();
-  var h='<div class="rcard-head">';
+  var h='<div class="rcard-head" style="cursor:pointer" onclick="openUserProfile(\'@'+handle+'\')">';
   if(url) h+='<img class="rcard-avatar" src="'+url+'" onerror="this.outerHTML=\'<div class=rcard-avatar style=background:'+col+'>'+ini+'</div>\'">';
   else h+='<div class="rcard-avatar" style="background:'+col+'">'+ini+'</div>';
   h+='<div class="rcard-user">'+name+' <span class="handle">@'+handle+'</span><br><span class="ago">'+ago+'</span></div></div>';
