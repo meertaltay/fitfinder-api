@@ -25,7 +25,7 @@ try:
 except ImportError:
     print("⚠️ pillow-heif not installed, HEIC files may fail")
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
 from serpapi import GoogleSearch
@@ -2443,6 +2443,72 @@ async def proxy_img(url: str = ""):
 
 @app.get("/api/countries")
 async def countries(): return {cc: {"name": cfg["name"], "currency": cfg["currency"]} for cc, cfg in COUNTRIES.items()}
+
+# ─── URL THUMBNAIL EXTRACTION (Link Yapıştır) ───
+@app.post("/api/url-thumbnail")
+async def url_thumbnail(request: Request):
+    """Extract og:image from a social media URL (TikTok, Instagram, Pinterest etc.)"""
+    try:
+        data = await request.json()
+        url = data.get("url", "").strip()
+        if not url:
+            return {"success": False, "message": "URL gerekli"}
+        
+        # Validate URL
+        if not url.startswith("http"):
+            url = "https://" + url
+        
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            # Fetch the page HTML to extract og:image
+            r = await client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+                "Accept": "text/html,application/xhtml+xml",
+            })
+            
+            if r.status_code != 200:
+                return {"success": False, "message": "Sayfa yüklenemedi"}
+            
+            html = r.text[:50000]  # Limit parse size
+            
+            # Extract og:image
+            og_match = re.search(r'<meta\s+(?:property|name)=["\']og:image["\']\s+content=["\']([^"\']+)["\']', html, re.I)
+            if not og_match:
+                og_match = re.search(r'content=["\']([^"\']+)["\']\s+(?:property|name)=["\']og:image["\']', html, re.I)
+            
+            if not og_match:
+                # Try twitter:image
+                og_match = re.search(r'<meta\s+(?:property|name)=["\']twitter:image["\']\s+content=["\']([^"\']+)["\']', html, re.I)
+            
+            if not og_match:
+                return {"success": False, "message": "Görsel bulunamadı"}
+            
+            img_url = og_match.group(1)
+            if img_url.startswith("//"):
+                img_url = "https:" + img_url
+            
+            # Download the image
+            img_r = await client.get(img_url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "image/*",
+            })
+            
+            if img_r.status_code != 200 or len(img_r.content) < 1000:
+                return {"success": False, "message": "Görsel indirilemedi"}
+            
+            # Resize if too large, convert to JPEG
+            from PIL import Image
+            img_pil = Image.open(io.BytesIO(img_r.content)).convert("RGB")
+            img_pil.thumbnail((1200, 1200))
+            buf = io.BytesIO()
+            img_pil.save(buf, format="JPEG", quality=85)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            
+            print(f"URL THUMBNAIL OK: {url[:60]} → {img_url[:60]} ({len(b64)//1024}KB)")
+            return {"success": True, "image_b64": b64}
+    
+    except Exception as e:
+        print(f"URL THUMBNAIL ERR: {e}")
+        return {"success": False, "message": "Link işlenemedi"}
 @app.get("/", response_class=HTMLResponse)
 async def home(): return HTML_PAGE
 
@@ -2514,8 +2580,9 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .brand-chip .b-logo{width:48px;height:48px;border-radius:12px;margin:0 auto 6px;overflow:hidden}
 .brand-chip .b-name{font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trend-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:28px}
-.trend-card{flex-shrink:0;width:170px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s}
+.trend-card{flex-shrink:0;width:170px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s,transform .15s}
 .trend-card:hover{border-color:var(--accent)}
+.trend-card:active{transform:scale(0.97);border-color:var(--green)}
 .trend-card .tc-img{width:170px;height:200px;overflow:hidden;background:#1a1a1a;display:flex;align-items:center;justify-content:center}
 .trend-card .tc-img img{width:100%;height:100%;object-fit:cover;display:block;image-rendering:auto;-webkit-image-smoothing:high}
 .trend-card .tc-img.no-img{background:linear-gradient(135deg,#1a1a1a,#2a2a2a)}
@@ -2542,7 +2609,21 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
       </div>
     </div>
     <input type="file" id="fi" accept="image/jpeg,image/png,image/webp" style="display:none">
-    <div id="trendingSection" style="margin-top:28px;padding-bottom:100px"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div style="flex:1;height:1px;background:var(--border)"></div><span style="font-size:10px;color:var(--dim);font-weight:600">VEYA</span><div style="flex:1;height:1px;background:var(--border)"></div></div>
+    <div onclick="showLinkInput()" id="linkPasteBtn" style="background:transparent;border:1.5px solid var(--border);border-radius:14px;padding:14px 24px;display:flex;align-items:center;gap:14px;cursor:pointer;margin-bottom:8px;transition:border-color .2s">
+      <div style="font-size:20px">&#x1F517;</div>
+      <div>
+        <div id="linkTitle" style="font-size:13px;font-weight:600;color:var(--muted)"></div>
+        <div style="font-size:10px;color:var(--dim)">TikTok, Instagram, Pinterest</div>
+      </div>
+    </div>
+    <div id="linkInputArea" style="display:none;margin-bottom:16px">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="linkInput" placeholder="https://www.tiktok.com/..." style="flex:1;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font:13px 'DM Sans',sans-serif">
+        <button onclick="scanFromLink()" style="background:var(--green);color:var(--bg);border:none;border-radius:10px;padding:12px 16px;font:700 12px 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap" id="linkGoBtn">Tarat</button>
+      </div>
+    </div>
+    <div id="trendingSection" style="margin-top:20px;padding-bottom:100px"></div>
   </div>
   <div id="rScreen" style="display:none">
     <div style="position:sticky;top:0;z-index:40;background:rgba(10,10,12,.9);backdrop-filter:blur(20px);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
@@ -2588,8 +2669,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 var IC={hat:"\u{1F9E2}",sunglasses:"\u{1F576}",top:"\u{1F455}",jacket:"\u{1F9E5}",bag:"\u{1F45C}",accessory:"\u{1F48D}",watch:"\u{231A}",bottom:"\u{1F456}",dress:"\u{1F457}",shoes:"\u{1F45F}",scarf:"\u{1F9E3}"};
 var cF=null,cPrev=null,cropper=null,CC='us';
 var L={
-  tr:{flag:"\u{1F1F9}\u{1F1F7}",heroTitle:'Gorseldeki outfiti<br><span style="color:var(--accent)">birebir</span> bul.',heroSub:'Fotograf yukle, AI parcalari tespit etsin<br>istedigin parcaya tikla, birebir bulsun.',upload:'Fotograf Yukle',uploadSub:'Galeri veya screenshot',auto:'\u{1F916} Otomatik Tara',manual:'\u{2702}\u{FE0F} Kendim Seceyim',feat1:'Otomatik Tara',feat1d:'AI parcalari tespit eder, sen sec',feat2:'Kendim Seceyim',feat2d:'Parmaginla parcayi sec, birebir bul',back:'\u2190 Geri',cropHint:'\u{1F447} Aramak istedigin parcayi cercevele',manualPh:'Opsiyonel: ne aradigini yaz',find:'\u{1F50D} Bu Parcayi Bul',cancel:'\u2190 Vazgec',loading:'Parcalar tespit ediliyor...',loadingManual:'AI analiz ediyor...',noResult:'Sonuc bulunamadi',noProd:'Urun bulunamadi',retry:'\u{2702}\u{FE0F} Kendim Seceyim ile Tekrar Dene',another:'\u{2702}\u{FE0F} Baska Parca Sec',selected:'Sectigin Parca',lensMatch:'gorsel eslesme',recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} AI Eslesmesi',goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',alts:'\u{1F4B8} Alternatifler \u{1F449}',navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme',matchExact:'\u2705 Birebir Eslesme',matchClose:'\u{1F7E1} Yakin Eslesme',matchSimilar:'\u{1F7E0} Benzer Urunler',step_detect:'AI parcalari tespit ediyor...',step_bg:'Gorsel hazirlaniyor...',step_lens:'AI magazalari tariyor...',step_ai:'AI urunleri karsilastiriyor...',step_verify:'Birebir eslesme kontrolu...',step_done:'Sonuclar hazirlaniyor...',piecesFound:'parca tespit edildi',pickPiece:'Aramak istedigin parcaya tikla',searchingPiece:'Parca araniyor...',backToPieces:'\u2190 Diger Parcalar',noDetect:'Parca tespit edilemedi. Kendim Seceyim ile deneyin.',loadMore:'\u{1F50E} Daha Fazla Sonuc',loadingMore:'Ek sonuclar araniyor...'},
-  en:{flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',heroSub:'Upload a photo, AI detects each piece<br>tap any piece to find it instantly.',upload:'Upload Photo',uploadSub:'Gallery or screenshot',auto:'\u{1F916} Auto Scan',manual:'\u{2702}\u{FE0F} Select Myself',feat1:'Auto Scan',feat1d:'AI detects pieces, you pick one to search',feat2:'Select Myself',feat2d:'Select the piece with your finger, find exact match',back:'\u2190 Back',cropHint:'\u{1F447} Frame the piece you want to find',manualPh:'Optional: describe what you\'re looking for',find:'\u{1F50D} Find This Piece',cancel:'\u2190 Cancel',loading:'Detecting pieces...',loadingManual:'AI analyzing...',noResult:'No results found',noProd:'No products found',retry:'\u{2702}\u{FE0F} Try Select Myself',another:'\u{2702}\u{FE0F} Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} AI Match',goStore:'Go to Store \u2197',noPrice:'Click for price',alts:'\u{1F4B8} Alternatives \u{1F449}',navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match',matchExact:'\u2705 Exact Match',matchClose:'\u{1F7E1} Close Match',matchSimilar:'\u{1F7E0} Similar Items',step_detect:'AI detecting pieces...',step_lens:'AI scanning stores...',step_match:'Matching products...',step_done:'Preparing results...',step_bg:'Preparing image...',step_search:'Scanning global stores...',step_ai:'AI comparing products...',step_verify:'Verifying exact match...',piecesFound:'pieces detected',pickPiece:'Tap a piece to search for it',searchingPiece:'Searching for piece...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces detected. Try Select Myself.',loadMore:'\u{1F50E} More Results',loadingMore:'Loading more results...'}
+  tr:{flag:"\u{1F1F9}\u{1F1F7}",heroTitle:'Gorseldeki outfiti<br><span style="color:var(--accent)">birebir</span> bul.',heroSub:'Fotograf yukle, AI parcalari tespit etsin<br>istedigin parcaya tikla, birebir bulsun.',upload:'Fotograf Yukle',uploadSub:'Galeri veya screenshot',auto:'\u{1F916} Otomatik Tara',manual:'\u{2702}\u{FE0F} Kendim Seceyim',feat1:'Otomatik Tara',feat1d:'AI parcalari tespit eder, sen sec',feat2:'Kendim Seceyim',feat2d:'Parmaginla parcayi sec, birebir bul',back:'\u2190 Geri',cropHint:'\u{1F447} Aramak istedigin parcayi cercevele',manualPh:'Opsiyonel: ne aradigini yaz',find:'\u{1F50D} Bu Parcayi Bul',cancel:'\u2190 Vazgec',loading:'Parcalar tespit ediliyor...',loadingManual:'AI analiz ediyor...',noResult:'Sonuc bulunamadi',noProd:'Urun bulunamadi',retry:'\u{2702}\u{FE0F} Kendim Seceyim ile Tekrar Dene',another:'\u{2702}\u{FE0F} Baska Parca Sec',selected:'Sectigin Parca',lensMatch:'gorsel eslesme',recommended:'\u{2728} Onerilen',lensLabel:'\u{1F3AF} AI Eslesmesi',goStore:'Magazaya Git \u2197',noPrice:'Fiyat icin tikla',alts:'\u{1F4B8} Alternatifler \u{1F449}',navHome:'Kesfet',navFav:'Favoriler',aiMatch:'AI Onayli Eslesme',matchExact:'\u2705 Birebir Eslesme',matchClose:'\u{1F7E1} Yakin Eslesme',matchSimilar:'\u{1F7E0} Benzer Urunler',step_detect:'AI parcalari tespit ediyor...',step_bg:'Gorsel hazirlaniyor...',step_lens:'AI magazalari tariyor...',step_ai:'AI urunleri karsilastiriyor...',step_verify:'Birebir eslesme kontrolu...',step_done:'Sonuclar hazirlaniyor...',piecesFound:'parca tespit edildi',pickPiece:'Aramak istedigin parcaya tikla',searchingPiece:'Parca araniyor...',backToPieces:'\u2190 Diger Parcalar',noDetect:'Parca tespit edilemedi. Kendim Seceyim ile deneyin.',loadMore:'\u{1F50E} Daha Fazla Sonuc',loadingMore:'Ek sonuclar araniyor...',linkPaste:'Link Yapistir ve Tarat',linkGo:'Tarat',linkLoading:'Link taraniyor...'},
+  en:{flag:"\u{1F1FA}\u{1F1F8}",heroTitle:'Find the outfit<br>in the photo, <span style="color:var(--accent)">exactly</span>.',heroSub:'Upload a photo, AI detects each piece<br>tap any piece to find it instantly.',upload:'Upload Photo',uploadSub:'Gallery or screenshot',auto:'\u{1F916} Auto Scan',manual:'\u{2702}\u{FE0F} Select Myself',feat1:'Auto Scan',feat1d:'AI detects pieces, you pick one to search',feat2:'Select Myself',feat2d:'Select the piece with your finger, find exact match',back:'\u2190 Back',cropHint:'\u{1F447} Frame the piece you want to find',manualPh:'Optional: describe what you\'re looking for',find:'\u{1F50D} Find This Piece',cancel:'\u2190 Cancel',loading:'Detecting pieces...',loadingManual:'AI analyzing...',noResult:'No results found',noProd:'No products found',retry:'\u{2702}\u{FE0F} Try Select Myself',another:'\u{2702}\u{FE0F} Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u{2728} Recommended',lensLabel:'\u{1F3AF} AI Match',goStore:'Go to Store \u2197',noPrice:'Click for price',alts:'\u{1F4B8} Alternatives \u{1F449}',navHome:'Explore',navFav:'Favorites',aiMatch:'AI Verified Match',matchExact:'\u2705 Exact Match',matchClose:'\u{1F7E1} Close Match',matchSimilar:'\u{1F7E0} Similar Items',step_detect:'AI detecting pieces...',step_lens:'AI scanning stores...',step_match:'Matching products...',step_done:'Preparing results...',step_bg:'Preparing image...',step_search:'Scanning global stores...',step_ai:'AI comparing products...',step_verify:'Verifying exact match...',piecesFound:'pieces detected',pickPiece:'Tap a piece to search for it',searchingPiece:'Searching for piece...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces detected. Try Select Myself.',loadMore:'\u{1F50E} More Results',loadingMore:'Loading more results...',linkPaste:'Paste Link & Scan',linkGo:'Scan',linkLoading:'Scanning link...'}
 };
 var L_fallback=L.en;
 function t(key){var lg=CC_LANG[CC]||'en';return(L[lg]||L_fallback)[key]||(L.en)[key]||key}
@@ -2617,6 +2698,8 @@ function applyLang(){
   document.getElementById('btnCancel').innerHTML=t('cancel');
   document.getElementById('navHome').textContent=t('navHome');
   document.getElementById('navFav').textContent=t('navFav');
+  document.getElementById('linkTitle').textContent=t('linkPaste');
+  document.getElementById('linkGoBtn').textContent=t('linkGo');
   loadTrending();
 }
 function loadTrending(){
@@ -2646,13 +2729,13 @@ function loadTrending(){
         h+='<div class="b-name">'+b.name+'</div></a>';}
       h+='</div>';
     }
-    // Trending products with real images from SerpAPI
+    // Trending/Popular products — click triggers live demo scan
     if(d.products&&d.products.length){
       h+='<div class="sec-title">'+d.section_trending+'</div><div class="trend-scroll">';
       for(var i=0;i<d.products.length;i++){var p=d.products[i];
-        h+='<a href="'+p.link+'" target="_blank" rel="noopener" class="trend-card">';
+        h+='<div onclick="demoScan(\''+encodeURIComponent(p.img)+'\')" class="trend-card" style="cursor:pointer">';
         h+='<div class="tc-img"><img src="'+p.img+'" data-orig="'+p.img+'" onerror="imgErr(this)"></div>';
-        h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price">'+(p.price||t('noPrice'))+'</div></div></a>';}
+        h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price" style="font-size:10px;color:var(--green)">'+t('auto')+' \u2197</div></div></div>';}
       h+='</div>';
     }
     ts.innerHTML=h;
@@ -2663,9 +2746,65 @@ applyLang();
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}
 function getCC(){return CC}
 document.getElementById('fi').addEventListener('change',function(e){if(e.target.files[0])loadF(e.target.files[0])});
+document.getElementById('linkInput').addEventListener('keyup',function(e){if(e.key==='Enter')scanFromLink()});
 function loadF(f){if(!f.type.startsWith('image/'))return;cF=f;var r=new FileReader();r.onload=function(e){cPrev=e.target.result;showScreen()};r.readAsDataURL(f)}
 function showScreen(){document.getElementById('home').style.display='none';document.getElementById('rScreen').style.display='block';document.getElementById('prev').src=cPrev;document.getElementById('prev').style.maxHeight='260px';document.getElementById('prev').style.display='block';document.getElementById('actionBtns').style.display='flex';document.getElementById('cropMode').style.display='none';document.getElementById('piecePicker').style.display='none';document.getElementById('ld').style.display='none';document.getElementById('err').style.display='none';document.getElementById('res').style.display='none';if(cropper){cropper.destroy();cropper=null}}
-function goHome(){if(_busy)return;document.getElementById('home').style.display='block';document.getElementById('rScreen').style.display='none';if(cropper){cropper.destroy();cropper=null}cF=null;cPrev=null;_detectId='';_detectedPieces=[]}
+function goHome(){if(_busy)return;document.getElementById('home').style.display='block';document.getElementById('rScreen').style.display='none';if(cropper){cropper.destroy();cropper=null}cF=null;cPrev=null;_detectId='';_detectedPieces=[];document.getElementById('linkInputArea').style.display='none';document.getElementById('linkPasteBtn').style.borderColor='var(--border)';document.getElementById('linkInput').value='';loadTrending()}
+
+// ─── LINK PASTE FEATURE ───
+function showLinkInput(){
+  var area=document.getElementById('linkInputArea');
+  if(area.style.display==='none'){
+    area.style.display='block';
+    document.getElementById('linkInput').focus();
+    document.getElementById('linkPasteBtn').style.borderColor='var(--accent)';
+  }else{
+    area.style.display='none';
+    document.getElementById('linkPasteBtn').style.borderColor='var(--border)';
+  }
+}
+function scanFromLink(){
+  var url=document.getElementById('linkInput').value.trim();
+  if(!url){document.getElementById('linkInput').style.borderColor='var(--red)';return}
+  var btn=document.getElementById('linkGoBtn');
+  btn.textContent=t('linkLoading');btn.disabled=true;
+  fetch('/api/url-thumbnail',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url})})
+  .then(function(r){return r.json()})
+  .then(function(d){
+    btn.textContent=t('linkGo');btn.disabled=false;
+    if(d.success&&d.image_b64){
+      // Convert base64 to file and trigger scan
+      var byteStr=atob(d.image_b64);var ab=new ArrayBuffer(byteStr.length);var ia=new Uint8Array(ab);
+      for(var i=0;i<byteStr.length;i++)ia[i]=byteStr.charCodeAt(i);
+      var blob=new Blob([ab],{type:'image/jpeg'});
+      cF=new File([blob],'link_scan.jpg',{type:'image/jpeg'});
+      var reader=new FileReader();
+      reader.onload=function(e){cPrev=e.target.result;showScreen();setTimeout(autoScan,300)};
+      reader.readAsDataURL(cF);
+    }else{
+      document.getElementById('linkInput').style.borderColor='var(--red)';
+      document.getElementById('linkInput').value='';
+      document.getElementById('linkInput').placeholder=d.message||'Link taranamadi';
+    }
+  }).catch(function(){btn.textContent=t('linkGo');btn.disabled=false})
+}
+
+// ─── DEMO SCAN (trending card click → scan) ───
+function demoScan(encodedImgUrl){
+  if(_busy)return;
+  var imgUrl=decodeURIComponent(encodedImgUrl);
+  // Show loading state on home
+  document.getElementById('trendingSection').innerHTML='<div style="text-align:center;padding:40px 0"><div style="font-size:28px;margin-bottom:12px">&#x1F50D;</div><div style="color:var(--muted);font-size:13px">'+t('linkLoading')+'</div></div>';
+  // Fetch image via proxy and start scan
+  fetch('/api/img?url='+encodeURIComponent(imgUrl))
+  .then(function(r){if(!r.ok)throw new Error();return r.blob()})
+  .then(function(blob){
+    cF=new File([blob],'demo_scan.jpg',{type:blob.type||'image/jpeg'});
+    var reader=new FileReader();
+    reader.onload=function(e){cPrev=e.target.result;showScreen();setTimeout(autoScan,300)};
+    reader.readAsDataURL(cF);
+  }).catch(function(){loadTrending()})
+}
 
 var _detectId='',_detectedPieces=[];
 var _lastSearchQuery='',_lastShownLinks=[];
