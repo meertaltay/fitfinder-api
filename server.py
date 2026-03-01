@@ -4508,7 +4508,7 @@ function loadTrending_kesf(){
   var c=document.getElementById('kesfTrends');if(!c)return;
   var h='';
   trends.forEach(function(t){
-    h+='<div style="flex-shrink:0;width:160px;padding:16px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid var(--border);cursor:pointer" onclick="alert('Arama: '+t.tag+'')">';
+    h+='<div style="flex-shrink:0;width:160px;padding:16px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid var(--border);cursor:pointer" onclick="alert(&quot;Arama: '+t.tag+'&quot;)">';
     h+='<div style="font-size:28px;margin-bottom:8px">'+t.emoji+'</div>';
     h+='<div style="font-size:13px;font-weight:800;color:#fff;margin-bottom:4px">'+t.tag+'</div>';
     h+='<div style="font-size:11px;color:var(--muted);line-height:1.4">'+t.desc+'</div>';
