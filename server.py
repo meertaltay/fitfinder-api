@@ -1377,32 +1377,69 @@ TRENDING_QUERIES = {
     ],
 }
 
+def is_product_url(url):
+    """URL gerçek bir ürün sayfası mı, yoksa arama/kategori sayfası mı?"""
+    if not url: return False
+    u = url.lower()
+
+    # ❌ Kesinlikle ürün sayfası DEĞİL (arama/kategori sayfaları)
+    search_patterns = ["/sr?", "/search?", "/arama?", "?q=", "?query=", "/kategori/",
+                       "/category/", "/collection/", "/collections/", "/list/", "/listing/"]
+    if any(sp in u for sp in search_patterns):
+        return False
+
+    # ✅ Bilinen mağazaların ürün URL pattern'leri
+    product_patterns = {
+        "trendyol.com": r'-p-\d+',          # trendyol.com/marka/urun-p-12345678
+        "hepsiburada.com": r'-p[m]?-[A-Za-z0-9]+',  # hepsiburada.com/urun-pm-HB00123 veya -p-12345
+        "amazon.": r'/dp/[A-Z0-9]+|/gp/product/', # amazon.com/dp/B08XYZ
+        "n11.com": r'/urun/',
+        "boyner.com": r'/urun/',
+        "beymen.com": r'/urun/',
+        "defacto.com": r'/\w+-\w+',
+        "lcwaikiki.com": r'/tr-tr/',
+        "zara.com": r'/tr/.+/p\d+',
+        "bershka.com": r'/tr/.+/\d+',
+        "hm.com": r'/productpage\.',
+        "nike.com": r'/t/',
+    }
+
+    for domain, pattern in product_patterns.items():
+        if domain in u:
+            return bool(re.search(pattern, u))
+
+    # Bilinmeyen domain: arama pattern'i yoksa ürün kabul et
+    return True
+
+
 def _fetch_trending_products(lang="tr"):
-    """Google organic + Shopping'den trending ürünleri çek — DOĞRUDAN MAĞAZA LİNKLERİ."""
+    """Google organic + Shopping'den trending ürünleri çek — SADECE DOĞRUDAN ÜRÜN SAYFALARI."""
     cc = "tr" if lang == "tr" else "us"
     cfg = get_country_config(cc)
     products = []
     queries = TRENDING_QUERIES.get(lang, TRENDING_QUERIES["en"])
     for q in queries:
         try:
-            # 1) Önce Shopping'den dene — direct link varsa al
-            d = GoogleSearch({"engine": "google_shopping", "q": q, "gl": cfg["gl"], "hl": cfg["hl"], "api_key": SERPAPI_KEY, "num": 5}).get_dict()
             found = False
-            for item in d.get("shopping_results", [])[:5]:
+
+            # 1) Google Shopping — direct link + ürün sayfası kontrolü
+            d = GoogleSearch({"engine": "google_shopping", "q": q, "gl": cfg["gl"], "hl": cfg["hl"], "api_key": SERPAPI_KEY, "num": 5}).get_dict()
+            for item in d.get("shopping_results", [])[:8]:
                 direct_link = item.get("link", "")
-                google_link = item.get("product_link", "")
                 ttl = item.get("title", "")
                 src = item.get("source", "")
                 pr = item.get("price", str(item.get("extracted_price", "")))
                 thumb = item.get("thumbnail", "")
 
-                # Google Shopping link'i filtrele — sadece DOĞRUDAN mağaza linki kabul et
-                # Google karşılaştırma sayfaları genelde google.com/shopping içerir
-                is_direct = direct_link and "google.com" not in direct_link and not is_blocked(direct_link)
-                best_link = direct_link if is_direct else ""
+                # Sadece doğrudan mağaza + ürün sayfası kabul et
+                if not direct_link or "google.com" in direct_link or is_blocked(direct_link):
+                    continue
+                if not is_product_url(direct_link):
+                    print(f"  Trending SKIP (not product): {direct_link[:80]}")
+                    continue
 
-                if ttl and thumb and best_link:
-                    best_link = localize_url(best_link, cc)
+                if ttl and thumb:
+                    best_link = localize_url(direct_link, cc)
                     products.append({
                         "title": ttl[:40],
                         "brand": src,
@@ -1411,51 +1448,40 @@ def _fetch_trending_products(lang="tr"):
                         "link": make_affiliate(best_link),
                     })
                     found = True
+                    print(f"  Trending OK (shopping): {ttl[:40]} → {best_link[:60]}")
                     break
 
-            # 2) Shopping'de direkt link yoksa → Google organic'ten fashion domain'i bul
+            # 2) Google organic — fashion domain'lerden ürün sayfası bul
             if not found:
-                d2 = GoogleSearch({"engine": "google", "q": q, "gl": cfg["gl"], "hl": cfg["hl"], "api_key": SERPAPI_KEY, "num": 5}).get_dict()
+                d2 = GoogleSearch({"engine": "google", "q": q, "gl": cfg["gl"], "hl": cfg["hl"], "api_key": SERPAPI_KEY, "num": 10}).get_dict()
 
-                # Inline shopping'den dene
-                for item in d2.get("inline_shopping_results", [])[:3]:
+                for item in d2.get("organic_results", [])[:8]:
                     lnk = item.get("link", "")
                     ttl = item.get("title", "")
-                    src = item.get("source", "")
-                    pr = item.get("price", item.get("extracted_price", ""))
+                    src = item.get("displayed_link", "")
                     thumb = item.get("thumbnail", "")
-                    if lnk and ttl and thumb and not is_blocked(lnk) and is_fashion(lnk, ttl, src):
-                        lnk = localize_url(lnk, cc)
-                        products.append({
-                            "title": ttl[:40],
-                            "brand": get_brand(lnk, src) or src,
-                            "img": thumb,
-                            "price": str(pr) if pr else "",
-                            "link": make_affiliate(lnk),
-                        })
-                        found = True
-                        break
+                    if not lnk or not ttl or is_blocked(lnk): continue
+                    if not is_fashion(lnk, ttl, src): continue
+                    if not is_product_url(lnk):
+                        print(f"  Trending SKIP organic (not product): {lnk[:80]}")
+                        continue
 
-                # Organic results'tan fashion domain bul
-                if not found:
-                    for item in d2.get("organic_results", [])[:5]:
-                        lnk = item.get("link", "")
-                        ttl = item.get("title", "")
-                        src = item.get("displayed_link", "")
-                        thumb = item.get("thumbnail", "")
-                        if lnk and ttl and not is_blocked(lnk) and is_fashion(lnk, ttl, src):
-                            lnk = localize_url(lnk, cc)
-                            # Organic'te fiyat snippet'ten çek
-                            snippet = item.get("snippet", "")
-                            pr_match = re.search(r'(\d[\d.,]+)\s*(?:TL|₺|\$|€|£)', snippet)
-                            products.append({
-                                "title": ttl[:40],
-                                "brand": get_brand(lnk, src) or src,
-                                "img": thumb or "",
-                                "price": pr_match.group(0) if pr_match else "",
-                                "link": make_affiliate(lnk),
-                            })
-                            break
+                    lnk = localize_url(lnk, cc)
+                    snippet = item.get("snippet", "")
+                    pr_match = re.search(r'(\d[\d.,]+)\s*(?:TL|₺|\$|€|£)', snippet)
+                    products.append({
+                        "title": ttl[:40],
+                        "brand": get_brand(lnk, src) or src,
+                        "img": thumb or "",
+                        "price": pr_match.group(0) if pr_match else "",
+                        "link": make_affiliate(lnk),
+                    })
+                    found = True
+                    print(f"  Trending OK (organic): {ttl[:40]} → {lnk[:60]}")
+                    break
+
+            if not found:
+                print(f"  Trending: no product URL found for '{q}'")
 
         except Exception as e:
             print(f"Trending fetch err ({q}): {e}")
