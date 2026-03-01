@@ -3688,6 +3688,8 @@ body::after{content:"";position:fixed;bottom:-10%;right:-20%;width:70%;height:70
 .bnav-item .icon{font-size:22px;color:#fff}
 .bnav-item.active .icon{color:var(--accent);text-shadow:0 0 10px var(--border-glow)}
 .bnav-item .lbl{font-size:10px;font-weight:600;color:#fff}
+.kesf-sr:hover{background:rgba(255,255,255,.06)}
+.kesf-sr:active{background:rgba(255,255,255,.1)}
 .bnav-logo{opacity:1 !important}
 .bnav-logo-ring{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));padding:3px;margin-top:-28px;box-shadow:0 4px 20px rgba(255,32,121,.4);display:flex;align-items:center;justify-content:center}
 .bnav-logo-ring>span{width:58px;height:58px;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden}
@@ -4003,11 +4005,15 @@ img.rcard-avatar{border:1px solid var(--border)}
         <div style="font-size:22px;font-weight:900;letter-spacing:-.5px" class="text-gradient">fitchy. <span style="font-size:14px;color:var(--muted);font-weight:500">keşfet</span></div>
         <div style="cursor:pointer;font-size:20px;position:relative" onclick="openNotifPanel()"><span style="position:relative">🔔<div class="notif-bell-dot" id="notifBellDotKesf"></div></span></div>
       </div>
-      <div style="display:flex;gap:8px">
-        <div onclick="openCamera()" style="flex:1;display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid var(--border);cursor:pointer;transition:all .2s">
-          <span style="font-size:18px">🔍</span>
-          <span style="font-size:13px;color:var(--muted);font-weight:500">Stil, marka veya trend ara...</span>
+      <div style="display:flex;gap:8px;position:relative">
+        <div style="flex:1;display:flex;align-items:center;gap:10px;padding:0;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid var(--border);position:relative">
+          <span style="font-size:16px;position:absolute;left:14px;pointer-events:none">🔍</span>
+          <input id="kesfSearch" type="text" autocomplete="off" placeholder="Stil, marka veya @kullanıcı ara..." style="width:100%;padding:13px 16px 13px 42px;background:transparent;border:none;outline:none;color:#fff;font:500 13px/1 'Outfit',sans-serif" oninput="onKesfSearch(this.value)" onfocus="onKesfSearch(this.value)" onblur="setTimeout(function(){document.getElementById('kesfDropdown').style.display='none'},200)">
         </div>
+      </div>
+      <!-- Search Dropdown -->
+      <div id="kesfDropdown" style="display:none;position:absolute;left:20px;right:20px;top:100%;margin-top:4px;background:rgba(12,8,20,.98);border:1px solid var(--border);border-radius:16px;max-height:360px;overflow-y:auto;z-index:100;box-shadow:0 12px 40px rgba(0,0,0,.6);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)">
+        <div id="kesfDropContent"></div>
       </div>
     </div>
 
@@ -4464,6 +4470,150 @@ function goHome(){openCamera();}
 
 /* Keşfet Tab Content Loader */
 var _kesfLoaded=false;
+/* ── Smart Search (Pinterest-style) ── */
+var _kesfSearchTimer=null;
+var _kesfSuggestions={
+  trends:[
+    {q:'winter collection',icon:'❄️',type:'trend'},
+    {q:'winter coat',icon:'🧥',type:'trend'},
+    {q:'winter boots',icon:'👢',type:'trend'},
+    {q:'streetwear',icon:'🔥',type:'trend'},
+    {q:'streetwear oversized',icon:'🔥',type:'trend'},
+    {q:'minimal style',icon:'✨',type:'trend'},
+    {q:'y2k fashion',icon:'💿',type:'trend'},
+    {q:'cargo pants',icon:'👖',type:'trend'},
+    {q:'quiet luxury',icon:'🤫',type:'trend'},
+    {q:'old money style',icon:'💎',type:'trend'},
+    {q:'grunge aesthetic',icon:'🖤',type:'trend'},
+    {q:'korean fashion',icon:'🇰🇷',type:'trend'},
+    {q:'summer dress',icon:'👗',type:'trend'},
+    {q:'sneaker outfit',icon:'👟',type:'trend'},
+    {q:'leather jacket',icon:'🧥',type:'trend'},
+    {q:'denim on denim',icon:'👖',type:'trend'},
+    {q:'layering',icon:'🧣',type:'trend'},
+    {q:'monochrome',icon:'⬛',type:'trend'},
+    {q:'boho chic',icon:'🌸',type:'trend'},
+    {q:'athleisure',icon:'🏃',type:'trend'}
+  ],
+  brands:[
+    {q:'Zara',icon:'',type:'brand',sub:'500+ ürün'},
+    {q:'Nike',icon:'',type:'brand',sub:'1200+ ürün'},
+    {q:'H&M',icon:'',type:'brand',sub:'800+ ürün'},
+    {q:'Trendyol',icon:'',type:'brand',sub:'3000+ ürün'},
+    {q:'Mango',icon:'',type:'brand',sub:'400+ ürün'},
+    {q:'Pull&Bear',icon:'',type:'brand',sub:'350+ ürün'},
+    {q:'Bershka',icon:'',type:'brand',sub:'300+ ürün'},
+    {q:'Massimo Dutti',icon:'',type:'brand',sub:'200+ ürün'},
+    {q:'Adidas',icon:'',type:'brand',sub:'900+ ürün'},
+    {q:'New Balance',icon:'',type:'brand',sub:'600+ ürün'},
+    {q:'Koton',icon:'',type:'brand',sub:'1500+ ürün'},
+    {q:'LC Waikiki',icon:'',type:'brand',sub:'2000+ ürün'},
+    {q:'Stradivarius',icon:'',type:'brand',sub:'250+ ürün'}
+  ],
+  profiles:[
+    {q:'@mertaltay',icon:'',type:'profile',sub:'Streetwear • 12K takipçi'},
+    {q:'@stilkolik',icon:'',type:'profile',sub:'Minimal • 8.5K takipçi'},
+    {q:'@modahane',icon:'',type:'profile',sub:'Vintage • 22K takipçi'},
+    {q:'@urbanfit_tr',icon:'',type:'profile',sub:'Urban • 5K takipçi'},
+    {q:'@fitchy_official',icon:'',type:'profile',sub:'Editör • 50K takipçi'},
+    {q:'@denizkizi.style',icon:'',type:'profile',sub:'Boho • 15K takipçi'},
+    {q:'@celocan',icon:'',type:'profile',sub:'Y2K • 9K takipçi'}
+  ]
+};
+
+function onKesfSearch(val){
+  clearTimeout(_kesfSearchTimer);
+  var dd=document.getElementById('kesfDropdown');
+  var dc=document.getElementById('kesfDropContent');
+  if(!val||val.length<1){dd.style.display='none';return;}
+  _kesfSearchTimer=setTimeout(function(){
+    var q=val.toLowerCase().trim();
+    var h='';
+    var isProfile=q.startsWith('@');
+    var matchCount=0;
+
+    if(isProfile){
+      /* Profile search */
+      var pq=q;
+      var matches=_kesfSuggestions.profiles.filter(function(p){return p.q.toLowerCase().indexOf(pq)>-1});
+      if(matches.length>0){
+        h+='<div style="padding:12px 16px 6px;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px">KULLANICILAR</div>';
+        matches.forEach(function(m){
+          h+='<div class="kesf-sr" onclick="kesfSelectResult(\''+m.q+'\',\'profile\')" style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer">';
+          h+='<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0">'+m.q.charAt(1).toUpperCase()+'</div>';
+          h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#fff">'+_highlight(m.q,val)+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+m.sub+'</div></div>';
+          h+='<div style="font-size:11px;color:var(--cyan);font-weight:600">Profil →</div>';
+          h+='</div>';
+          matchCount++;
+        });
+      }
+    } else {
+      /* Trend suggestions */
+      var tMatches=_kesfSuggestions.trends.filter(function(t){return t.q.toLowerCase().indexOf(q)>-1}).slice(0,5);
+      if(tMatches.length>0){
+        h+='<div style="padding:12px 16px 6px;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px">TRENDLER</div>';
+        tMatches.forEach(function(m){
+          h+='<div class="kesf-sr" onclick="kesfSelectResult(\''+m.q+'\',\'trend\')" style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer">';
+          h+='<div style="font-size:18px;width:28px;text-align:center;flex-shrink:0">'+m.icon+'</div>';
+          h+='<div style="flex:1;font-size:13px;font-weight:600;color:#fff">'+_highlight(m.q,val)+'</div>';
+          h+='<div style="font-size:18px;color:var(--muted)">↗</div>';
+          h+='</div>';
+          matchCount++;
+        });
+      }
+
+      /* Brand suggestions */
+      var bMatches=_kesfSuggestions.brands.filter(function(b){return b.q.toLowerCase().indexOf(q)>-1}).slice(0,4);
+      if(bMatches.length>0){
+        h+='<div style="padding:12px 16px 6px;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px">MARKALAR</div>';
+        bMatches.forEach(function(m){
+          h+='<div class="kesf-sr" onclick="kesfSelectResult(\''+m.q+'\',\'brand\')" style="display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer">';
+          h+='<div style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--cyan);flex-shrink:0">'+m.q.substring(0,2).toUpperCase()+'</div>';
+          h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#fff">'+_highlight(m.q,val)+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">'+m.sub+'</div></div>';
+          h+='<div style="font-size:11px;color:var(--cyan);font-weight:600">Marka →</div>';
+          h+='</div>';
+          matchCount++;
+        });
+      }
+    }
+
+    if(matchCount===0){
+      h+='<div style="padding:20px;text-align:center">';
+      h+='<div style="font-size:28px;margin-bottom:8px">🔍</div>';
+      h+='<div style="font-size:13px;color:var(--muted)">\"'+val.replace(/</g,'&lt;')+'\" için sonuç bulunamadı</div>';
+      h+='<div onclick="openCamera()" style="margin-top:12px;font-size:12px;color:var(--cyan);font-weight:700;cursor:pointer">📸 Görsel ile ara →</div>';
+      h+='</div>';
+    } else {
+      /* Visual search CTA at bottom */
+      h+='<div onclick="openCamera()" style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border);cursor:pointer">';
+      h+='<div style="font-size:16px">📸</div>';
+      h+='<div style="font-size:12px;color:var(--cyan);font-weight:600">Görsel ile ara — fotoğraf yükle</div>';
+      h+='</div>';
+    }
+
+    dc.innerHTML=h;
+    dd.style.display='block';
+  },150);
+}
+
+function _highlight(text,query){
+  var idx=text.toLowerCase().indexOf(query.toLowerCase());
+  if(idx===-1)return text;
+  return text.substring(0,idx)+'<span style="color:var(--cyan)">'+text.substring(idx,idx+query.length)+'</span>'+text.substring(idx+query.length);
+}
+
+function kesfSelectResult(val,type){
+  document.getElementById('kesfSearch').value=val;
+  document.getElementById('kesfDropdown').style.display='none';
+  if(type==='profile'){
+    alert('Profil: '+val+' (yakında)');
+  } else if(type==='brand'){
+    alert('Marka: '+val+' (yakında)');
+  } else {
+    alert('Trend: '+val+' (yakında)');
+  }
+}
+
 function loadKesfContent(){
   if(_kesfLoaded)return;
   _kesfLoaded=true;
