@@ -1694,7 +1694,7 @@ def _fetch_trending_products(lang="tr"):
                 ttl = item.get("title", "")
                 src = item.get("source", "")
                 pr = item.get("price", str(item.get("extracted_price", "")))
-                thumb = item.get("thumbnail", "")
+                thumb = item.get("product_image", "") or item.get("thumbnail", "")
 
                 # Sadece doğrudan mağaza + ürün sayfası kabul et
                 if not direct_link or "google.com" in direct_link or is_blocked(direct_link):
@@ -1724,7 +1724,7 @@ def _fetch_trending_products(lang="tr"):
                     lnk = item.get("link", "")
                     ttl = item.get("title", "")
                     src = item.get("displayed_link", "")
-                    thumb = item.get("thumbnail", "")
+                    thumb = item.get("rich_snippet_image", "") or item.get("thumbnail", "")
                     if not lnk or not ttl or is_blocked(lnk): continue
                     if not is_fashion(lnk, ttl, src): continue
                     if not is_product_url(lnk):
@@ -2304,6 +2304,24 @@ async def proxy_img(url: str = ""):
             if r.status_code == 200 and len(r.content) > 100:
                 ct = r.headers.get("content-type", "image/jpeg")
                 if "image" in ct or "octet" in ct:
+                    # Upscale small images for better display quality
+                    try:
+                        from PIL import Image
+                        img_pil = Image.open(io.BytesIO(r.content))
+                        w, h = img_pil.size
+                        if w < 300 or h < 300:
+                            # Upscale to at least 300px with LANCZOS
+                            scale = max(300/w, 300/h)
+                            new_w, new_h = int(w*scale), int(h*scale)
+                            img_pil = img_pil.resize((new_w, new_h), Image.LANCZOS)
+                            buf = io.BytesIO()
+                            img_pil.save(buf, format="JPEG", quality=90)
+                            enhanced = buf.getvalue()
+                            IMG_CACHE[url_hash] = ("image/jpeg", enhanced)
+                            return Response(content=enhanced, media_type="image/jpeg",
+                                          headers={"Cache-Control": "public, max-age=86400"})
+                    except:
+                        pass
                     IMG_CACHE[url_hash] = (ct, r.content)
                     return Response(content=r.content, media_type=ct, headers={"Cache-Control": "public, max-age=86400"})
     except Exception as e:
@@ -2386,7 +2404,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .trend-card{flex-shrink:0;width:150px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s}
 .trend-card:hover{border-color:var(--accent)}
 .trend-card .tc-img{width:150px;height:170px;overflow:hidden;background:#1a1a1a;display:flex;align-items:center;justify-content:center}
-.trend-card .tc-img img{width:100%;height:100%;object-fit:cover;display:block}
+.trend-card .tc-img img{width:100%;height:100%;object-fit:cover;display:block;image-rendering:auto;-webkit-image-smoothing:high}
 .trend-card .tc-img.no-img{background:linear-gradient(135deg,#1a1a1a,#2a2a2a)}
 .trend-card .tc-img.no-img img{display:none}
 .trend-card .tc-info{padding:10px}
@@ -2520,7 +2538,7 @@ function loadTrending(){
       h+='<div class="sec-title">'+d.section_trending+'</div><div class="trend-scroll">';
       for(var i=0;i<d.products.length;i++){var p=d.products[i];
         h+='<a href="'+p.link+'" target="_blank" rel="noopener" class="trend-card">';
-        h+='<div class="tc-img"><img src="'+p.img+'" onerror="this.onerror=null;this.parentElement.classList.add(\'no-img\')"></div>';
+        h+='<div class="tc-img"><img src="/api/img?url='+encodeURIComponent(p.img)+'" onerror="this.onerror=null;this.parentElement.classList.add(\'no-img\')"></div>';
         h+='<div class="tc-info"><div class="tc-title">'+p.title+'</div><div class="tc-brand">'+p.brand+'</div><div class="tc-price">'+(p.price||t('noPrice'))+'</div></div></a>';}
       h+='</div>';
     }
