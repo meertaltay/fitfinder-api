@@ -206,23 +206,43 @@ def has_foreign_script(text, threshold=0.3):
     return (non_latin / total) > threshold
 
 # 🛡️ v42: KATEGORİ TERS EŞLEŞME — "bag" aramasında "cup" gelirse çöpe at
-CATEGORY_ANTI_KEYWORDS = {
-    "bag": ["cup", "bardak", "mug", "tumbler", "thermos", "termos", "bottle", "şişe", "matara",
-            "starbucks", "coffee", "kahve", "tea ", "çay ", "glass", "tabak", "kase", "fincan",
-            "telefon", "phone", "kılıf", "tablet", "laptop", "charger"],
-    "jacket": ["pantalo", "pants", "trousers", "etek", "skirt", "ayakkab", "shoe",
-               "bardak", "cup", "mug", "telefon", "phone", "sneaker"],
-    "top": ["pantalo", "pants", "ayakkab", "shoe", "boot", "ceket", "jacket",
-            "bardak", "cup", "mug"],
-    "bottom": ["ceket", "jacket", "tişört", "shirt", "bluz",
-               "bardak", "cup", "mug", "ayakkab", "shoe"],
-    "shoes": ["ceket", "jacket", "pantalo", "pants", "gömlek", "shirt",
-              "bardak", "cup", "mug", "çanta"],
-    "watch": ["bardak", "cup", "mug", "saat kulesi", "clock tower", "duvar saati", "wall clock"],
-    "dress": ["bardak", "cup", "mug", "pantalo", "pants"],
-}
-
-# 🛡️ v42: MODA-DIŞI ÜRÜN FİLTRESİ — Kıyafet aramasında bardak, telefon vs. çöpe at
+def is_category_mismatch(title, category):
+    """Sonucun başlığından hangi kategoriye ait olduğunu tespit et.
+    Eğer aranan kategoriden FARKLI bir kategori tespit edilirse → engelle.
+    
+    Mantık: "bej çanta" arıyorsun → sonuçta "ceket" kelimesi var → FARKLI KATEGORİ → ⛔
+    """
+    if not category or not title: return False
+    tl = title.lower()
+    
+    # Her kategoriden kaç keyword eşleşiyor?
+    cat_scores = {}
+    for cat, keywords in PIECE_KEYWORDS.items():
+        score = 0
+        for kw in keywords:
+            if len(kw) >= 3 and kw in tl:
+                score += 1
+        if score > 0:
+            cat_scores[cat] = score
+    
+    # Hiçbir kategori tespit edilmediyse → geçir (engellemeyiz)
+    if not cat_scores:
+        return False
+    
+    # En güçlü tespit edilen kategori
+    detected_cat = max(cat_scores, key=cat_scores.get)
+    detected_score = cat_scores[detected_cat]
+    
+    # Aranan kategori de tespit edilenler arasındaysa → geçir
+    if category in cat_scores:
+        return False
+    
+    # Aranan kategori tespit edilmedi AMA başka bir kategori tespit edildi → engelle
+    # Minimum 1 keyword eşleşmesi yeterli (ceket, bomber, pants vs. açık kelimeler)
+    if detected_score >= 1:
+        return True
+    
+    return False
 NON_CLOTHING_PRODUCTS = [
     "cup", "mug", "bardak", "tumbler", "thermos", "bottle", "şişe", "matara",
     "starbucks", "coffee", "kahve", "tea", "çay", "fincan",
