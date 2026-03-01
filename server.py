@@ -160,6 +160,14 @@ BLOCKED = ["pinterest.", "instagram.", "facebook.", "twitter.", "x.com/", "tikto
     "celebrity", "paparazzi", "gossip", "tabloid",
     "/haber/", "/news/", "/noticias/", "/celebrit/", "/famous/",
     "/dizi/", "/series/", "/tv-show/", "/actress/", "/actor/",
+    # v42: Social media profile viewer / stalker sites
+    "twstalker", "sotwe.", "tweetdeck.", "nitter.", "threadreaderapp.",
+    "socialblade.", "followerwonk.", "tweepi.", "twipu.",
+    "pikdo.", "picuki.", "imginn.", "dumpor.", "instastalk",
+    "gramhir.", "inflact.", "anon.ws", "storiesig.",
+    "whotwi.", "twitteraudit.", "tweettunnel.",
+    # Social media profiles (@ mentions in title = not a product)
+    "twitter profile", "twitter.com/", "t.co/",
 ]
 FASHION_DOMAINS = ["trendyol.", "hepsiburada.", "boyner.", "beymen.", "defacto.", "lcwaikiki.", "koton.", "flo.", "zara.com", "bershka.com", "pullandbear.com", "hm.com", "mango.com", "asos.com", "stradivarius.com", "massimodutti.com", "nike.com", "adidas.", "puma.com", "dolap.com", "gardrops.com", "morhipo.", "lidyana.", "n11.com", "amazon.", "network.", "derimod.", "ipekyol.", "vakko.", "tommy.", "lacoste.", "uniqlo.", "gap.com", "nordstrom.", "farfetch.", "ssense.", "zalando.", "aboutyou."]
 FASHION_KW = ["ceket", "kazak", "shirt", "dress", "ayakkabi", "sneaker", "shoe", "canta", "bag", "gozluk", "saat", "giyim", "fashion", "jacket", "hoodie", "sweatshirt", "jeans", "pantolon", "elbise", "bot", "mont", "kaban", "sapka", "hat", "watch", "clothing", "wear", "kolye", "kemer", "fiyat", "satin al", "urun", "modelleri"]
@@ -288,6 +296,8 @@ NON_CLOTHING_PRODUCTS = [
     "interview", "röportaj", "entrevista", "haber", "news", "noticia",
     "oyuncu", "şarkıcı", "singer", "manken",
     "instagram", "tiktok", "youtube", "influencer",
+    # v42: Social media profiles
+    "twitter profile", "twstalker", "sotwe", "@grimaldi", "profile |",
 ]
 
 # v42: Dropshipping / scam / spam site patterns
@@ -325,6 +335,9 @@ def has_foreign_clothing_word(title):
 def is_non_clothing_product(title):
     """Ürün başlığı moda-dışı bir ürün mü? (bardak, telefon, mutfak vs.)"""
     tl = title.lower()
+    # Social media profile detection: "@username" in title = not a product
+    if re.search(r'@\w{2,}', title):
+        return True
     return any(ncp in tl for ncp in NON_CLOTHING_PRODUCTS)
 
 def is_fashion(link, title, src):
