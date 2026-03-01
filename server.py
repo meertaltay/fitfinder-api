@@ -4012,14 +4012,6 @@ img.rcard-avatar{border:1px solid var(--border)}
     </div>
 
     <div style="padding:20px">
-      <!-- CTA: Kamera Portalı -->
-      <div onclick="openCamera()" style="padding:20px;border-radius:20px;background:linear-gradient(135deg,rgba(255,32,121,.12),rgba(77,0,255,.12));border:1px solid rgba(255,32,121,.25);cursor:pointer;display:flex;align-items:center;gap:16px;margin-bottom:24px;transition:transform .2s">
-        <div style="width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 4px 16px rgba(255,32,121,.4);flex-shrink:0">📸</div>
-        <div style="flex:1">
-          <div style="font-size:16px;font-weight:800;color:#fff">AI Stil Portalı</div>
-          <div style="font-size:12px;color:var(--cyan);margin-top:4px;font-weight:600">Kombini bul veya stiline puan al →</div>
-        </div>
-      </div>
 
       <!-- 🏆 90+ Kulübü (Hall of Fame) -->
       <div style="margin-bottom:28px">
