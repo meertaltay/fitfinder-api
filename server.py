@@ -4238,7 +4238,7 @@ img.rcard-avatar{border:1px solid var(--border)}
   <div class="podyum-screen" id="podyumScreen">
     <div class="podyum-header">
       <div onclick="closePodyum()" style="cursor:pointer;color:var(--muted);font-size:14px;font-weight:600">← Geri</div>
-      <div style="font-size:22px;font-weight:900;letter-spacing:1px" class="text-gradient">Stil Vitrini</div>
+      <div style="font-size:22px;font-weight:900;letter-spacing:1px" class="text-gradient">fitchy. podyum</div>
       <div id="podyumCount" style="font-size:11px;font-weight:700;color:var(--cyan);background:rgba(0,229,255,.1);padding:4px 10px;border-radius:10px"></div>
     </div>
     <div class="podyum-stack" id="podyumStack">
@@ -4250,11 +4250,11 @@ img.rcard-avatar{border:1px solid var(--border)}
       </div>
     </div>
     <div class="podyum-btns" id="podyumBtns" style="display:none">
-      <button class="podyum-btn nope" onclick="podyumSwipe('down')">
+      <button class="podyum-btn nope" onclick="podyumSwipe('left')">
         <span class="btn-icon">🌬️</span>
         <span class="btn-lbl">PAS</span>
       </button>
-      <button class="podyum-btn like" onclick="podyumSwipe('up')">
+      <button class="podyum-btn like" onclick="podyumSwipe('right')">
         <span class="btn-icon">✨</span>
         <span class="btn-lbl">İLHAM</span>
       </button>
@@ -5903,7 +5903,7 @@ function loadPodyumCards(){
   var emptyEl=document.getElementById('podyumEmpty');
   if(emptyEl){emptyEl.style.display='none';emptyEl.remove();}
   document.getElementById('podyumBtns').style.display='none';
-  stack.innerHTML='<div style="text-align:center"><div class="loader-orb" style="width:48px;height:48px;margin:0 auto 16px"></div><div style="color:var(--muted);font-size:14px;font-weight:600">Stil Vitrini hazırlanıyor...</div></div>';
+  stack.innerHTML='<div style="text-align:center"><div class="loader-orb" style="width:48px;height:48px;margin:0 auto 16px"></div><div style="color:var(--muted);font-size:14px;font-weight:600">fitchy. podyum hazırlanıyor...</div></div>';
   if(emptyEl)stack.appendChild(emptyEl);
 
   fetch('/api/podyum-next?session='+_podyumSession+'&count=10').then(function(r){return r.json()}).then(function(d){
