@@ -2819,6 +2819,78 @@ async def fit_check(request: Request):
     except Exception as e:
         return {"success": False, "message": str(e), "score": 50, "emoji": "🤔", "roast": "Fotoğrafı analiz edemedim ama eminim harika görünüyorsundur bestie! 💅", "tips": []}
 
+# ─── 90+ CLUB: HALL OF FAME ───
+HALL_OF_FAME = []  # {id, score, emoji, roast, image_b64_thumb, ts, nickname}
+HOF_MAX = 50  # Max entries to keep
+
+@app.post("/api/hof-submit")
+async def hof_submit(request: Request):
+    """User opts in to share their 90+ fit-check result to Hall of Fame."""
+    try:
+        body = await request.json()
+        score = body.get("score", 0)
+        if score < 90:
+            return {"success": False, "message": "Minimum 90 puan gerekli"}
+
+        image_data = body.get("image", "")
+        if not image_data:
+            return {"success": False, "message": "No image"}
+
+        # Create small thumbnail (save memory)
+        if "," in image_data:
+            raw = image_data.split(",", 1)[1]
+        else:
+            raw = image_data
+        try:
+            img = Image.open(io.BytesIO(base64.b64decode(raw))).convert("RGB")
+            img.thumbnail((300, 400))
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=70)
+            thumb_b64 = base64.b64encode(buf.getvalue()).decode()
+        except:
+            thumb_b64 = raw[:50000]  # Fallback: truncate
+
+        entry = {
+            "id": uuid.uuid4().hex[:8],
+            "score": score,
+            "emoji": body.get("emoji", "🔥"),
+            "roast": (body.get("roast", "")[:120] + "...") if len(body.get("roast", "")) > 120 else body.get("roast", ""),
+            "image": thumb_b64,
+            "ts": time.time(),
+            "nickname": body.get("nickname", "").strip()[:20] or "Anonim",
+        }
+        HALL_OF_FAME.insert(0, entry)
+        if len(HALL_OF_FAME) > HOF_MAX:
+            HALL_OF_FAME[:] = HALL_OF_FAME[:HOF_MAX]
+
+        print(f"🏆 HOF: {entry['nickname']} scored {score}")
+        return {"success": True, "id": entry["id"], "position": 1}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.get("/api/hof")
+async def hof_list(limit: int = 10):
+    """Get Hall of Fame entries for home screen carousel."""
+    entries = []
+    for e in HALL_OF_FAME[:limit]:
+        entries.append({
+            "id": e["id"],
+            "score": e["score"],
+            "emoji": e["emoji"],
+            "roast": e["roast"],
+            "image": e["image"],
+            "nickname": e["nickname"],
+            "ago": _time_ago(e["ts"]),
+        })
+    return {"success": True, "entries": entries}
+
+def _time_ago(ts):
+    diff = time.time() - ts
+    if diff < 60: return "az önce"
+    if diff < 3600: return f"{int(diff/60)}dk önce"
+    if diff < 86400: return f"{int(diff/3600)}sa önce"
+    return f"{int(diff/86400)}g önce"
+
 # ─── VIRTUAL TRY-ON (Sanal Kabin) ───
 VTON_STORE = {}
 
@@ -2942,6 +3014,8 @@ body::after{content:"";position:fixed;bottom:-10%;right:-20%;width:70%;height:70
 ::-webkit-scrollbar{display:none}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes bounce{0%{transform:scale(0)}50%{transform:scale(1.3)}100%{transform:scale(1)}}
 .app{width:100%;max-width:440px;min-height:100vh;padding-bottom:120px;position:relative}
 .glass{background:var(--card);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:20px}
 .text-gradient{background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
@@ -3056,6 +3130,17 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .roast-text{font-size:15px;line-height:1.6;color:var(--text);margin:16px 0;padding:0 8px}
 .tip-card{padding:10px 14px;border-radius:12px;background:rgba(0,229,255,.06);border:1px solid rgba(0,229,255,.15);font-size:12px;color:var(--cyan);margin:8px 0;text-align:left}
 .share-fitcheck{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;font:700 13px 'Outfit',sans-serif;border:none;cursor:pointer;margin:12px 6px 0;box-shadow:0 4px 20px rgba(255,32,121,.3)}
+.hof-scroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}
+.hof-card{flex-shrink:0;width:140px;border-radius:18px;overflow:hidden;position:relative;scroll-snap-align:start;cursor:pointer;border:2px solid rgba(255,215,0,.3);background:rgba(25,15,45,.6);transition:all .2s}
+.hof-card:hover{border-color:rgba(255,215,0,.6);transform:translateY(-2px)}
+.hof-card .hof-img{width:140px;height:180px;overflow:hidden}
+.hof-card .hof-img img{width:100%;height:100%;object-fit:cover;display:block}
+.hof-card .hof-score{position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;font:900 14px 'Outfit',sans-serif;padding:3px 10px;border-radius:10px;letter-spacing:-.5px;box-shadow:0 2px 10px rgba(255,215,0,.4)}
+.hof-card .hof-info{padding:8px 10px}
+.hof-card .hof-name{font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hof-card .hof-time{font-size:9px;color:var(--muted);margin-top:2px}
+.hof-join{background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;border:none;padding:14px 28px;border-radius:16px;font:800 14px 'Outfit',sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px;justify-content:center;width:100%;margin-top:12px;box-shadow:0 4px 20px rgba(255,215,0,.3);transition:transform .2s}
+.hof-join:active{transform:scale(.97)}
 .vton-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:10px;background:linear-gradient(135deg,rgba(0,229,255,.15),rgba(77,0,255,.1));border:1px solid rgba(0,229,255,.25);color:var(--cyan);font:700 10px 'Outfit',sans-serif;cursor:pointer;margin-top:6px;transition:all .2s}
 .vton-btn:active{background:var(--cyan);color:#000}
 
@@ -3107,6 +3192,15 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
       <div style="font-size:18px;color:var(--accent)">→</div>
     </div>
     <input type="file" id="fitCheckInput" accept="image/*" capture="environment" style="display:none" onchange="handleFitCheck(event)">
+
+    <!-- 🏆 90+ CLUB: HALL OF FAME -->
+    <div id="hofSection" style="margin-top:20px;display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px"><span style="font-size:18px">🏆</span> <span id="hofTitle">90+ Kulübü</span></div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600;letter-spacing:1px;text-transform:uppercase" id="hofCount"></div>
+      </div>
+      <div class="hof-scroll" id="hofScroll"></div>
+    </div>
 
     <div id="trendingSection" style="margin-top:24px;padding-bottom:20px"></div>
   </div>
@@ -3194,6 +3288,7 @@ function applyLang(){
   document.getElementById('fitCheckTitle').textContent=t('fitCheck');
   document.getElementById('fitCheckSub').textContent=t('fitCheckSub');
   loadTrending();
+  loadHOF();
 }
 applyLang();
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}
@@ -3358,6 +3453,7 @@ function goHome(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
   document.querySelectorAll('.bnav-item')[0].classList.add('active');
   loadTrending();
+  loadHOF();
 }
 
 // ─── SCAN LOGIC ───
@@ -3679,26 +3775,37 @@ function handleFitCheck(e){
 function showFitCheckResult(d,imgData){
   var ra=document.getElementById('res');
   var score=d.score||50;var emoji=d.emoji||'🔥';
+  var roast=d.roast||'';
   // Score color + label
   var col,label;
-  if(score>=90){col='#00e5ff';label='LEGENDARY 👑';}
+  if(score>=90){col='#ffd700';label='LEGENDARY 👑';}
   else if(score>=80){col='#00e5ff';label='SLAY 💅';}
   else if(score>=70){col='var(--accent)';label='FIRE 🔥';}
   else if(score>=60){col='var(--accent)';label='DECENT ✨';}
   else if(score>=40){col='#ff9800';label='MID 😐';}
   else{col='#f44336';label='HELP 💀';}
+  var isLegendary=score>=90;
+  var borderCol=isLegendary?'#ffd700':col;
   var h='<div class="fitcheck-result" id="fitCheckResultCard">';
   // fitchy branding for screenshots
   h+='<div style="font-family:Outfit,sans-serif;font-size:16px;font-weight:800;margin-bottom:16px"><span class="text-gradient">fitchy.</span> <span style="color:var(--muted);font-weight:500;font-size:12px">fit-check</span></div>';
-  // Photo with glow border
-  h+='<div style="position:relative;display:inline-block"><img src="'+imgData+'" style="width:160px;height:220px;object-fit:cover;border-radius:24px;border:3px solid '+col+';box-shadow:0 0 40px '+col+'50,0 0 80px '+col+'20">';
+  // Photo with glow border (gold for 90+)
+  h+='<div style="position:relative;display:inline-block"><img src="'+imgData+'" style="width:160px;height:220px;object-fit:cover;border-radius:24px;border:3px solid '+borderCol+';box-shadow:0 0 40px '+borderCol+'50,0 0 80px '+borderCol+'20'+(isLegendary?',0 0 120px rgba(255,215,0,.15)':'')+'">';
   h+='<div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);font-size:36px;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))">'+emoji+'</div></div>';
   // Score display
-  h+='<div style="margin-top:24px"><div class="drip-score" style="color:'+col+';font-size:80px">'+score+'</div>';
+  h+='<div style="margin-top:24px"><div class="drip-score" style="color:'+col+';font-size:80px'+(isLegendary?';text-shadow:0 0 30px rgba(255,215,0,.4)':'')+'">'+score+'</div>';
   h+='<div class="drip-label" style="color:'+col+';letter-spacing:3px">'+label+'</div></div>';
-  h+='<div class="drip-bar"><div class="drip-bar-fill" style="width:0%;background:linear-gradient(90deg,'+col+',var(--purple))"></div></div>';
+  h+='<div class="drip-bar"><div class="drip-bar-fill" style="width:0%;background:linear-gradient(90deg,'+(isLegendary?'#ffd700,#ff8c00':col+',var(--purple)')+')"></div></div>';
+  // 90+ Club banner
+  if(isLegendary){
+    var isTr=CC_LANG[CC]==='tr';
+    h+='<div style="margin:16px 0;padding:14px 18px;border-radius:16px;background:linear-gradient(135deg,rgba(255,215,0,.12),rgba(255,140,0,.06));border:1px solid rgba(255,215,0,.3);text-align:center">';
+    h+='<div style="font-size:13px;font-weight:800;color:#ffd700">🏆 '+(isTr?'90+ Kulübü\'ne girdin!':'You made the 90+ Club!')+'</div>';
+    h+='<div style="font-size:11px;color:var(--muted);margin-top:4px">'+(isTr?'Kombinini ana ekranda sergileyebilirsin':'Feature your fit on the home screen')+'</div>';
+    h+='</div>';
+  }
   // Roast text
-  if(d.roast)h+='<div class="roast-text" style="font-size:16px;line-height:1.7;padding:4px 12px">'+d.roast+'</div>';
+  if(roast)h+='<div class="roast-text" style="font-size:16px;line-height:1.7;padding:4px 12px">'+roast+'</div>';
   // Tips
   if(d.tips&&d.tips.length){
     h+='<div style="margin-top:16px;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px">'+t('fitCheckTips')+'</div>';
@@ -3706,12 +3813,17 @@ function showFitCheckResult(d,imgData){
   }
   // Buttons
   h+='<div style="margin-top:20px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">';
+  if(isLegendary){
+    h+='<button class="hof-join" onclick="promptHofJoin('+score+',\''+emoji.replace(/'/g,"\\'")+'\',\''+roast.replace(/'/g,"\\'").replace(/\n/g,' ').substring(0,100)+'\',_hofResultImg)" style="width:auto;padding:12px 24px">🏆 '+(CC_LANG[CC]==='tr'?'Vitrine Çık!':'Join the Club!')+'</button>';
+  }
   h+='<button class="share-fitcheck" onclick="shareFitCheck('+score+')">📸 '+t('fitCheckShare')+'</button>';
   h+='<button class="share-fitcheck" style="background:rgba(255,255,255,.06);box-shadow:none;border:1px solid var(--border)" onclick="startFitCheck()">🔄 '+t('fitCheckAnother')+'</button>';
   h+='</div>';
   h+='<button class="btn-main" onclick="goHome()" style="margin-top:16px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:#fff">'+t('back')+'</button>';
   h+='</div>';
   ra.innerHTML=h;
+  // Store image for HOF submission
+  window._hofResultImg=imgData;
   // Animate the bar fill with delay
   setTimeout(function(){var bar=document.querySelector('.drip-bar-fill');if(bar)bar.style.width=score+'%'},200);
 }
@@ -3722,6 +3834,100 @@ function shareFitCheck(score){
     emoji+' fitchy. gave me '+score+'/100 on my Drip Score!\n\nGet your outfit roasted → fitchy.app');
   if(navigator.share){navigator.share({title:'fitchy. Fit-Check '+emoji,text:text}).catch(function(){})}
   else{navigator.clipboard.writeText(text).then(function(){alert('Copied! 📋')}).catch(function(){})}
+}
+
+// ─── 🏆 90+ CLUB: HALL OF FAME ───
+var _hofImgData=null;
+function loadHOF(){
+  fetch('/api/hof?limit=15').then(function(r){return r.json()}).then(function(d){
+    var sec=document.getElementById('hofSection');
+    if(!d.success||!d.entries||!d.entries.length){sec.style.display='none';return}
+    sec.style.display='block';
+    var isTr=CC_LANG[CC]==='tr';
+    document.getElementById('hofTitle').textContent=isTr?'🏆 90+ Kulübü — Günün Kombinleri':'🏆 90+ Club — Today\'s Fits';
+    document.getElementById('hofCount').textContent=d.entries.length+(isTr?' kişi':' fits');
+    var h='';
+    for(var i=0;i<d.entries.length;i++){var e=d.entries[i];
+      h+='<div class="hof-card" onclick="showHofDetail('+i+')">';
+      h+='<div class="hof-img"><img src="data:image/jpeg;base64,'+e.image+'" onerror="this.parentElement.innerHTML=\'<div style=padding:40px;text-align:center;font-size:28px>👑</div>\'"></div>';
+      h+='<div class="hof-score">'+e.emoji+' '+e.score+'</div>';
+      h+='<div class="hof-info"><div class="hof-name">'+e.nickname+'</div><div class="hof-time">'+e.ago+'</div></div>';
+      h+='</div>';
+    }
+    document.getElementById('hofScroll').innerHTML=h;
+    // Store for detail view
+    window._hofData=d.entries;
+  }).catch(function(){})
+}
+
+function showHofDetail(idx){
+  var e=window._hofData[idx];if(!e)return;
+  var isTr=CC_LANG[CC]==='tr';
+  var col=e.score>=95?'#ffd700':e.score>=90?'#00e5ff':'var(--accent)';
+  // Show in result area
+  document.getElementById('home').style.display='none';
+  document.getElementById('rScreen').style.display='block';
+  var ra=document.getElementById('res');ra.style.display='block';
+  var h='<div class="fitcheck-result">';
+  h+='<div style="font-family:Outfit,sans-serif;font-size:14px;font-weight:800;margin-bottom:12px"><span style="background:linear-gradient(135deg,#ffd700,#ff8c00);-webkit-background-clip:text;-webkit-text-fill-color:transparent">🏆 90+ Club</span></div>';
+  h+='<div style="position:relative;display:inline-block"><img src="data:image/jpeg;base64,'+e.image+'" style="width:180px;height:240px;object-fit:cover;border-radius:24px;border:3px solid '+col+';box-shadow:0 0 40px '+col+'50">';
+  h+='<div style="position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);font-size:28px">'+e.emoji+'</div></div>';
+  h+='<div style="margin-top:16px;font-size:16px;font-weight:800;color:var(--text)">'+e.nickname+'</div>';
+  h+='<div class="drip-score" style="color:'+col+';font-size:64px;margin-top:8px">'+e.score+'</div>';
+  h+='<div class="drip-label" style="color:'+col+'">LEGENDARY 👑</div>';
+  if(e.roast)h+='<div class="roast-text" style="font-size:14px;margin:16px 0">'+e.roast+'</div>';
+  h+='<div style="margin-top:16px;display:flex;gap:8px;justify-content:center">';
+  h+='<button class="share-fitcheck" onclick="startFitCheck()">🔥 '+(isTr?'Ben de Denerim':'Try It Too')+'</button>';
+  h+='</div>';
+  h+='<button class="btn-main" onclick="goHome()" style="margin-top:16px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:#fff">'+t('back')+'</button>';
+  h+='</div>';
+  ra.innerHTML=h;
+}
+
+function promptHofJoin(score,emoji,roast,imgData){
+  _hofImgData=imgData;
+  var isTr=CC_LANG[CC]==='tr';
+  var modal=document.createElement('div');
+  modal.id='hofModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:1100;background:rgba(5,2,10,.92);backdrop-filter:blur(30px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;animation:fadeIn .3s ease';
+  var h='<div style="text-align:center;max-width:340px;width:100%">';
+  // Confetti emoji
+  h+='<div style="font-size:56px;margin-bottom:12px;animation:bounce 0.6s ease">🎉</div>';
+  h+='<div style="font-size:22px;font-weight:900;background:linear-gradient(135deg,#ffd700,#ff8c00);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px">'+(isTr?'EFSANEVİ!':'LEGENDARY!')+'</div>';
+  h+='<div style="font-size:14px;color:var(--text);margin-bottom:4px;font-weight:700">'+emoji+' '+score+'/100</div>';
+  h+='<div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5">'+(isTr?'İlk %1\'lik dilimdesin! Kombinini <b style="color:#ffd700">90+ Kulübü</b> vitrininde sergileyelim mi?':'You\'re in the top 1%! Want to feature your fit in the <b style="color:#ffd700">90+ Club</b>?')+'</div>';
+  h+='<input id="hofNickname" placeholder="'+(isTr?'İsmin veya @kullanıcı adın':'Your name or @handle')+'" style="width:100%;padding:14px 16px;border-radius:14px;border:1px solid rgba(255,215,0,.3);background:rgba(255,255,255,.05);color:var(--text);font:500 14px Outfit,sans-serif;text-align:center;margin-bottom:12px;outline:none" maxlength="20">';
+  h+='<button class="hof-join" onclick="submitToHof('+score+',\''+emoji.replace(/'/g,"\\'")+'\',\''+roast.replace(/'/g,"\\'").replace(/\n/g,' ').substring(0,100)+'\')">🏆 '+(isTr?'Vitrine Çık!':'Join the Club!')+'</button>';
+  h+='<div onclick="closeHofModal()" style="margin-top:14px;font-size:13px;color:var(--muted);cursor:pointer">'+(isTr?'Hayır, alçakgönüllü kalacağım 😌':'No thanks, I\'ll stay humble 😌')+'</div>';
+  h+='</div>';
+  modal.innerHTML=h;
+  document.body.appendChild(modal);
+  document.getElementById('hofNickname').focus();
+}
+
+function closeHofModal(){
+  var m=document.getElementById('hofModal');if(m)m.remove();
+}
+
+function submitToHof(score,emoji,roast){
+  var nick=document.getElementById('hofNickname').value.trim()||'Anonim';
+  var btn=document.querySelector('.hof-join');
+  if(btn){btn.textContent='⏳...';btn.disabled=true;}
+  fetch('/api/hof-submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    score:score,emoji:emoji,roast:roast,image:_hofImgData,nickname:nick
+  })}).then(function(r){return r.json()}).then(function(d){
+    closeHofModal();
+    if(d.success){
+      var isTr=CC_LANG[CC]==='tr';
+      // Quick toast
+      var toast=document.createElement('div');
+      toast.style.cssText='position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#ffd700,#ff8c00);color:#000;padding:12px 24px;border-radius:16px;font:700 14px Outfit,sans-serif;z-index:1200;box-shadow:0 4px 20px rgba(255,215,0,.4);animation:fadeIn .3s ease';
+      toast.textContent='🏆 '+(isTr?'Vitrine eklendi!':'Added to the Club!');
+      document.body.appendChild(toast);
+      setTimeout(function(){toast.remove()},2500);
+      loadHOF(); // Refresh
+    }
+  }).catch(function(){closeHofModal()});
 }
 
 // ─── VIRTUAL TRY-ON (Sanal Kabin) ───
