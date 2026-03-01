@@ -3303,39 +3303,64 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
 .link-area:active{border-color:var(--accent)}
 
 /* Social Profile */
-.profile-header{text-align:center;padding:16px 0 20px}
-.profile-avatar{width:88px;height:88px;border-radius:50%;border:3px solid var(--accent);box-shadow:0 0 30px rgba(255,32,121,.3);margin:0 auto 14px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(255,32,121,.15),rgba(77,0,255,.15));font-size:38px;cursor:pointer;position:relative;overflow:hidden}
-.profile-avatar img{width:100%;height:100%;object-fit:cover}
-.profile-name{font-size:20px;font-weight:800;letter-spacing:-.3px}
-.profile-handle{font-size:13px;color:var(--cyan);font-weight:600;margin-top:2px}
-.profile-bio{font-size:12px;color:var(--muted);margin-top:8px;max-width:260px;margin-left:auto;margin-right:auto;line-height:1.4}
-.profile-stats{display:flex;justify-content:center;gap:28px;margin-top:16px}
-.profile-stat{text-align:center}
-.profile-stat .num{font-size:18px;font-weight:800}
-.profile-stat .lbl{font-size:10px;color:var(--muted);font-weight:600;margin-top:2px}
-.profile-actions{display:flex;gap:10px;justify-content:center;margin-top:16px}
-.profile-btn{padding:10px 20px;border-radius:14px;font:700 12px 'Outfit',sans-serif;cursor:pointer;border:none;letter-spacing:.3px;transition:all .2s}
-.profile-btn.primary{background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;box-shadow:0 4px 20px rgba(255,32,121,.3)}
-.profile-btn.secondary{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border)}
-.folder-tabs{display:flex;gap:8px;padding:0 4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-top:20px;padding-bottom:4px}
+.profile-header{display:flex;flex-direction:column;align-items:center;padding:24px 20px 0}
+.avatar-wrap{position:relative;width:90px;height:90px;margin-bottom:14px;border-radius:50%;padding:3px;background:linear-gradient(135deg,var(--accent),var(--purple));box-shadow:0 0 30px rgba(255,32,121,.3);cursor:pointer}
+.avatar-wrap .avatar{width:100%;height:100%;border-radius:50%;object-fit:cover;border:3px solid var(--bg);background:#1a1a2e}
+.avatar-wrap.has-story{padding:4px;background:conic-gradient(#ffbe0b,var(--accent),var(--purple),var(--cyan),#ffbe0b);box-shadow:0 0 20px rgba(255,190,11,.4),0 0 40px rgba(255,32,121,.2);animation:storyRingSpin 3s linear infinite}
+@keyframes storyRingSpin{from{filter:hue-rotate(0deg)}to{filter:hue-rotate(360deg)}}
+.avatar-wrap.story-seen{animation:none;background:conic-gradient(var(--muted),rgba(139,133,158,.5),var(--muted));box-shadow:none}
+.profile-name{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#fff}
+.profile-handle{font-size:14px;color:var(--cyan);font-weight:600;margin-top:2px}
+.profile-bio{font-size:12px;color:var(--muted);margin-top:8px;max-width:260px;text-align:center;line-height:1.4}
+.profile-stats{display:flex;justify-content:space-evenly;width:100%;margin:20px 0}
+.profile-stat{display:flex;flex-direction:column;align-items:center}
+.profile-stat .num{font-size:20px;font-weight:800;color:#fff}
+.profile-stat .lbl{font-size:11px;color:var(--muted);font-weight:600;margin-top:4px}
+.profile-stat.hof-stat .num{color:#ffbe0b;text-shadow:0 0 15px rgba(255,190,11,.5);font-size:22px}
+.profile-stat.hof-stat .lbl{color:#ffbe0b}
+.profile-actions{display:flex;gap:12px;width:100%;padding:0 20px}
+.profile-btn{flex:1;border:none;border-radius:14px;padding:12px;font:700 14px 'Outfit',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;transition:transform .2s}
+.profile-btn:active{transform:scale(.97)}
+.profile-btn.primary{background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;box-shadow:0 4px 15px rgba(255,32,121,.3)}
+.profile-btn.secondary{background:rgba(255,255,255,.05);color:#fff;border:1px solid var(--border);backdrop-filter:blur(10px)}
+.folder-tabs{display:flex;gap:10px;overflow-x:auto;padding:24px 20px 16px;scrollbar-width:none}
 .folder-tabs::-webkit-scrollbar{display:none}
-.folder-tab{white-space:nowrap;padding:8px 16px;border-radius:12px;font:600 12px 'Outfit',sans-serif;cursor:pointer;background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);transition:all .2s;flex-shrink:0}
-.folder-tab.active{background:linear-gradient(135deg,rgba(255,32,121,.15),rgba(77,0,255,.1));border-color:rgba(255,32,121,.4);color:var(--accent)}
-.folder-tab .cnt{font-size:10px;opacity:.6;margin-left:4px}
-.item-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
-.item-card{border-radius:16px;overflow:hidden;position:relative;background:var(--card);border:1px solid var(--border);transition:border-color .2s}
-.item-card img{width:100%;height:160px;object-fit:cover;border-bottom:1px solid var(--border)}
-.item-card .info{padding:10px}
-.item-card .title{font-size:11px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px}
-.item-card .brand{font-size:10px;color:var(--cyan)}
-.item-card .price{font-weight:800;font-size:14px;margin-top:6px}
-.item-badge{position:absolute;top:8px;left:8px;display:flex;gap:4px}
-.item-badge span{padding:3px 8px;border-radius:8px;font-size:9px;font-weight:700;backdrop-filter:blur(8px)}
-.lock-badge{background:rgba(0,0,0,.7);color:var(--muted)}
-.refitch-badge{background:rgba(255,32,121,.8);color:#fff}
-.refitch-btn{position:absolute;bottom:60px;right:8px;background:rgba(0,0,0,.8);border:1px solid rgba(255,32,121,.3);color:var(--accent);padding:6px 10px;border-radius:10px;font:700 10px 'Outfit',sans-serif;cursor:pointer;backdrop-filter:blur(4px);display:flex;align-items:center;gap:4px;transition:all .2s}
-.refitch-btn:active{background:var(--accent);color:#fff}
-.vis-toggle{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);padding:6px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;backdrop-filter:blur(4px)}
+.folder-tab{padding:10px 18px;border-radius:20px;background:rgba(0,0,0,.4);border:1px solid var(--border);color:var(--muted);font:600 13px 'Outfit',sans-serif;white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s;flex-shrink:0}
+.folder-tab.active{background:rgba(255,32,121,.15);border-color:var(--accent);color:var(--text);box-shadow:0 0 10px rgba(255,32,121,.1)}
+.folder-tab.hof-tab{border-color:rgba(255,190,11,.3);color:#ffbe0b;background:rgba(255,190,11,.05)}
+.folder-tab.hof-tab.active{background:rgba(255,190,11,.15);border-color:#ffbe0b;box-shadow:0 0 15px rgba(255,190,11,.2);color:#ffbe0b}
+.folder-tab .cnt{opacity:.6;font-size:11px;margin-left:2px}
+.item-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 20px}
+.item-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;position:relative;animation:fadeUp .3s ease forwards}
+.item-card .card-img-wrap{position:relative;width:100%;aspect-ratio:4/5}
+.item-card .card-img-wrap img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover}
+.item-card .card-img-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.8) 0%,transparent 50%);pointer-events:none}
+.item-card .badge-tl{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);padding:5px 8px;border-radius:8px;font-size:10px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:4px;border:1px solid rgba(255,255,255,.1)}
+.item-card .badge-tl.hof-badge{color:#000;background:linear-gradient(135deg,#ffbe0b,#fb5607);border:none;box-shadow:0 2px 10px rgba(255,190,11,.4)}
+.item-card .badge-tr{position:absolute;top:10px;right:10px;display:flex;gap:6px}
+.item-card .circle-btn{width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);border:1px solid rgba(255,255,255,.1);cursor:pointer}
+.item-card .circle-btn.heart-active{color:var(--accent)}
+.item-card .refitch-float{position:absolute;bottom:10px;right:10px;background:rgba(10,5,20,.85);backdrop-filter:blur(8px);border:1px solid rgba(255,32,121,.4);color:var(--accent);font-size:10px;font-weight:800;padding:6px 10px;border-radius:10px;display:flex;align-items:center;gap:4px;cursor:pointer;transition:.2s}
+.item-card .refitch-float:active{background:var(--accent);color:#fff}
+.item-card .card-info{padding:12px;background:rgba(10,5,20,.4);border-top:1px solid var(--border)}
+.item-card .card-title{font-size:13px;font-weight:700;color:#fff;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px}
+.item-card .card-brand{font-size:11px;color:var(--cyan);font-weight:600;display:flex;align-items:center;gap:4px}
+.story-modal{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.95);flex-direction:column;align-items:center;justify-content:center}
+.story-modal.open{display:flex}
+.story-modal .story-header{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:16px 20px;z-index:201}
+.story-modal .story-progress{flex:1;height:3px;background:rgba(255,255,255,.2);border-radius:3px;overflow:hidden}
+.story-modal .story-progress-fill{height:100%;background:#fff;border-radius:3px;animation:storyProgress 5s linear forwards}
+@keyframes storyProgress{from{width:0%}to{width:100%}}
+.story-modal .story-close{color:#fff;font-size:24px;cursor:pointer;position:absolute;top:16px;right:20px;z-index:202}
+.story-modal .story-user{display:flex;align-items:center;gap:10px;position:absolute;top:30px;left:20px;z-index:202}
+.story-modal .story-user img{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #ffbe0b}
+.story-modal .story-user-info .story-name{font-size:14px;font-weight:700;color:#fff}
+.story-modal .story-user-info .story-time{font-size:11px;color:var(--muted)}
+.story-modal .story-content{width:100%;max-width:440px;aspect-ratio:9/16;position:relative;border-radius:16px;overflow:hidden}
+.story-modal .story-content img{width:100%;height:100%;object-fit:cover}
+.story-modal .story-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 30%,transparent 70%,rgba(0,0,0,.5) 100%)}
+.story-modal .story-badge{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#ffbe0b,#fb5607);color:#000;font-size:14px;font-weight:800;padding:10px 20px;border-radius:14px;display:flex;align-items:center;gap:6px;box-shadow:0 4px 20px rgba(255,190,11,.5);white-space:nowrap}
+.story-modal .story-caption{position:absolute;bottom:20px;left:20px;right:20px;text-align:center;color:#fff;font-size:13px;font-weight:600}
 
 /* Fit-Check Score */
 .fitcheck-result{text-align:center;padding:24px 0}
@@ -3486,7 +3511,7 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
   <div class="bnav">
     <div class="bnav-item active" onclick="goHome()"><div class="icon">✧</div><div id="navHome" class="lbl"></div></div>
     <div class="bnav-item" onclick="openArena()"><div class="icon">🏟️</div><div class="lbl">Arena</div></div>
-    <div class="bnav-item" onclick="showFavs()"><div class="icon">♡</div><div id="navFav" class="lbl"></div></div>
+    <div class="bnav-item" onclick="showFavs()"><div class="icon">👤</div><div id="navFav" class="lbl"></div></div>
   </div>
 
   <!-- 🏟️ KOMBİN ARENA -->
@@ -3512,13 +3537,21 @@ input[type="text"]:focus{border-color:var(--cyan);box-shadow:0 0 15px rgba(0,229
   </div>
 </div>
 
+<!-- 📖 PROFILE STORY MODAL -->
+<div class="story-modal" id="storyModal">
+  <div class="story-header" id="storyHeader"></div>
+  <div class="story-close" onclick="closeProfileStory()">✕</div>
+  <div class="story-user" id="storyUser"></div>
+  <div class="story-content" id="storyContent" onclick="showStoryAt(_storyIdx+1)"></div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 <script>
 var IC={hat:"\uD83E\uDDE2",sunglasses:"\uD83D\uDD76\uFE0F",top:"\uD83D\uDC55",jacket:"\uD83E\uDDE5",bag:"\uD83D\uDC5C",accessory:"\uD83D\uDC8D",watch:"\u231A",bottom:"\uD83D\uDC56",dress:"\uD83D\uDC57",shoes:"\uD83D\uDC5F",scarf:"\uD83E\uDDE3"};
 var cF=null,cPrev=null,cropper=null,CC='us';
 var L={
-  tr:{heroTitle:'G\u00f6rseldeki kombini<br><span class="text-gradient">birebir</span> bul.',heroSub:'Instagram\'da, TikTok\'ta veya sokakta be\u011fendi\u011fin o kombini an\u0131nda bul.<br>Ekran g\u00f6r\u00fcnt\u00fcs\u00fcn\u00fc y\u00fckle, gerisini fitchy\'ye b\u0131rak.',upload:'\u2728 Kombini Tarat',auto:'\u2728 Ak\u0131ll\u0131 Tarama (\u00d6nerilen)',manual:'\u2702\uFE0F Sadece Bir Par\u00e7a Se\u00e7',trustBadge:'\uD83D\uDD0D ZARA, NIKE, TRENDYOL ve 500+ markada aran\u0131yor...',trendTitle:'\uD83D\uDD25 \u015eu An Trend Olanlar',back:'\u2190 Geri',cropHint:'\uD83D\uDC47 Aramak istedi\u011fin par\u00e7ay\u0131 \u00e7er\u00e7evele',manualPh:'Ne ar\u0131yorsun? (Opsiyonel)',find:'\uD83D\uDD0D Par\u00e7ay\u0131 Bul',cancel:'\u0130ptal',loading:'Siber a\u011fa ba\u011flan\u0131l\u0131yor...',loadingManual:'AI e\u015fle\u015ftiriyor...',noResult:'Par\u00e7a tespit edilemedi.',noProd:'Bu par\u00e7a i\u00e7in e\u015fle\u015fme bulunamad\u0131.',retry:'\u2702\uFE0F Manuel Se\u00e7imi Dene',another:'\u2702\uFE0F Ba\u015fka Par\u00e7a Se\u00e7',selected:'Se\u00e7imin',lensMatch:'g\u00f6rsel e\u015fle\u015fme',recommended:'\u2728 \u00d6nerilen',lensLabel:'\uD83C\uDFAF AI E\u015fle\u015fmesi',goStore:'Sat\u0131n Al \u2197',noPrice:'Fiyat\u0131 G\u00f6r',alts:'\uD83D\uDCB8 Alternatifler \u2192',navHome:'Ke\u015ffet',navFav:'Dolap\u0131m',aiMatch:'AI Onayl\u0131',matchExact:'\u2705 Birebir E\u015fle\u015fme',matchClose:'\uD83D\uDD25 Y\u00fcksek Benzerlik',matchSimilar:'\u2728 Benzer \u00dcr\u00fcnler',step_detect:'K\u0131yafetler tespit ediliyor...',step_bg:'G\u00f6rsel haz\u0131rlan\u0131yor...',step_lens:'Ma\u011fazalar taran\u0131yor...',step_ai:'AI \u00fcr\u00fcnleri k\u0131yasl\u0131yor...',step_verify:'E\u015fle\u015fmeler do\u011frulan\u0131yor...',step_done:'Sonu\u00e7lar haz\u0131r!',piecesFound:'par\u00e7a bulundu',pickPiece:'Aramak istedi\u011fin par\u00e7aya dokun',searchingPiece:'\u00dcr\u00fcn aran\u0131yor...',backToPieces:'\u2190 Di\u011fer Par\u00e7alar',noDetect:'Par\u00e7a bulunamad\u0131. Manuel se\u00e7imi deneyin.',loadMore:'A\u011f\u0131 Geni\u015flet \u2193',loadingMore:'Taran\u0131yor...',linkPaste:'Link Yap\u0131\u015ft\u0131r & Tarat',linkGo:'Tarat',linkLoading:'Link taran\u0131yor...',comboBtn:'\u2728 Bunu Neyle Giyerim?',comboLoading:'AI kombin \u00f6nerisi haz\u0131rl\u0131yor...',comboTitle:'\uD83D\uDC57 AI Kombin \u00d6nerisi',verified:'Resmi Ma\u011faza',sponsored:'Sponsorlu Muadil',fitCheck:'\uD83D\uDD25 AI Fit-Check',fitCheckSub:'Kombinin ka\u00e7 puan? AI yargilat!',fitCheckLoading:'AI stilist inceliyor...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 \u00d6neriler',fitCheckShare:'Sonucu Payla\u015f',fitCheckAnother:'Ba\u015fka Kombin Dene',vtonBtn:'\u2728 \u00dczerimde G\u00f6r',vtonSaveBody:'Tam boy foto\u011fraf\u0131n\u0131 y\u00fckle',vtonLoading:'Sanal kabin haz\u0131rlan\u0131yor...',vtonResult:'AI Fit Analizi',vtonNoBody:'\u00d6nce foto\u011fraf\u0131n\u0131 y\u00fckle'},
-  en:{heroTitle:'Find the outfit<br>in the photo, <span class="text-gradient">exactly</span>.',heroSub:'Spot a fire outfit on Instagram, TikTok or IRL?<br>Screenshot it, let fitchy find every piece.',upload:'\u2728 Scan Outfit',auto:'\u2728 Auto Scan (Recommended)',manual:'\u2702\uFE0F Select Manually',trustBadge:'\uD83D\uDD0D Searching ZARA, NIKE, H&M and 500+ brands...',trendTitle:'\uD83D\uDD25 Trending Now',back:'\u2190 Back',cropHint:'\uD83D\uDC47 Frame the piece you want to search',manualPh:'What are you looking for?',find:'\uD83D\uDD0D Find Piece',cancel:'Cancel',loading:'Analyzing image...',loadingManual:'AI matching...',noResult:'No pieces detected.',noProd:'No exact match found.',retry:'\u2702\uFE0F Try Manual Selection',another:'\u2702\uFE0F Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u2728 Recommended',lensLabel:'\uD83C\uDFAF AI Match',goStore:'Shop \u2197',noPrice:'Check Price',alts:'\uD83D\uDCB8 Alternatives \u2192',navHome:'Explore',navFav:'Closet',aiMatch:'AI Verified',matchExact:'\u2705 Exact Match',matchClose:'\uD83D\uDD25 Close Match',matchSimilar:'\u2728 Similar Items',step_detect:'Detecting garments...',step_lens:'Scanning global stores...',step_match:'Matching products...',step_done:'Ready!',step_bg:'Preparing image...',step_search:'Scanning...',step_ai:'AI comparing details...',step_verify:'Verifying matches...',piecesFound:'pieces found',pickPiece:'Tap a piece to search',searchingPiece:'Searching...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces found. Try manual selection.',loadMore:'Expand Search \u2193',loadingMore:'Scanning...',linkPaste:'Paste Link & Scan',linkGo:'Scan',linkLoading:'Scanning link...',comboBtn:'\u2728 What Goes With This?',comboLoading:'AI building outfit...',comboTitle:'\uD83D\uDC57 AI Outfit Suggestion',verified:'Official Store',sponsored:'Sponsored Dupe',fitCheck:'\uD83D\uDD25 Fit-Check',fitCheckSub:'Rate your outfit!',fitCheckLoading:'AI stylist analyzing...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 Tips',fitCheckShare:'Share Result',fitCheckAnother:'Try Another Outfit',vtonBtn:'\u2728 Try On Me',vtonSaveBody:'Upload your full-body photo',vtonLoading:'Virtual fitting room loading...',vtonResult:'AI Fit Analysis',vtonNoBody:'Upload your photo first'}
+  tr:{heroTitle:'G\u00f6rseldeki kombini<br><span class="text-gradient">birebir</span> bul.',heroSub:'Instagram\'da, TikTok\'ta veya sokakta be\u011fendi\u011fin o kombini an\u0131nda bul.<br>Ekran g\u00f6r\u00fcnt\u00fcs\u00fcn\u00fc y\u00fckle, gerisini fitchy\'ye b\u0131rak.',upload:'\u2728 Kombini Tarat',auto:'\u2728 Ak\u0131ll\u0131 Tarama (\u00d6nerilen)',manual:'\u2702\uFE0F Sadece Bir Par\u00e7a Se\u00e7',trustBadge:'\uD83D\uDD0D ZARA, NIKE, TRENDYOL ve 500+ markada aran\u0131yor...',trendTitle:'\uD83D\uDD25 \u015eu An Trend Olanlar',back:'\u2190 Geri',cropHint:'\uD83D\uDC47 Aramak istedi\u011fin par\u00e7ay\u0131 \u00e7er\u00e7evele',manualPh:'Ne ar\u0131yorsun? (Opsiyonel)',find:'\uD83D\uDD0D Par\u00e7ay\u0131 Bul',cancel:'\u0130ptal',loading:'Siber a\u011fa ba\u011flan\u0131l\u0131yor...',loadingManual:'AI e\u015fle\u015ftiriyor...',noResult:'Par\u00e7a tespit edilemedi.',noProd:'Bu par\u00e7a i\u00e7in e\u015fle\u015fme bulunamad\u0131.',retry:'\u2702\uFE0F Manuel Se\u00e7imi Dene',another:'\u2702\uFE0F Ba\u015fka Par\u00e7a Se\u00e7',selected:'Se\u00e7imin',lensMatch:'g\u00f6rsel e\u015fle\u015fme',recommended:'\u2728 \u00d6nerilen',lensLabel:'\uD83C\uDFAF AI E\u015fle\u015fmesi',goStore:'Sat\u0131n Al \u2197',noPrice:'Fiyat\u0131 G\u00f6r',alts:'\uD83D\uDCB8 Alternatifler \u2192',navHome:'Ke\u015ffet',navFav:'Profil',aiMatch:'AI Onayl\u0131',matchExact:'\u2705 Birebir E\u015fle\u015fme',matchClose:'\uD83D\uDD25 Y\u00fcksek Benzerlik',matchSimilar:'\u2728 Benzer \u00dcr\u00fcnler',step_detect:'K\u0131yafetler tespit ediliyor...',step_bg:'G\u00f6rsel haz\u0131rlan\u0131yor...',step_lens:'Ma\u011fazalar taran\u0131yor...',step_ai:'AI \u00fcr\u00fcnleri k\u0131yasl\u0131yor...',step_verify:'E\u015fle\u015fmeler do\u011frulan\u0131yor...',step_done:'Sonu\u00e7lar haz\u0131r!',piecesFound:'par\u00e7a bulundu',pickPiece:'Aramak istedi\u011fin par\u00e7aya dokun',searchingPiece:'\u00dcr\u00fcn aran\u0131yor...',backToPieces:'\u2190 Di\u011fer Par\u00e7alar',noDetect:'Par\u00e7a bulunamad\u0131. Manuel se\u00e7imi deneyin.',loadMore:'A\u011f\u0131 Geni\u015flet \u2193',loadingMore:'Taran\u0131yor...',linkPaste:'Link Yap\u0131\u015ft\u0131r & Tarat',linkGo:'Tarat',linkLoading:'Link taran\u0131yor...',comboBtn:'\u2728 Bunu Neyle Giyerim?',comboLoading:'AI kombin \u00f6nerisi haz\u0131rl\u0131yor...',comboTitle:'\uD83D\uDC57 AI Kombin \u00d6nerisi',verified:'Resmi Ma\u011faza',sponsored:'Sponsorlu Muadil',fitCheck:'\uD83D\uDD25 AI Fit-Check',fitCheckSub:'Kombinin ka\u00e7 puan? AI yargilat!',fitCheckLoading:'AI stilist inceliyor...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 \u00d6neriler',fitCheckShare:'Sonucu Payla\u015f',fitCheckAnother:'Ba\u015fka Kombin Dene',vtonBtn:'\u2728 \u00dczerimde G\u00f6r',vtonSaveBody:'Tam boy foto\u011fraf\u0131n\u0131 y\u00fckle',vtonLoading:'Sanal kabin haz\u0131rlan\u0131yor...',vtonResult:'AI Fit Analizi',vtonNoBody:'\u00d6nce foto\u011fraf\u0131n\u0131 y\u00fckle'},
+  en:{heroTitle:'Find the outfit<br>in the photo, <span class="text-gradient">exactly</span>.',heroSub:'Spot a fire outfit on Instagram, TikTok or IRL?<br>Screenshot it, let fitchy find every piece.',upload:'\u2728 Scan Outfit',auto:'\u2728 Auto Scan (Recommended)',manual:'\u2702\uFE0F Select Manually',trustBadge:'\uD83D\uDD0D Searching ZARA, NIKE, H&M and 500+ brands...',trendTitle:'\uD83D\uDD25 Trending Now',back:'\u2190 Back',cropHint:'\uD83D\uDC47 Frame the piece you want to search',manualPh:'What are you looking for?',find:'\uD83D\uDD0D Find Piece',cancel:'Cancel',loading:'Analyzing image...',loadingManual:'AI matching...',noResult:'No pieces detected.',noProd:'No exact match found.',retry:'\u2702\uFE0F Try Manual Selection',another:'\u2702\uFE0F Select Another Piece',selected:'Your Selection',lensMatch:'visual match',recommended:'\u2728 Recommended',lensLabel:'\uD83C\uDFAF AI Match',goStore:'Shop \u2197',noPrice:'Check Price',alts:'\uD83D\uDCB8 Alternatives \u2192',navHome:'Explore',navFav:'Profile',aiMatch:'AI Verified',matchExact:'\u2705 Exact Match',matchClose:'\uD83D\uDD25 Close Match',matchSimilar:'\u2728 Similar Items',step_detect:'Detecting garments...',step_lens:'Scanning global stores...',step_match:'Matching products...',step_done:'Ready!',step_bg:'Preparing image...',step_search:'Scanning...',step_ai:'AI comparing details...',step_verify:'Verifying matches...',piecesFound:'pieces found',pickPiece:'Tap a piece to search',searchingPiece:'Searching...',backToPieces:'\u2190 Other Pieces',noDetect:'No pieces found. Try manual selection.',loadMore:'Expand Search \u2193',loadingMore:'Scanning...',linkPaste:'Paste Link & Scan',linkGo:'Scan',linkLoading:'Scanning link...',comboBtn:'\u2728 What Goes With This?',comboLoading:'AI building outfit...',comboTitle:'\uD83D\uDC57 AI Outfit Suggestion',verified:'Official Store',sponsored:'Sponsored Dupe',fitCheck:'\uD83D\uDD25 Fit-Check',fitCheckSub:'Rate your outfit!',fitCheckLoading:'AI stylist analyzing...',fitCheckScore:'Drip Score',fitCheckTips:'\uD83D\uDCA1 Tips',fitCheckShare:'Share Result',fitCheckAnother:'Try Another Outfit',vtonBtn:'\u2728 Try On Me',vtonSaveBody:'Upload your full-body photo',vtonLoading:'Virtual fitting room loading...',vtonResult:'AI Fit Analysis',vtonNoBody:'Upload your photo first'}
 };
 var CC_LANG={tr:'tr',us:'en',uk:'en',de:'en',fr:'en',sa:'en',ae:'en',eg:'en'};
 function t(key){var lg=CC_LANG[CC]||'en';return(L[lg]||L.en)[key]||(L.en)[key]||key}
@@ -3860,7 +3893,7 @@ function showFavs(){
   _initProfile();
   var isTr=CC_LANG[CC]==='tr';
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
-  document.querySelectorAll('.bnav-item')[1].classList.add('active');
+  document.querySelectorAll('.bnav-item')[2].classList.add('active');
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='block';
   var ab=document.getElementById('actionBtns');if(ab)ab.style.display='none';
@@ -3869,72 +3902,101 @@ function showFavs(){
   var pp=document.getElementById('piecePicker');if(pp)pp.style.display='none';
   var ra=document.getElementById('res');ra.style.display='block';
   var profile=_getProfile();var favs=_getFavs();var folders=_getFolders();
-  // Profile header
+  var totalRefitches=favs.reduce(function(s,f){return s+(f.refitches||0)},0);
+  // Count HOF items (items with score >= 90)
+  var hofCount=favs.filter(function(f){return f.hofScore&&f.hofScore>=90}).length;
+
+  // Profile header with avatar + story ring
   var h='<div class="profile-header">';
-  h+='<div class="profile-avatar" onclick="editProfile()">';
-  if(profile.avatar)h+='<img src="'+profile.avatar+'" onerror="this.style.display=\'none\'">';
-  else h+='<span style="font-size:36px">'+(profile.name?profile.name[0].toUpperCase():'👤')+'</span>';
+  var hasStory=hofCount>0;
+  h+='<div class="avatar-wrap'+(hasStory?' has-story':'')+'" onclick="'+(hasStory?'openProfileStory()':'editProfile()')+'">';
+  if(profile.avatar)h+='<img src="'+profile.avatar+'" class="avatar" onerror="this.src=\'data:image/svg+xml,<svg xmlns=http://www.w3.org/2000/svg viewBox=0 0 100 100><rect fill=%231a1a2e width=100 height=100/><text x=50 y=55 text-anchor=middle fill=white font-size=40>'+(profile.name?profile.name[0].toUpperCase():'👤')+'</text></svg>\'">';
+  else h+='<div class="avatar" style="display:flex;align-items:center;justify-content:center;font-size:36px;background:#1a1a2e">'+(profile.name?profile.name[0].toUpperCase():'👤')+'</div>';
   h+='</div>';
   h+='<div class="profile-name">'+(profile.name||(isTr?'Profilini Düzenle':'Edit Profile'))+'</div>';
   h+='<div class="profile-handle">'+(profile.handle||'@fitchy_user')+'</div>';
   if(profile.bio)h+='<div class="profile-bio">'+profile.bio+'</div>';
-  // Stats
-  var totalRefitches=favs.reduce(function(s,f){return s+(f.refitches||0)},0);
+
+  // Stats with HOF gold stat
   h+='<div class="profile-stats">';
   h+='<div class="profile-stat"><div class="num">'+favs.length+'</div><div class="lbl">'+(isTr?'Parça':'Pieces')+'</div></div>';
   h+='<div class="profile-stat"><div class="num">'+totalRefitches+'</div><div class="lbl">Re-fitch</div></div>';
-  h+='<div class="profile-stat"><div class="num">'+profile.followers+'</div><div class="lbl">'+(isTr?'Takipçi':'Followers')+'</div></div>';
+  h+='<div class="profile-stat"><div class="num">'+(profile.followers||0)+'</div><div class="lbl">'+(isTr?'Takipçi':'Followers')+'</div></div>';
+  h+='<div class="profile-stat hof-stat"><div class="num">'+hofCount+'</div><div class="lbl">🏆 H.O.F</div></div>';
   h+='</div>';
+
   // Action buttons
   h+='<div class="profile-actions">';
-  h+='<button class="profile-btn primary" onclick="shareProfile()">'+(isTr?'🔗 Profili Paylaş':'🔗 Share Profile')+'</button>';
-  h+='<button class="profile-btn secondary" onclick="editProfile()">'+(isTr?'✏️ Düzenle':'✏️ Edit')+'</button>';
+  h+='<button class="profile-btn primary" onclick="shareProfile()">🔗 '+(isTr?'Profili Paylaş':'Share Profile')+'</button>';
+  h+='<button class="profile-btn secondary" onclick="editProfile()">✏️ '+(isTr?'Düzenle':'Edit')+'</button>';
   h+='</div>';
   h+='</div>';
-  // Folder tabs
+
+  // Tabs with gold HOF tab
   h+='<div class="folder-tabs">';
+  h+='<div class="folder-tab'+(_activeFolder==='all'?' active':'')+'" onclick="_activeFolder=\'all\';showFavs()">✨ '+(isTr?'Tümü':'All')+'<span class="cnt">'+favs.length+'</span></div>';
+  h+='<div class="folder-tab hof-tab'+(_activeFolder==='hof'?' active':'')+'" onclick="_activeFolder=\'hof\';showFavs()">🏆 Hall of Fame<span class="cnt">'+hofCount+'</span></div>';
+  h+='<div class="folder-tab'+(_activeFolder==='fav'?' active':'')+'" onclick="_activeFolder=\'fav\';showFavs()">♡ '+(isTr?'Favoriler':'Favorites')+'<span class="cnt">'+favs.filter(function(f){return f.folder==='fav'||!f.folder}).length+'</span></div>';
   for(var fi=0;fi<folders.length;fi++){
     var fo=folders[fi];
-    var cnt=fo.id==='all'?favs.length:favs.filter(function(f){return f.folder===fo.id}).length;
-    h+='<div class="folder-tab'+(fo.id===_activeFolder?' active':'')+'" onclick="_activeFolder=\''+fo.id+'\';showFavs()">'+fo.icon+' '+fo.name+'<span class="cnt">'+cnt+'</span></div>';
+    if(fo.system)continue;
+    var cnt=favs.filter(function(f){return f.folder===fo.id}).length;
+    h+='<div class="folder-tab'+(_activeFolder===fo.id?' active':'')+'" onclick="_activeFolder=\''+fo.id+'\';showFavs()">'+fo.icon+' '+fo.name+'<span class="cnt">'+cnt+'</span></div>';
   }
   h+='<div class="folder-tab" onclick="addFolder()" style="border-style:dashed">+ '+(isTr?'Yeni':'New')+'</div>';
   h+='</div>';
-  // Filter items by folder
-  var filtered=_activeFolder==='all'?favs:favs.filter(function(f){return f.folder===_activeFolder});
+
+  // Filter items
+  var filtered;
+  if(_activeFolder==='all')filtered=favs;
+  else if(_activeFolder==='hof')filtered=favs.filter(function(f){return f.hofScore&&f.hofScore>=90});
+  else if(_activeFolder==='fav')filtered=favs.filter(function(f){return f.folder==='fav'||!f.folder});
+  else filtered=favs.filter(function(f){return f.folder===_activeFolder});
+
   if(filtered.length===0){
-    var emptyMsg=isTr?'Bu klasörde henüz parça yok':'No pieces in this folder yet';
-    if(favs.length===0)emptyMsg=isTr?'Beğendiğin ürünlerin ♡ butonuna bas — burada görünecek!':'Tap ♡ on items you love — they\'ll appear here!';
-    h+='<div class="glass" style="text-align:center;padding:40px;color:var(--muted);margin-top:20px;font-size:13px">'+emptyMsg+'</div>';
+    var emptyMsg=isTr?'Bu klasörde henüz parça yok.':'No pieces in this folder yet.';
+    if(_activeFolder==='hof')emptyMsg=isTr?'Henüz 90+ puan almadın. Fit-Check yap, efsane ol! 🏆':'No 90+ scores yet. Do a Fit-Check and become a legend! 🏆';
+    else if(favs.length===0)emptyMsg=isTr?'Beğendiğin ürünlerin ♡ butonuna bas — burada görünecek!':'Tap ♡ on items you love — they\'ll appear here!';
+    h+='<div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--muted);font-size:13px">'+emptyMsg+'</div>';
   }else{
     h+='<div class="item-grid">';
     for(var i=0;i<filtered.length;i++){
       var f=filtered[i];var realIdx=favs.indexOf(f);
       var safeT=(f.title||'').replace(/'/g,"\\'");var safeP=(f.price||'').replace(/'/g,"\\'");var safeB=(f.brand||'').replace(/'/g,"\\'");
-      h+='<div class="item-card" style="'+(f.visible?'':'opacity:.6;border-color:rgba(255,255,255,.05)')+'">';
-      // Badges
-      h+='<div class="item-badge">';
-      if(!f.visible)h+='<span class="lock-badge">🔒 '+(isTr?'Gizli':'Private')+'</span>';
-      if((f.refitches||0)>10)h+='<span class="refitch-badge">🔄 '+(f.refitches||0)+'</span>';
+      var isHof=f.hofScore&&f.hofScore>=90;
+      var isPriv=f.visible===false;
+
+      h+='<div class="item-card"'+(isHof?' style="border-color:rgba(255,190,11,.3)"':'')+'>';
+      h+='<div class="card-img-wrap">';
+      if(f.img)h+='<img src="'+_fixThumb(f.img)+'" data-orig="'+f.img+'" onerror="imgErr(this)">';
+      else h+='<div style="width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e,#16213e);display:flex;align-items:center;justify-content:center;font-size:32px">👗</div>';
+      h+='<div class="card-img-overlay"></div>';
+
+      // Top-left badge
+      if(isHof)h+='<div class="badge-tl hof-badge">🏆 '+f.hofScore+'</div>';
+      else if(isPriv)h+='<div class="badge-tl">🔒 '+(isTr?'Gizli':'Private')+'</div>';
+
+      // Top-right buttons (heart + visibility)
+      h+='<div class="badge-tr">';
+      h+='<div class="circle-btn heart-active" onclick="event.stopPropagation();toggleFav(event,\''+f.link+'\',\''+(f.img||'')+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\');showFavs()">♥</div>';
+      h+='<div class="circle-btn" onclick="event.stopPropagation();toggleItemVis('+realIdx+')">🔒</div>';
       h+='</div>';
-      // Visibility toggle
-      h+='<div class="vis-toggle" onclick="event.stopPropagation();toggleItemVis('+realIdx+')">'+(f.visible?'👁':'🔒')+'</div>';
-      h+='<a href="'+f.link+'" target="_blank" style="text-decoration:none;color:var(--text)">';
-      if(f.img)h+='<img src="'+f.img+'" onerror="this.style.display=\'none\'">';
-      else h+='<div style="width:100%;height:160px;background:linear-gradient(135deg,#1a1a2e,#16213e);display:flex;align-items:center;justify-content:center;font-size:32px;border-bottom:1px solid var(--border)">👗</div>';
-      h+='<div class="info"><div class="title">'+f.title+'</div><div class="brand">'+(f.brand||'')+'</div><div class="price">'+(f.price||'')+'</div></div></a>';
+
       // Re-fitch button
-      h+='<div class="refitch-btn" onclick="event.stopPropagation();refitchItem('+realIdx+')">🔄 Re-fitch</div>';
-      // Remove fav
-      h+='<div onclick="event.stopPropagation();toggleFav(event,\''+f.link+'\',\''+(f.img||'')+'\',\''+safeT+'\',\''+safeP+'\',\''+safeB+'\');showFavs()" style="position:absolute;top:8px;right:36px;background:rgba(0,0,0,.7);color:var(--accent);padding:6px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;backdrop-filter:blur(4px)">\u2665</div>';
-      // Folder move
-      h+='<div onclick="event.stopPropagation();showFolderMenu('+realIdx+')" style="position:absolute;bottom:10px;left:8px;background:rgba(0,0,0,.7);color:var(--muted);padding:5px 8px;border-radius:8px;cursor:pointer;font-size:10px;backdrop-filter:blur(4px)">📂</div>';
-      h+='</div>';
+      h+='<div class="refitch-float" onclick="event.stopPropagation();refitchItem('+realIdx+')"><span style="font-size:12px">🔄</span> Re-fitch</div>';
+      h+='</div>'; // close card-img-wrap
+
+      // Card info
+      h+='<a href="'+f.link+'" target="_blank" style="text-decoration:none;color:var(--text)">';
+      h+='<div class="card-info">';
+      h+='<div class="card-title">'+f.title+'</div>';
+      h+='<div class="card-brand"><span style="font-size:12px;color:#e2a938;filter:grayscale(.2)">📁</span> '+(f.brand||'')+'</div>';
+      h+='</div></a>';
+      h+='</div>'; // close item-card
     }
     h+='</div>';
   }
-  h+='<button class="btn-main" onclick="goHome()" style="margin-top:24px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:#fff">'+t('back')+'</button>';
-  h+='<div style="height:80px"></div>';
+  h+='<div style="height:100px"></div>';
   ra.innerHTML=h;
 }
 function editProfile(){
@@ -3952,8 +4014,61 @@ function editProfile(){
 function shareProfile(){
   var p=_getProfile();var handle=(p&&p.handle)||'@user';
   var url='fitchy.app/'+handle.replace('@','');
-  if(navigator.share){navigator.share({title:'fitchy. '+handle,text:(CC_LANG[CC]==='tr'?'Dolabımı keşfet! ':'Check out my closet! ')+url,url:'https://'+url}).catch(function(){})}
+  if(navigator.share){navigator.share({title:'fitchy. '+handle,text:(CC_LANG[CC]==='tr'?'Profilimi keşfet! ':'Check out my profile! ')+url,url:'https://'+url}).catch(function(){})}
   else{navigator.clipboard.writeText('https://'+url).then(function(){alert((CC_LANG[CC]==='tr'?'Link kopyalandı! 🔗':'Link copied! 🔗')+'\nhttps://'+url)}).catch(function(){})}
+}
+// ─── 📖 PROFILE STORY ───
+var _storyTimer=null,_storyItems=[],_storyIdx=0;
+function openProfileStory(){
+  // Collect HOF items as stories
+  var favs=_getFavs();
+  _storyItems=favs.filter(function(f){return f.hofScore&&f.hofScore>=90});
+  if(!_storyItems.length){editProfile();return}
+  // Build progress bars
+  var header=document.getElementById('storyHeader');
+  header.innerHTML='';
+  for(var i=0;i<_storyItems.length;i++){
+    var bar=document.createElement('div');bar.className='story-progress';
+    bar.innerHTML='<div class="story-progress-fill" id="storyFill'+i+'" style="animation:none;width:0%"></div>';
+    header.appendChild(bar);
+  }
+  // User info
+  var p=_getProfile();
+  var userEl=document.getElementById('storyUser');
+  userEl.innerHTML='<div style="width:36px;height:36px;border-radius:50%;border:2px solid #ffbe0b;overflow:hidden;flex-shrink:0">'+(p.avatar?'<img src="'+p.avatar+'" style="width:100%;height:100%;object-fit:cover">':'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1a1a2e;font-size:16px">'+(p.name?p.name[0]:'👤')+'</div>')+'</div><div class="story-user-info"><div class="story-name">'+(p.handle||'@fitchy_user')+'</div><div class="story-time">'+(CC_LANG[CC]==='tr'?'Bugün':'Today')+'</div></div>';
+  document.getElementById('storyModal').classList.add('open');
+  document.body.style.overflow='hidden';
+  _storyIdx=0;
+  showStoryAt(0);
+}
+function showStoryAt(idx){
+  if(idx>=_storyItems.length){closeProfileStory();return}
+  _storyIdx=idx;
+  var item=_storyItems[idx];
+  var isTr=CC_LANG[CC]==='tr';
+  var content=document.getElementById('storyContent');
+  content.innerHTML='<img src="'+_fixThumb(item.img)+'" onerror="this.src=\'data:image/svg+xml,<svg xmlns=http://www.w3.org/2000/svg viewBox=0 0 300 400><rect fill=%231a1a2e width=300 height=400/><text x=150 y=200 text-anchor=middle fill=white font-size=40>👗</text></svg>\'">'
+    +'<div class="story-overlay"></div>'
+    +(item.hofScore?'<div class="story-badge">🏆 '+item.hofScore+' '+(isTr?'Puan · Hall of Fame':'Score · Hall of Fame')+'</div>':'')
+    +'<div class="story-caption">'+(item.title||'')+'</div>';
+  // Update progress bars
+  for(var i=0;i<_storyItems.length;i++){
+    var fill=document.getElementById('storyFill'+i);
+    if(!fill)continue;
+    if(i<idx){fill.style.animation='none';fill.style.width='100%'}
+    else if(i===idx){fill.style.width='0%';fill.style.animation='none';fill.offsetHeight;fill.style.animation='storyProgress 5s linear forwards'}
+    else{fill.style.animation='none';fill.style.width='0%'}
+  }
+  if(_storyTimer)clearTimeout(_storyTimer);
+  _storyTimer=setTimeout(function(){showStoryAt(idx+1)},5000);
+}
+function closeProfileStory(){
+  if(_storyTimer){clearTimeout(_storyTimer);_storyTimer=null}
+  document.getElementById('storyModal').classList.remove('open');
+  document.body.style.overflow='';
+  // Mark as seen
+  var wrap=document.querySelector('.avatar-wrap');
+  if(wrap)wrap.classList.add('story-seen');
 }
 function refitchItem(idx){
   var favs=_getFavs();if(favs[idx]){favs[idx].refitches=(favs[idx].refitches||0)+1;_setFavs(favs);showFavs()}
