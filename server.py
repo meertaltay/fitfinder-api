@@ -3309,16 +3309,7 @@ async def radar_feed(page: int = 0, limit: int = 10):
                 "ago": f"{_rand.randint(1, 90)}dk önce",
             })
 
-    # 📈 Card Type 4: Mikro-Trend Alarmları (Network Intelligence)
-    trend = _rand.choice(_DEMO_TRENDS)
-    cards.append({
-        "type": "trend_alert",
-        "trend_name": trend[0], "trend_emoji": trend[1],
-        "trend_pct": trend[2], "trend_color": trend[3],
-        "search_count": trend[4],
-        "related_items": _rand.sample(_DEMO_ITEMS, 3),
-        "network_size": _rand.randint(40, 200),
-    })
+    # 📈 Card Type 4: Mikro-Trend Alarmları → Keşfet'e taşındı
 
     # 👯 Card Type 5: Stil İkizi (Style Twin)
     u1, u2 = _rand.sample(_DEMO_USERS, 2)
@@ -4091,6 +4082,9 @@ img.rcard-avatar{border:1px solid var(--border)}
         </div>
       </div>
 
+      <!-- 📈 Trend Alarmı -->
+      <div id="kesfTrendAlarm" style="margin-bottom:28px"></div>
+
       <!-- 📰 Editör Panoları -->
       <div style="margin-bottom:28px">
         <div style="font-size:16px;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px"><span style="font-size:20px">📰</span>Editörün Seçimi</div>
@@ -4823,6 +4817,7 @@ function loadKesfContent(){
   _kesfLoaded=true;
   loadHOF_kesf();
   loadTrending_kesf();
+  loadTrendAlarm_kesf();
 }
 function loadHOF_kesf(){
   fetch('/api/podyum-top?limit=10').then(function(r){return r.json()}).then(function(d){
@@ -4864,7 +4859,42 @@ function loadTrending_kesf(){
   c.innerHTML=h;
 }
 
-// ─── SCAN LOGIC ───
+function loadTrendAlarm_kesf(){
+  var trendData=[
+    {name:'Keten Blazer',emoji:'🧥',pct:'+%190',color:'#C4B9A0',count:156,items:[{e:'👔',n:'Saten Gömlek',p:'1.650 TL'},{e:'🧥',n:'Puffer Yelek',p:'1.950 TL'},{e:'👖',n:'Cargo Pantolon',p:'899 TL'}]},
+    {name:'Platform Loafer',emoji:'👞',pct:'+%145',color:'#8B7355',count:89,items:[{e:'👜',n:'Bucket Çanta',p:'2.100 TL'},{e:'🧦',n:'Merino Çorap',p:'350 TL'},{e:'👖',n:'Wide-Leg Jean',p:'1.200 TL'}]},
+    {name:'Merino Triko',emoji:'🧶',pct:'+%120',color:'#D4C5A9',count:210,items:[{e:'🧣',n:'Kaşmir Atkı',p:'1.800 TL'},{e:'👖',n:'Keten Pantolon',p:'1.100 TL'},{e:'🧥',n:'Oversize Blazer',p:'2.400 TL'}]},
+    {name:'Oversize Trençkot',emoji:'🧥',pct:'+%165',color:'#A0522D',count:178,items:[{e:'👢',n:'Chelsea Bot',p:'2.800 TL'},{e:'🧣',n:'İpek Fular',p:'950 TL'},{e:'👜',n:'Tote Çanta',p:'1.450 TL'}]}
+  ];
+  var t=trendData[Math.floor(Math.random()*trendData.length)];
+  var el=document.getElementById('kesfTrendAlarm');if(!el)return;
+  var barW=Math.min(95,Math.abs(parseInt(t.pct))/5);
+  var h='<div style="padding:20px;border-radius:20px;background:rgba(255,255,255,.02);border:1px solid var(--border);position:relative;overflow:hidden">';
+  h+='<div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 30%,rgba(0,229,255,.04) 0%,transparent 70%);pointer-events:none"></div>';
+  h+='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><span style="background:rgba(0,229,255,.12);color:var(--cyan);font-size:10px;font-weight:800;padding:4px 10px;border-radius:8px">📈 TREND ALARMI</span></div>';
+  h+='<div style="text-align:center;margin-bottom:16px">';
+  h+='<div style="font-size:48px;margin-bottom:10px;filter:drop-shadow(0 4px 12px rgba(0,0,0,.3))">'+t.emoji+'</div>';
+  h+='<div style="font-size:20px;font-weight:900;color:#fff;margin-bottom:6px">'+t.name+'</div>';
+  h+='<div style="font-size:28px;font-weight:900;color:'+t.color+'">'+t.pct+'</div>';
+  h+='<div style="font-size:11px;color:var(--muted);margin-top:4px">Moda ağındaki aramalara göre · '+t.count+' tarama</div>';
+  h+='<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.06);margin:14px auto;max-width:200px;overflow:hidden"><div style="height:100%;border-radius:2px;width:'+barW+'%;background:linear-gradient(90deg,'+t.color+',var(--cyan));transition:width 1.5s"></div></div>';
+  h+='</div>';
+  h+='<div style="font-size:13px;color:rgba(255,255,255,.85);line-height:1.6;margin-bottom:16px;padding:0 4px">📈 <b>Yükselişte:</b> Takip ettiğin moda ağında son 24 saatte <b>\''+t.name+'\'</b> aramaları <b>'+t.pct+'</b> arttı. Trend patlamadan dolabına ekle.</div>';
+  h+='<div style="display:flex;gap:8px;margin-bottom:16px">';
+  t.items.forEach(function(ri){
+    h+='<div style="flex:1;padding:10px 8px;border-radius:12px;background:rgba(255,255,255,.02);border:1px solid var(--border);text-align:center">';
+    h+='<div style="font-size:20px;margin-bottom:4px">'+ri.e+'</div>';
+    h+='<div style="font-size:9px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:2px">'+ri.n+'</div>';
+    h+='<div style="font-size:10px;font-weight:800;color:var(--cyan)">'+ri.p+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  h+='<div style="display:flex;gap:8px">';
+  h+='<button onclick="alert(\'Trend arama yakında!\')" style="flex:1;padding:12px;border-radius:14px;border:none;background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;font:700 13px Outfit,sans-serif;cursor:pointer;box-shadow:0 4px 15px rgba(255,32,121,.3)">🎯 Bu Trendi Yakala</button>';
+  h+='<button onclick="alert(\'Muadiller yakında!\')" style="flex:1;padding:12px;border-radius:14px;border:none;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.3);color:var(--cyan);font:700 13px Outfit,sans-serif;cursor:pointer">Muadilleri Gör →</button>';
+  h+='</div></div>';
+  el.innerHTML=h;
+}
 var _detectId='',_detectedPieces=[],_lastSearchQuery='',_lastShownLinks=[],_ldTimer=null,_busy=false,_currentPiece=null;
 
 function autoScan(){
