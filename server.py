@@ -44,7 +44,7 @@ except ImportError:
     HAS_REMBG = False
     print("⚠️ rembg not installed")
 
-app = FastAPI(title="FitFinder API")
+app = FastAPI(title="Fitchy API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 API_SEM = asyncio.Semaphore(6)  # v40: 3 Lens calls + Shopping + Google Organic
@@ -303,14 +303,6 @@ def is_non_clothing_product(title):
     """Ürün başlığı moda-dışı bir ürün mü? (bardak, telefon, mutfak vs.)"""
     tl = title.lower()
     return any(ncp in tl for ncp in NON_CLOTHING_PRODUCTS)
-
-def is_category_mismatch(title, category):
-    """Bu sonuç, aranan kategoriye ters mi? (çanta ararken bardak gelmesi gibi)"""
-    if not category: return False
-    anti_kws = CATEGORY_ANTI_KEYWORDS.get(category, [])
-    if not anti_kws: return False
-    tl = title.lower()
-    return any(akw in tl for akw in anti_kws)
 
 def is_fashion(link, title, src):
     c = (link + " " + src).lower()
@@ -1415,24 +1407,24 @@ TRENDING_TTL = 86400  # 24 saat cache
 
 BRAND_DATA = {
     "tr": [
-        {"name": "Zara", "domain": "zara.com", "url": "https://www.zara.com/tr/", "logo": "https://logo.clearbit.com/zara.com"},
-        {"name": "Bershka", "domain": "bershka.com", "url": "https://www.bershka.com/tr/", "logo": "https://logo.clearbit.com/bershka.com"},
-        {"name": "Mango", "domain": "mango.com", "url": "https://shop.mango.com/tr", "logo": "https://logo.clearbit.com/mango.com"},
-        {"name": "Nike", "domain": "nike.com", "url": "https://www.nike.com/tr/", "logo": "https://logo.clearbit.com/nike.com"},
-        {"name": "Adidas", "domain": "adidas.com", "url": "https://www.adidas.com.tr/", "logo": "https://logo.clearbit.com/adidas.com"},
-        {"name": "H&M", "domain": "hm.com", "url": "https://www2.hm.com/tr_tr/", "logo": "https://logo.clearbit.com/hm.com"},
-        {"name": "Koton", "domain": "koton.com", "url": "https://www.koton.com/", "logo": "https://logo.clearbit.com/koton.com"},
-        {"name": "Pull&Bear", "domain": "pullandbear.com", "url": "https://www.pullandbear.com/tr/", "logo": "https://logo.clearbit.com/pullandbear.com"},
+        {"name": "Zara", "domain": "zara.com", "url": "https://www.zara.com/tr/"},
+        {"name": "Bershka", "domain": "bershka.com", "url": "https://www.bershka.com/tr/"},
+        {"name": "Mango", "domain": "mango.com", "url": "https://shop.mango.com/tr"},
+        {"name": "Nike", "domain": "nike.com", "url": "https://www.nike.com/tr/"},
+        {"name": "Adidas", "domain": "adidas.com", "url": "https://www.adidas.com.tr/"},
+        {"name": "H&M", "domain": "hm.com", "url": "https://www2.hm.com/tr_tr/"},
+        {"name": "Koton", "domain": "koton.com", "url": "https://www.koton.com/"},
+        {"name": "Pull&Bear", "domain": "pullandbear.com", "url": "https://www.pullandbear.com/tr/"},
     ],
     "en": [
-        {"name": "Zara", "domain": "zara.com", "url": "https://www.zara.com/", "logo": "https://logo.clearbit.com/zara.com"},
-        {"name": "Nike", "domain": "nike.com", "url": "https://www.nike.com/", "logo": "https://logo.clearbit.com/nike.com"},
-        {"name": "Adidas", "domain": "adidas.com", "url": "https://www.adidas.com/", "logo": "https://logo.clearbit.com/adidas.com"},
-        {"name": "H&M", "domain": "hm.com", "url": "https://www2.hm.com/", "logo": "https://logo.clearbit.com/hm.com"},
-        {"name": "Mango", "domain": "mango.com", "url": "https://shop.mango.com/", "logo": "https://logo.clearbit.com/mango.com"},
-        {"name": "Uniqlo", "domain": "uniqlo.com", "url": "https://www.uniqlo.com/", "logo": "https://logo.clearbit.com/uniqlo.com"},
-        {"name": "COS", "domain": "cosstores.com", "url": "https://www.cos.com/", "logo": "https://logo.clearbit.com/cosstores.com"},
-        {"name": "ASOS", "domain": "asos.com", "url": "https://www.asos.com/", "logo": "https://logo.clearbit.com/asos.com"},
+        {"name": "Zara", "domain": "zara.com", "url": "https://www.zara.com/"},
+        {"name": "Nike", "domain": "nike.com", "url": "https://www.nike.com/"},
+        {"name": "Adidas", "domain": "adidas.com", "url": "https://www.adidas.com/"},
+        {"name": "H&M", "domain": "hm.com", "url": "https://www2.hm.com/"},
+        {"name": "Mango", "domain": "mango.com", "url": "https://shop.mango.com/"},
+        {"name": "Uniqlo", "domain": "uniqlo.com", "url": "https://www.uniqlo.com/"},
+        {"name": "COS", "domain": "cosstores.com", "url": "https://www.cos.com/"},
+        {"name": "ASOS", "domain": "asos.com", "url": "https://www.asos.com/"},
     ],
 }
 
@@ -1603,7 +1595,7 @@ async def trending(country: str = "tr", refresh: bool = False):
         TRENDING_CACHE.pop(lang, None)  # Cache temizle
     data = _get_trending(lang)
     return {"success": True,
-            "brands": [{"name": b["name"], "url": b.get("url", ""), "logo": b.get("logo", ""), "domain": b.get("domain", "")} for b in data["brands"]],
+            "brands": [{"name": b["name"], "url": b.get("url", ""), "domain": b.get("domain", "")} for b in data["brands"]],
             "products": data["products"],
             "section_brands": data["section_brands"], "section_trending": data["section_trending"]}
 
@@ -1650,7 +1642,7 @@ async def brand_logo(name: str = ""):
                     headers={"Cache-Control": "public, max-age=604800"})
 
 @app.get("/api/health")
-async def health(): return {"status": "ok", "version": "v42-optimized", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
+async def health(): return {"status": "ok", "version": "v42-fitchy", "serpapi": bool(SERPAPI_KEY), "anthropic": bool(ANTHROPIC_API_KEY), "rembg": HAS_REMBG}
 
 # ─── SESSION STORE (detect → search-piece) ───
 DETECT_SESSIONS = {}  # detect_id → {pieces, img_url, crop_data, cc, created_at}
@@ -1996,6 +1988,102 @@ async def load_more(query: str = Form(""), country: str = Form("tr"), exclude: s
 @app.get("/favicon.ico")
 async def favicon(): return Response(content=b"", media_type="image/x-icon")
 
+# ─── PWA: Manifest + Service Worker + Icons ───
+@app.get("/manifest.json")
+async def pwa_manifest():
+    manifest = {
+        "name": "Fitchy",
+        "short_name": "Fitchy",
+        "description": "Fotoğraftaki kıyafeti bul, anında satın al",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#0a0a0c",
+        "theme_color": "#0a0a0c",
+        "orientation": "portrait",
+        "icons": [
+            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+        ]
+    }
+    return Response(content=json.dumps(manifest), media_type="application/json")
+
+@app.get("/sw.js")
+async def service_worker():
+    sw_code = """
+const CACHE_NAME = 'fitchy-v42';
+const PRECACHE = ['/', '/manifest.json'];
+
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(names =>
+    Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n)))
+  ).then(() => self.clients.claim()));
+});
+
+self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
+  // API calls: network only (never cache search results)
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/sw.js')) return;
+  // HTML/CSS/JS: network first, fallback to cache
+  e.respondWith(
+    fetch(e.request).then(r => {
+      if (r.ok) {
+        const clone = r.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+      }
+      return r;
+    }).catch(() => caches.match(e.request))
+  );
+});
+""".strip()
+    return Response(content=sw_code, media_type="application/javascript",
+                    headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+
+def _generate_app_icon(size=192):
+    """Generate Fitchy app icon as PNG."""
+    from PIL import Image, ImageDraw, ImageFont
+    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    # Dark circle background
+    padding = int(size * 0.05)
+    draw.ellipse([padding, padding, size-padding, size-padding], fill='#0a0a0c')
+    # Gold accent ring
+    ring_w = max(2, size // 48)
+    draw.ellipse([padding, padding, size-padding, size-padding], outline='#d4a853', width=ring_w)
+    # "F" letter
+    font_size = int(size * 0.5)
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+    except:
+        font = ImageFont.load_default()
+    bbox = draw.textbbox((0, 0), "F", font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    x = (size - tw) // 2 - bbox[0]
+    y = (size - th) // 2 - bbox[1] - int(size * 0.02)
+    draw.text((x, y), "F", fill='#d4a853', font=font)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+_ICON_CACHE = {}
+
+@app.get("/icon-192.png")
+async def icon_192():
+    if 192 not in _ICON_CACHE:
+        _ICON_CACHE[192] = _generate_app_icon(192)
+    return Response(content=_ICON_CACHE[192], media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=604800"})
+
+@app.get("/icon-512.png")
+async def icon_512():
+    if 512 not in _ICON_CACHE:
+        _ICON_CACHE[512] = _generate_app_icon(512)
+    return Response(content=_ICON_CACHE[512], media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=604800"})
+
 # ─── IMAGE PROXY (bypass hotlink protection for trending images) ───
 IMG_CACHE = {}  # url_hash → (content_type, bytes)
 
@@ -2041,7 +2129,14 @@ HTML_PAGE = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>FitFinder</title>
+<meta name="theme-color" content="#0a0a0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fitchy">
+<meta name="description" content="Fotoğraftaki kıyafeti bul, anında satın al">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>Fitchy</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
 <style>
@@ -2093,8 +2188,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 .brand-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:28px}
 .brand-chip{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 6px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s;text-decoration:none;display:block}
 .brand-chip:hover,.brand-chip:active{border-color:var(--accent);transform:scale(1.04)}
-.brand-chip .b-logo{width:48px;height:48px;border-radius:12px;margin:0 auto 6px;display:block;object-fit:contain;background:#fff;padding:4px}
-.brand-chip .b-fallback{width:48px;height:48px;border-radius:12px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;background:var(--accent);color:#000;font-weight:800;font-size:14px;letter-spacing:-0.5px}
+.brand-chip .b-logo{width:48px;height:48px;border-radius:12px;margin:0 auto 6px;overflow:hidden}
 .brand-chip .b-name{font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trend-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:28px}
 .trend-card{flex-shrink:0;width:150px;background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;text-decoration:none;color:var(--text);transition:border-color .2s}
@@ -2113,7 +2207,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
 <div class="app">
   <div id="home" style="padding:0 20px">
     <div style="padding-top:56px;padding-bottom:28px">
-      <p style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-bottom:10px">FitFinder</p>
+      <p style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-bottom:10px">Fitchy</p>
       <h1 id="heroTitle" style="font-size:32px;font-weight:700;line-height:1.15"></h1>
       <p id="heroSub" style="font-size:14px;color:var(--muted);margin-top:12px;line-height:1.5"></p>
     </div>
@@ -2130,7 +2224,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;dis
   <div id="rScreen" style="display:none">
     <div style="position:sticky;top:0;z-index:40;background:rgba(10,10,12,.9);backdrop-filter:blur(20px);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
       <div onclick="goHome()" style="cursor:pointer;color:var(--muted);font-size:13px" id="backBtn"></div>
-      <div style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:2.5px">FITFINDER</div>
+      <div style="font-size:11px;font-weight:600;color:var(--accent);letter-spacing:2.5px">FITCHY</div>
       <div style="width:40px"></div>
     </div>
     <div style="padding:0 20px 120px">
@@ -2209,15 +2303,23 @@ function loadTrending(){
     // Brands with SVG logos from server
     if(d.brands&&d.brands.length){
       h+='<div class="sec-title">'+d.section_brands+'</div><div class="brand-grid">';
+      var brandStyles={
+        'Zara':{bg:'#000',color:'#fff',text:'ZARA',size:'15px',ls:'3px'},
+        'Bershka':{bg:'#000',color:'#fff',text:'BERSHKA',size:'9px',ls:'2px'},
+        'Mango':{bg:'#000',color:'#fff',text:'MANGO',size:'10px',ls:'2px'},
+        'Nike':{bg:'#000',color:'#fff',text:'NIKE',size:'14px',ls:'2px'},
+        'Adidas':{bg:'#000',color:'#fff',text:'ADIDAS',size:'10px',ls:'1px'},
+        'H&M':{bg:'#cc0000',color:'#fff',text:'H&M',size:'16px',ls:'0'},
+        'Koton':{bg:'#000',color:'#fff',text:'KOTON',size:'10px',ls:'2px'},
+        'Pull&Bear':{bg:'#000',color:'#fff',text:'PULL&BEAR',size:'7px',ls:'1px'},
+        'Uniqlo':{bg:'#c00',color:'#fff',text:'UNIQLO',size:'10px',ls:'1px'},
+        'COS':{bg:'#000',color:'#fff',text:'COS',size:'16px',ls:'3px'},
+        'ASOS':{bg:'#000',color:'#fff',text:'ASOS',size:'13px',ls:'1px'},
+      };
       for(var i=0;i<d.brands.length;i++){var b=d.brands[i];
-        var shortName=b.name.replace('&','').substring(0,4).toUpperCase();
+        var s=brandStyles[b.name]||{bg:'#1a1a1a',color:'#d4a853',text:b.name.toUpperCase().substring(0,5),size:'11px',ls:'1px'};
         h+='<a href="'+(b.url||'#')+'" target="_blank" rel="noopener" class="brand-chip">';
-        if(b.logo){
-          h+='<img class="b-logo" src="'+b.logo+'" alt="'+b.name+'" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">';
-          h+='<div class="b-fallback" style="display:none">'+shortName+'</div>';
-        }else{
-          h+='<div class="b-fallback">'+shortName+'</div>';
-        }
+        h+='<div class="b-logo" style="background:'+s.bg+';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:'+s.size+';color:'+s.color+';letter-spacing:'+s.ls+';font-family:\'DM Sans\',sans-serif">'+s.text+'</div>';
         h+='<div class="b-name">'+b.name+'</div></a>';}
       h+='</div>';
     }
@@ -2234,6 +2336,8 @@ function loadTrending(){
   }).catch(function(){})
 }
 applyLang();
+// PWA: Register service worker
+if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}
 function getCC(){return CC}
 document.getElementById('fi').addEventListener('change',function(e){if(e.target.files[0])loadF(e.target.files[0])});
 function loadF(f){if(!f.type.startsWith('image/'))return;cF=f;var r=new FileReader();r.onload=function(e){cPrev=e.target.result;showScreen()};r.readAsDataURL(f)}
@@ -2361,9 +2465,9 @@ function renderManual(d,cropSrc){
   ra.innerHTML=h+'<button class="btn-main btn-outline" onclick="showScreen()" style="margin-top:20px">'+t('another')+'</button>';
 }
 
-function _getFavs(){try{return JSON.parse(localStorage.getItem('fitfinder_favs')||'[]')}catch(e){return[]}}
-function _setFavs(f){try{localStorage.setItem('fitfinder_favs',JSON.stringify(f))}catch(e){}}
-function _hasFav(link){try{return(localStorage.getItem('fitfinder_favs')||'').indexOf(link)>-1}catch(e){return false}}
+function _getFavs(){try{return JSON.parse(localStorage.getItem('fitchy_favs')||'[]')}catch(e){return[]}}
+function _setFavs(f){try{localStorage.setItem('fitchy_favs',JSON.stringify(f))}catch(e){}}
+function _hasFav(link){try{return(localStorage.getItem('fitchy_favs')||'').indexOf(link)>-1}catch(e){return false}}
 function toggleFav(e,link,img,title,price,brand){e.preventDefault();e.stopPropagation();var favs=_getFavs();var idx=favs.findIndex(function(f){return f.link===link});if(idx>-1){favs.splice(idx,1);e.target.innerHTML='\u{1F90D}'}else{favs.push({link:link,img:img,title:title,price:price,brand:brand});e.target.innerHTML='\u2764\uFE0F'}_setFavs(favs)}
 
 function heroHTML(p,isLens){
