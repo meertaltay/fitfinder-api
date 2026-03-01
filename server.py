@@ -3688,6 +3688,9 @@ body::after{content:"";position:fixed;bottom:-10%;right:-20%;width:70%;height:70
 .bnav-item .icon{font-size:22px;color:#fff}
 .bnav-item.active .icon{color:var(--accent);text-shadow:0 0 10px var(--border-glow)}
 .bnav-item .lbl{font-size:10px;font-weight:600;color:#fff}
+.bnav-logo{opacity:1 !important}
+.bnav-logo-ring{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));padding:3px;margin-top:-20px;box-shadow:0 4px 20px rgba(255,32,121,.4);display:flex;align-items:center;justify-content:center}
+.bnav-logo-ring>span{width:42px;height:42px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center}
 
 .crop-container{position:relative;width:100%;max-height:400px;margin:16px 0;border-radius:20px;overflow:hidden;background:#000;border:1px solid var(--border)}
 .crop-container img{display:block;max-width:100%}
@@ -4043,10 +4046,11 @@ img.rcard-avatar{border:1px solid var(--border)}
   <input type="file" id="vtonBodyInput" accept="image/*" capture="environment" style="display:none" onchange="handleVtonBody(event)">
 
   <div class="bnav">
-    <div class="bnav-item active" onclick="goHome()"><div class="icon">✧</div><div id="navHome" class="lbl"></div></div>
-    <div class="bnav-item" onclick="openRadar()"><div class="icon">📡</div><div class="lbl">Radar</div></div>
-    <div class="bnav-item" onclick="openArena()"><div class="icon">🏟️</div><div class="lbl">Arena</div></div>
-    <div class="bnav-item" onclick="showFavs()"><div class="icon">♡</div><div id="navFav" class="lbl"></div></div>
+    <div class="bnav-item" id="nav-radar" onclick="navTo('radar')"><div class="icon">📡</div><div class="lbl">Radar</div></div>
+    <div class="bnav-item" id="nav-home" onclick="navTo('home')"><div class="icon">✧</div><div class="lbl">Keşfet</div></div>
+    <div class="bnav-item bnav-logo" id="nav-logo" onclick="navTo('home')"><div class="bnav-logo-ring"><span><b style="color:var(--accent);font-size:18px;font-style:italic">f.</b></span></div></div>
+    <div class="bnav-item" id="nav-arena" onclick="navTo('arena')"><div class="icon">🏟️</div><div class="lbl">Arena</div></div>
+    <div class="bnav-item" id="nav-favs" onclick="navTo('favs')"><div class="icon">♡</div><div class="lbl">Dolabım</div></div>
   </div>
 
   <!-- 🏟️ KOMBİN ARENA -->
@@ -4162,8 +4166,7 @@ function applyLang(){
   document.getElementById('manualQ').placeholder=t('manualPh');
   document.getElementById('btnFind').innerHTML=t('find');
   document.getElementById('btnCancel').innerHTML=t('cancel');
-  document.getElementById('navHome').textContent=t('navHome');
-  document.getElementById('navFav').textContent=t('navFav');
+  /* nav labels are now hardcoded in HTML */
   document.getElementById('linkTitle').textContent=t('linkPaste');
   document.getElementById('linkGoBtn').textContent=t('linkGo');
   document.getElementById('fitCheckTitle').textContent=t('fitCheck');
@@ -4172,6 +4175,8 @@ function applyLang(){
   loadHOF();
 }
 applyLang();
+document.getElementById('nav-home').classList.add('active');
+document.getElementById('nav-logo').classList.add('active');
 if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){})}
 function getCC(){return CC}
 // Fix relative Google thumbnail URLs — catches all formats
@@ -4323,8 +4328,42 @@ function showScreen(){
   document.getElementById('res').style.display='none';
   if(cropper){cropper.destroy();cropper=null}
 }
+/* ── CENTRAL NAVIGATION ── */
+function _closeAllScreens(){
+  document.getElementById('radarScreen').classList.remove('show');
+  document.getElementById('arenaScreen').classList.remove('show');
+  document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
+}
+function navTo(target){
+  _closeAllScreens();
+  if(target==='radar'){
+    document.getElementById('nav-radar').classList.add('active');
+    document.getElementById('home').style.display='none';
+    document.getElementById('rScreen').style.display='none';
+    document.getElementById('radarScreen').classList.add('show');
+    _radarPage=0;
+    loadRadarStories();
+    loadRadarFeed();
+  } else if(target==='arena'){
+    document.getElementById('nav-arena').classList.add('active');
+    document.getElementById('home').style.display='none';
+    document.getElementById('rScreen').style.display='none';
+    document.getElementById('arenaScreen').classList.add('show');
+    loadArenaCards();
+  } else if(target==='favs'){
+    document.getElementById('nav-favs').classList.add('active');
+    showFavs();
+  } else {
+    /* home / keşfet */
+    document.getElementById('nav-home').classList.add('active');
+    document.getElementById('nav-logo').classList.add('active');
+    goHome();
+  }
+}
 function goHome(){
   if(_busy)return;
+  document.getElementById('radarScreen').classList.remove('show');
+  document.getElementById('arenaScreen').classList.remove('show');
   document.getElementById('home').style.display='block';
   document.getElementById('rScreen').style.display='none';
   if(cropper){cropper.destroy();cropper=null}
@@ -4333,7 +4372,8 @@ function goHome(){
   document.getElementById('linkPasteBtn').style.borderColor='var(--border)';
   document.getElementById('linkInput').value='';
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
-  document.querySelectorAll('.bnav-item')[0].classList.add('active');
+  document.getElementById('nav-home').classList.add('active');
+  document.getElementById('nav-logo').classList.add('active');
   loadTrending();
   loadHOF();
 }
@@ -4482,7 +4522,9 @@ function showFavs(){
   _initProfile();
   var isTr=CC_LANG[CC]==='tr';
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
-  document.querySelectorAll('.bnav-item')[3].classList.add('active');
+  document.getElementById('nav-favs').classList.add('active');
+  document.getElementById('radarScreen').classList.remove('show');
+  document.getElementById('arenaScreen').classList.remove('show');
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='block';
   var ab=document.getElementById('actionBtns');if(ab)ab.style.display='none';
@@ -5028,7 +5070,8 @@ var _radarPage=0;
 var _radarStoryData=[];
 function openRadar(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
-  document.querySelectorAll('.bnav-item')[1].classList.add('active');
+  document.getElementById('nav-radar').classList.add('active');
+  document.getElementById('arenaScreen').classList.remove('show');
   document.getElementById('radarScreen').classList.add('show');
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='none';
@@ -5346,7 +5389,8 @@ var _arenaDrag={active:false,startX:0,startY:0,dx:0};
 
 function openArena(){
   document.querySelectorAll('.bnav-item').forEach(function(el){el.classList.remove('active')});
-  document.querySelectorAll('.bnav-item')[2].classList.add('active');
+  document.getElementById('nav-arena').classList.add('active');
+  document.getElementById('radarScreen').classList.remove('show');
   document.getElementById('arenaScreen').classList.add('show');
   document.getElementById('home').style.display='none';
   document.getElementById('rScreen').style.display='none';
