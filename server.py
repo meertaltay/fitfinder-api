@@ -5734,7 +5734,7 @@ function promptPodyumSubmit(){
     if(d.success){
       var toast=document.createElement('div');
       toast.style.cssText='position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;padding:12px 24px;border-radius:16px;font:700 13px Outfit,sans-serif;z-index:1200;box-shadow:0 4px 20px rgba(0,229,255,.3);animation:fadeIn .3s';
-      toast.textContent='✨ '+(isTr?'Podyuma çıktın! İlhamlar gelmeye başlayacak...':'You're on the Runway! Reactions incoming...');
+      toast.textContent='✨ '+(isTr?'Podyuma çıktın! İlhamlar gelmeye başlayacak...':'You\'re on the Runway! Reactions incoming...');
       document.body.appendChild(toast);
       setTimeout(function(){toast.remove()},3000);
     }
