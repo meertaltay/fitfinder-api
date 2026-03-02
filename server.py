@@ -3690,47 +3690,83 @@ body::after{content:"";position:fixed;bottom:-10%;right:-20%;width:70%;height:70
 .kesf-sr:hover{background:rgba(255,255,255,.06)}
 .kesf-sr:active{background:rgba(255,255,255,.1)}
 /* User Profile */
-.pub-profile-screen{position:fixed;inset:0;width:100%;max-width:440px;margin:0 auto;background:var(--bg);z-index:3000;overflow-y:auto;display:none;animation:slideInRight .35s cubic-bezier(.2,.8,.2,1);padding-bottom:40px}
+.pub-profile-screen{position:fixed;inset:0;width:100%;max-width:440px;margin:0 auto;background:var(--bg);z-index:3000;overflow-y:auto;display:none;animation:slideInRight .35s cubic-bezier(.2,.8,.2,1);padding-bottom:120px}
 .pub-profile-screen.show{display:block}
 @keyframes slideInRight{from{transform:translateX(100%)}to{transform:translateX(0)}}
-.pub-header-bg{position:absolute;top:0;left:0;right:0;height:180px;background:linear-gradient(150deg,#6a0b73 0%,var(--bg) 100%);z-index:-1;pointer-events:none}
-.pub-top-nav{position:sticky;top:0;display:flex;justify-content:space-between;padding:16px 20px;z-index:20}
-.icon-circle-btn{width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.4);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:bold;color:#fff;border:1px solid rgba(255,255,255,.1);cursor:pointer;transition:all .2s}
-.icon-circle-btn:active{transform:scale(.9);background:rgba(255,255,255,.1)}
-.pub-info{padding:0 20px;display:flex;flex-direction:column;position:relative}
-.pub-avatar-wrap{position:absolute;top:-60px;left:20px;width:84px;height:84px;border-radius:50%;background:linear-gradient(135deg,#a200ff,#ff2079);padding:3px;box-shadow:0 4px 15px rgba(0,0,0,.5)}
-.pub-avatar{width:100%;height:100%;border-radius:50%;background:#1a1a2e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:900;border:3px solid var(--bg);object-fit:cover}
-.pub-name-row{display:flex;align-items:center;gap:8px;margin-bottom:2px;margin-top:36px}
-.pub-name{font-size:22px;font-weight:900;color:#fff;letter-spacing:-.5px}
-.pub-verified{font-size:10px;background:#fff;color:#000;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900}
-.pub-handle{font-size:13px;font-weight:700;color:var(--cyan);margin-bottom:8px}
-.pub-tag{display:inline-block;padding:4px 10px;border-radius:12px;border:1px solid rgba(0,229,255,.4);color:var(--cyan);font-size:10px;font-weight:800;margin-bottom:12px;align-self:flex-start;background:rgba(0,229,255,.05)}
-.pub-bio{font-size:13px;color:rgba(255,255,255,.85);line-height:1.5;margin-bottom:6px}
-.pub-loc{font-size:11px;color:var(--muted);font-weight:500;margin-bottom:24px}
-.pub-stats{display:flex;justify-content:space-between;padding:0 5px;margin-bottom:24px}
-.pub-stat-item{display:flex;flex-direction:column;align-items:center}
-.pub-stat-val{font-size:18px;font-weight:900;color:#fff}
-.pub-stat-lbl{font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
-.pub-actions{display:flex;gap:12px;margin-bottom:24px;padding:0 20px}
-.pub-btn-follow{flex:1;padding:14px;border-radius:14px;border:none;background:linear-gradient(90deg,#f5008b,#7000ff);color:#fff;font-size:14px;font-weight:800;cursor:pointer;transition:transform .2s;box-shadow:0 4px 15px rgba(245,0,139,.3);font-family:'Outfit',sans-serif}
-.pub-btn-follow:active{transform:scale(.97)}
-.pub-btn-follow.following{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);box-shadow:none;color:#fff}
-.pub-btn-msg{width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;cursor:pointer;transition:background .2s;flex-shrink:0}
-.pub-btn-msg:active{background:rgba(255,255,255,.1)}
+.pub-top-nav{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;padding:16px 20px;z-index:20;background:var(--bg);border-bottom:1px solid var(--border)}
+.pub-back-btn{font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px}
+.pub-info{padding:30px 20px 0;display:flex;flex-direction:column;align-items:center;text-align:center}
+.pub-avatar-wrap{position:relative;width:100px;height:100px;margin-bottom:16px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.pub-avatar-wrap.in-podyum{background:linear-gradient(135deg,#ff2079,#ffbe0b);padding:4px;box-shadow:0 0 25px rgba(255,32,121,.5)}
+.pub-avatar-inner{width:100%;height:100%;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center}
+.pub-avatar{width:92%;height:92%;border-radius:50%;background:#1a1a2e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:500;object-fit:cover}
+.pub-live-badge{position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,#ff80ff,#ff2079);color:#fff;font-size:10px;font-weight:800;padding:4px 12px;border-radius:12px;border:2px solid var(--bg);box-shadow:0 4px 10px rgba(255,32,121,.4);white-space:nowrap;letter-spacing:.5px}
+.pub-name{font-size:24px;font-weight:900;color:#fff;letter-spacing:-.5px;margin-bottom:4px}
+.pub-handle{font-size:14px;font-weight:800;color:var(--cyan);margin-bottom:8px}
+.pub-ig{font-size:12px;color:var(--muted);font-weight:500;margin-bottom:24px}
+.pub-stats{display:flex;justify-content:space-evenly;width:100%;margin-bottom:24px;padding:0 10px}
+.pub-stat-item{display:flex;flex-direction:column;align-items:center;gap:4px}
+.pub-stat-val{font-size:20px;font-weight:900;color:#fff}
+.pub-stat-lbl{font-size:11px;font-weight:600;color:var(--muted)}
+.pub-stat-item.hof-stat .pub-stat-val{color:#ffd700;text-shadow:0 0 15px rgba(255,215,0,.5);font-size:24px}
+.pub-stat-item.hof-stat .pub-stat-lbl{color:#ffd700;font-weight:800}
+.pub-actions{display:flex;gap:12px;margin-bottom:24px;padding:0 20px;width:100%}
+.pub-btn-primary{flex:1.5;padding:14px;border-radius:16px;border:none;background:linear-gradient(90deg,#ff2079,#7000ff);color:#fff;font-size:14px;font-weight:800;cursor:pointer;transition:transform .2s;box-shadow:0 4px 20px rgba(245,0,139,.3);font-family:'Outfit',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px}
+.pub-btn-primary:active{transform:scale(.97)}
+.pub-btn-secondary{flex:1;padding:14px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;font-size:14px;font-weight:800;cursor:pointer;transition:background .2s;font-family:'Outfit',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px}
+.pub-btn-secondary:active{background:rgba(255,255,255,.1)}
 .pub-hof-banner{background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.2);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:24px;margin-left:20px;margin-right:20px}
 .pub-hof-icon{font-size:24px;filter:drop-shadow(0 2px 4px rgba(255,215,0,.4))}
 .pub-hof-texts{display:flex;flex-direction:column;gap:4px}
 .pub-hof-title{font-size:13px;font-weight:800;color:#ffd700}
 .pub-hof-sub{font-size:10px;font-weight:500;color:var(--muted)}
-.pub-tabs{display:flex;border-bottom:1px solid rgba(255,255,255,.05);margin-bottom:2px}
-.pub-tab{flex:1;text-align:center;padding:12px 0;font-size:11px;font-weight:800;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:color .2s}
-.pub-tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
-.pub-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;padding-bottom:40px}
-.pub-grid-item{aspect-ratio:4/5;background:#1a1a2e;position:relative;overflow:hidden;cursor:pointer}
-.pub-grid-item img{width:100%;height:100%;object-fit:cover;transition:transform .3s}
-.pub-grid-item:active img{transform:scale(1.05)}
-.pub-grid-score{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);padding:3px 6px;border-radius:8px;font-size:9px;font-weight:800;color:#fff;display:flex;align-items:center;gap:4px;border:1px solid rgba(255,255,255,.1)}
-.pub-grid-score.high{color:#ffd700;border-color:rgba(255,215,0,.3)}
+.pub-tabs-wrapper{overflow-x:auto;padding:0 20px 16px;scrollbar-width:none}
+.pub-tabs-wrapper::-webkit-scrollbar{display:none}
+.pub-tabs{display:flex;gap:10px;width:max-content}
+.pub-tab{padding:10px 18px;border-radius:24px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s}
+.pub-tab.active{border-color:#ff2079;background:rgba(255,32,121,.15);box-shadow:0 0 10px rgba(255,32,121,.2)}
+.pub-tab.hof-tab{border-color:rgba(255,215,0,.4);color:#ffd700;background:rgba(255,215,0,.05)}
+.pub-tab.hof-tab.active{background:rgba(255,215,0,.15);box-shadow:0 0 15px rgba(255,215,0,.2);border-color:#ffd700}
+.pub-tab-count{opacity:.6;font-size:11px;margin-left:2px}
+.pub-feed{display:flex;flex-direction:column;gap:16px;padding:0 12px 40px}
+.feed-post{background:rgba(15,10,30,.9);border:1px solid rgba(255,255,255,.06);border-radius:20px;overflow:hidden}
+.feed-post-header{display:flex;align-items:center;padding:14px 16px;gap:12px}
+.feed-avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#1a1a2e}
+.feed-user-info{flex:1;min-width:0}
+.feed-user-name{font-size:14px;font-weight:800;color:#fff;display:flex;align-items:center;gap:6px}
+.feed-user-name .handle{color:var(--cyan);font-weight:700}
+.feed-user-time{font-size:11px;color:var(--muted);font-weight:500;margin-top:2px}
+.feed-badge{padding:5px 12px;border-radius:10px;font-size:10px;font-weight:900;letter-spacing:.5px;flex-shrink:0;white-space:nowrap}
+.feed-badge.collection{background:rgba(255,32,121,.15);border:1px solid rgba(255,32,121,.4);color:var(--accent)}
+.feed-badge.refitch{background:rgba(255,190,11,.15);border:1px solid rgba(255,190,11,.4);color:var(--gold)}
+.feed-badge.hof{background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.4);color:#ffd700}
+.feed-collection-title{padding:0 16px 8px}
+.feed-collection-title h3{font-size:18px;font-weight:900;color:#fff;margin-bottom:8px}
+.feed-tags{display:flex;gap:8px;flex-wrap:wrap}
+.feed-tag{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid rgba(0,229,255,.3);color:var(--cyan);background:rgba(0,229,255,.06)}
+.feed-products-scroll{display:flex;gap:12px;overflow-x:auto;padding:12px 16px;scrollbar-width:none}
+.feed-products-scroll::-webkit-scrollbar{display:none}
+.feed-product{flex-shrink:0;width:130px;border-radius:16px;overflow:hidden;cursor:pointer;transition:transform .2s;position:relative}
+.feed-product:active{transform:scale(.95)}
+.feed-product-info{padding:8px 10px;background:rgba(0,0,0,.85)}
+.feed-product-name{font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.feed-product-price{font-size:13px;font-weight:900;color:var(--accent)}
+.feed-stats-row{display:flex;align-items:center;gap:16px;padding:8px 16px;font-size:13px}
+.feed-total-price{font-weight:900;color:var(--cyan)}
+.feed-saves{color:var(--muted);font-weight:500;font-size:12px}
+.feed-ai-desc{padding:8px 16px 12px;font-size:13px;color:rgba(255,255,255,.85);line-height:1.5}
+.feed-ai-desc .mention{color:var(--cyan);font-weight:800}
+.feed-ai-desc .capsule{color:var(--gold);font-weight:800}
+.feed-actions{display:flex;gap:10px;padding:8px 16px 16px}
+.feed-action-btn{flex:1;padding:12px;border-radius:14px;border:none;font:800 13px 'Outfit',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:transform .2s}
+.feed-action-btn:active{transform:scale(.97)}
+.feed-action-btn.primary{background:linear-gradient(90deg,var(--accent),#7000ff);color:#fff;box-shadow:0 4px 15px rgba(255,32,121,.3)}
+.feed-action-btn.secondary{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#fff}
+.feed-refitch-flow{display:flex;align-items:center;gap:8px;padding:10px 16px 14px;flex-wrap:wrap}
+.feed-refitch-user{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#fff}
+.feed-refitch-user img{width:24px;height:24px;border-radius:50%;object-fit:cover}
+.feed-refitch-arrow{color:var(--muted);font-size:14px}
+.feed-refitch-count{background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);color:var(--cyan);font-size:11px;font-weight:800;padding:4px 10px;border-radius:10px;margin-left:auto}
 .bnav-logo{opacity:1 !important}
 .bnav-logo-ring{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));padding:3px;margin-top:-28px;box-shadow:0 4px 20px rgba(255,32,121,.4);display:flex;align-items:center;justify-content:center}
 .bnav-logo-ring>span{width:58px;height:58px;border-radius:50%;background:transparent;display:flex;align-items:center;justify-content:center;overflow:hidden}
@@ -4135,48 +4171,41 @@ img.rcard-avatar{border:1px solid var(--border)}
 
   <!-- 👤 PUBLIC PROFILE OVERLAY -->
   <div id="pubProfileScreen" class="pub-profile-screen">
-    <div class="pub-header-bg"></div>
     <div class="pub-top-nav">
-      <div class="icon-circle-btn" onclick="closePubProfile()">←</div>
-      <div class="icon-circle-btn" style="background:transparent;border:none">⋮</div>
+      <div class="pub-back-btn" onclick="closePubProfile()">← Geri</div>
+      <div class="logo text-gradient" style="font-size:22px;font-weight:900">fitchy.</div>
+      <div style="width:45px;text-align:right;font-size:18px;color:var(--muted)">⋮</div>
     </div>
     <div class="pub-info">
-      <div class="pub-avatar-wrap">
-        <div id="pubAvatarText" class="pub-avatar">M</div>
-        <img id="pubAvatarImg" class="pub-avatar" src="" style="display:none">
+      <div class="pub-avatar-wrap" id="pubAvatarWrap">
+        <div class="pub-avatar-inner">
+          <div id="pubAvatarText" class="pub-avatar">M</div>
+          <img id="pubAvatarImg" class="pub-avatar" src="" style="display:none">
+        </div>
+        <div class="pub-live-badge" id="pubLiveBadge" style="display:none">✨ PODYUM'DA</div>
       </div>
-      <div class="pub-name-row">
-        <div class="pub-name" id="pubName">Mert Altay</div>
-        <div class="pub-verified" id="pubVerified">✓</div>
-      </div>
+      <div class="pub-name" id="pubName">mertaltay</div>
       <div class="pub-handle" id="pubHandle">@mertaltay</div>
-      <div class="pub-tag" id="pubTag">Streetwear</div>
-      <div class="pub-bio" id="pubBio">Streetwear minimalist. Less is more, but make it loud. 👽<br>İstanbul / Berlin</div>
-      <div class="pub-loc" id="pubLoc">İstanbul / Berlin</div>
+      <div class="pub-ig" id="pubIg"></div>
     </div>
     <div class="pub-stats">
-      <div class="pub-stat-item"><span class="pub-stat-val" id="pubStat1">47</span><span class="pub-stat-lbl">KOMBİN</span></div>
-      <div class="pub-stat-item"><span class="pub-stat-val" id="pubStat2">12K</span><span class="pub-stat-lbl">TAKİPÇİ</span></div>
-      <div class="pub-stat-item"><span class="pub-stat-val" id="pubStat3">340</span><span class="pub-stat-lbl">TAKİP</span></div>
-      <div class="pub-stat-item"><span class="pub-stat-val" id="pubStat4">88</span><span class="pub-stat-lbl">ORT. SKOR</span></div>
+      <div class="pub-stat-item"><span class="pub-stat-val" id="pubStatParca">1</span><span class="pub-stat-lbl">Parça</span></div>
+      <div class="pub-stat-item"><span class="pub-stat-val" id="pubStatRefitch">3</span><span class="pub-stat-lbl">Re-fitch</span></div>
+      <div class="pub-stat-item"><span class="pub-stat-val" id="pubStatFollowers">399</span><span class="pub-stat-lbl">Takipçi</span></div>
+      <div class="pub-stat-item hof-stat"><span class="pub-stat-val" id="pubStatHof">0</span><span class="pub-stat-lbl">🏆 H.O.F</span></div>
     </div>
-    <div class="pub-actions">
-      <button class="pub-btn-follow" id="pubFollowBtn" onclick="togglePubFollow()">Takip Et</button>
-      <div class="pub-btn-msg">💬</div>
-    </div>
-    <div class="pub-hof-banner" id="pubHofBanner">
+    <div class="pub-actions" id="pubActionsBlock"></div>
+    <div class="pub-hof-banner" id="pubHofBanner" style="display:none">
       <div class="pub-hof-icon">🏆</div>
       <div class="pub-hof-texts">
         <div class="pub-hof-title">90+ Kulübü Üyesi</div>
-        <div class="pub-hof-sub" id="pubHofDesc">5 kez Hall of Fame girişi • Ort. 88 puan</div>
+        <div class="pub-hof-sub" id="pubHofDesc">...</div>
       </div>
     </div>
-    <div class="pub-tabs">
-      <div class="pub-tab active">📸 Kombinler</div>
-      <div class="pub-tab">♡ Beğenilenler</div>
-      <div class="pub-tab">📄 Stil CV</div>
+    <div class="pub-tabs-wrapper">
+      <div class="pub-tabs" id="pubTabs"></div>
     </div>
-    <div class="pub-grid" id="pubGrid"></div>
+    <div class="pub-feed" id="pubFeed"></div>
   </div>
 
   <div id="rScreen" style="display:none">
@@ -4717,23 +4746,155 @@ function kesfSelectResult(val,type){
 
 /* ── Public Profile System ── */
 var MOCK_PROFILES={
-  'mertaltay':{name:'Mert Altay',handle:'mertaltay',tag:'Streetwear',bio:'Streetwear minimalist. Less is more, but make it loud. \ud83d\udc7d\nİstanbul / Berlin',loc:'İstanbul / Berlin',stats:{kombin:47,followers:'12K',following:340,avgScore:88},isHof:true,hofCount:5,hofAvg:91,verified:true,
-    images:[{src:'https://images.unsplash.com/photo-1516826957135-700ede19c6ce?w=400',score:94,emoji:'\ud83d\udd25'},{src:'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400',score:87,emoji:'\ud83d\udc8e'},{src:'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=400',score:91,emoji:'\ud83d\udd25'},{src:'https://images.unsplash.com/photo-1488161628813-04466f872be2?w=400',score:85,emoji:'\u2728'},{src:'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',score:78,emoji:'\ud83d\udc85'},{src:'https://images.unsplash.com/photo-1504593811423-6dd665756598?w=400',score:92,emoji:'\ud83d\udc51'}]},
-  'stilkolik':{name:'Ayşe Demir',handle:'stilkolik',tag:'Minimal',bio:'Minimal estetik \u2728 Sade ama etkili.\nModa editörü @fitchy',loc:'İstanbul',stats:{kombin:63,followers:'8.5K',following:210,avgScore:85},isHof:true,hofCount:3,hofAvg:89,verified:false,
-    images:[{src:'https://images.unsplash.com/photo-1485462537746-965f33f7f6a7?w=400',score:90,emoji:'\ud83d\udd25'},{src:'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=400',score:86,emoji:'\u2728'},{src:'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',score:88,emoji:'\ud83d\udc85'}]},
-  'modahane':{name:'Modahane',handle:'modahane',tag:'Vintage',bio:'Vintage & Retro \ud83d\udd70\ufe0f Eskiyi yeniden keşfet.\nAnkara vintage koleksiyoner',loc:'Ankara',stats:{kombin:124,followers:'22K',following:180,avgScore:82},isHof:true,hofCount:8,hofAvg:88,verified:true,
-    images:[{src:'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400',score:88,emoji:'\ud83d\udd25'},{src:'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400',score:84,emoji:'\u2728'},{src:'https://images.unsplash.com/photo-1523359346063-d879354c0ea5?w=400',score:91,emoji:'\ud83d\udc51'}]},
-  'ece.drip':{name:'Ece Drip',handle:'ece.drip',tag:'Old Money',bio:'Milano sokakları ağlıyor bestie \ud83e\udd42',loc:'Milano / İstanbul',stats:{kombin:32,followers:'24K',following:120,avgScore:92},isHof:true,hofCount:8,hofAvg:94,verified:true,
-    images:[{src:'https://images.unsplash.com/photo-1551028719-0c124a4234c4?w=400',score:96,emoji:'\ud83d\udc51'},{src:'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',score:94,emoji:'\ud83d\udd25'},{src:'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400',score:89,emoji:'\u2728'}]},
-  'fitchy_official':{name:'fitchy.',handle:'fitchy_official',tag:'Editör',bio:'Resmi fitchy editör hesabı \ud83d\udd2e\nHaftanın en iyi kombinleri burada.',loc:'Global',stats:{kombin:200,followers:'50K',following:50,avgScore:92},isHof:true,hofCount:42,hofAvg:93,verified:true,
-    images:[{src:'https://images.unsplash.com/photo-1558171813-4c088753af8f?w=400',score:96,emoji:'\ud83d\udc51'},{src:'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400',score:93,emoji:'\ud83d\udd25'},{src:'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',score:94,emoji:'\ud83d\udd25'}]},
-  'denizkizi.style':{name:'Deniz Kaya',handle:'denizkizi.style',tag:'Boho',bio:'Boho hayat \ud83c\udf0a\ud83c\udf38 Doğadan ilham, rüzgardan stil.',loc:'Bodrum',stats:{kombin:78,followers:'15K',following:290,avgScore:84},isHof:true,hofCount:4,hofAvg:87,verified:false,
-    images:[{src:'https://images.unsplash.com/photo-1518577915332-c2a19f149a75?w=400',score:87,emoji:'\u2728'},{src:'https://images.unsplash.com/photo-1544957992-20514f595d6f?w=400',score:83,emoji:'\ud83d\udc85'},{src:'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=400',score:89,emoji:'\ud83d\udd25'}]},
-  'celocan':{name:'Celo Can',handle:'celocan',tag:'Y2K',bio:'Y2K + Cyberpunk \ud83d\udcbf\u26a1 Gelecek retro.',loc:'İzmir',stats:{kombin:55,followers:'9K',following:500,avgScore:81},isHof:false,hofCount:2,hofAvg:82,verified:false,
-    images:[{src:'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400',score:84,emoji:'\u2728'},{src:'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?w=400',score:88,emoji:'\ud83d\udd25'},{src:'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=400',score:79,emoji:'\ud83d\udc85'}]}
+  'mertaltay':{
+    isMe:true,
+    name:'Mert Altay',handle:'mertaltay',ig:'Instagram @mert.icon\nStreetwear minimalist. Less is more, but make it loud. \ud83d\udc7d',
+    stats:{parca:12,refitch:3,followers:399,hof:2},
+    isPodyum:true,avatar:'https://images.unsplash.com/photo-1516826957135-700ede19c6ce?w=400',
+    folders:[
+      {id:'all',name:'\u2728 T\u00fcm\u00fc',count:3},
+      {id:'hof',name:'\ud83c\udfc6 Hall of Fame',count:1},
+      {id:'fav',name:'\u2661 Favoriler',count:1},
+      {id:'kis',name:'\u2744\ufe0f K\u0131\u015f Modas\u0131',count:1}
+    ],
+    feed:[
+      {type:'collection',badge:'KOLEKS\u0130YON SIZINTISI',time:'16dk \u00f6nce',title:'90s Grunge Revival',icon:'\ud83c\udfb8',
+        tags:['Quiet Luxury','Parisian Chic'],
+        products:[
+          {name:'Oversized Blazer',price:'2.450 TL',emoji:'\ud83e\udde5',bg:'#f5f0e8'},
+          {name:'Cargo Pantolon',price:'899 TL',emoji:'\ud83d\udc56',bg:'#8b9c3e'},
+          {name:'Chunky Sneaker',price:'3.200 TL',emoji:'\ud83d\udc5f',bg:'#d8d0e8'}
+        ],
+        totalPrice:'6.549 TL',saves:152,
+        aiDesc:'\u2728 <span class="mention">@mert.icon</span>, <span class="capsule">\'90s Grunge Revival\'</span> kaps\u00fcl dolab\u0131na 3 yeni ikonik par\u00e7a ekledi. Kusursuz bir renk paleti.',
+        folder:'all',isFav:false
+      },
+      {type:'refitch',badge:'RE-FITCH',time:'1sa \u00f6nce',
+        fromUser:{name:'elif.trend',avatar:'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'},
+        toUser:{name:'zey.combo',avatar:'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100'},
+        refitchIcon:'\ud83d\udca1',refitchCount:16,
+        products:[{name:'Saten G\u00f6mlek',price:'1.299 TL',emoji:'\ud83d\udc54',bg:'#e8d5f0'}],
+        folder:'fav',isFav:true
+      },
+      {type:'hof_entry',badge:'HALL OF FAME',time:'3sa \u00f6nce',title:'Winter Capsule',icon:'\u2744\ufe0f',score:94,
+        tags:['K\u0131\u015f Modas\u0131','Layering'],
+        products:[
+          {name:'Puffer Ceket',price:'4.500 TL',emoji:'\ud83e\udde5',bg:'#2a3a5c'},
+          {name:'Y\u00fcn Atk\u0131',price:'650 TL',emoji:'\ud83e\udde3',bg:'#8b3a3a'}
+        ],
+        totalPrice:'5.150 TL',saves:89,
+        aiDesc:'\ud83c\udfc6 <span class="mention">@mert.icon</span> k\u0131\u015f koleksiyonu ile <span class="capsule">Hall of Fame</span>\'e girdi! Puan: 94',
+        folder:'kis',isFav:true
+      }
+    ]
+  },
+  'ece.drip':{
+    isMe:false,
+    name:'Ece Drip',handle:'ece.drip',ig:'Milano sokaklar\u0131 a\u011fl\u0131yor bestie \ud83e\udd42',
+    stats:{parca:45,refitch:120,followers:'24K',hof:8},
+    isPodyum:false,avatar:'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
+    folders:[
+      {id:'all',name:'\u2728 T\u00fcm\u00fc',count:3},
+      {id:'hof',name:'\ud83c\udfc6 Hall of Fame',count:1},
+      {id:'oldmoney',name:'\ud83c\udf77 Old Money',count:2}
+    ],
+    feed:[
+      {type:'collection',badge:'KOLEKS\u0130YON SIZINTISI',time:'2sa \u00f6nce',title:'Milano After Dark',icon:'\ud83c\udf19',
+        tags:['Old Money','Italian Glam'],
+        products:[
+          {name:'Deri Ceket',price:'8.900 TL',emoji:'\ud83e\udde5',bg:'#1a1a2e'},
+          {name:'Saten Elbise',price:'3.450 TL',emoji:'\ud83d\udc57',bg:'#4a1a3e'},
+          {name:'Stiletto',price:'5.200 TL',emoji:'\ud83d\udc60',bg:'#2e1a1a'}
+        ],
+        totalPrice:'17.550 TL',saves:423,
+        aiDesc:'\u2728 <span class="mention">@ece.drip</span>, <span class="capsule">\'Milano After Dark\'</span> kaps\u00fcl\u00fcn\u00fc payla\u015ft\u0131. L\u00fcks ve zarafet bir arada.',
+        folder:'oldmoney',isFav:true
+      },
+      {type:'hof_entry',badge:'HALL OF FAME',time:'1g \u00f6nce',title:'Parisian Chic',icon:'\ud83d\uddfc',score:96,
+        tags:['Minimalist','French Style'],
+        products:[
+          {name:'Trench Coat',price:'6.200 TL',emoji:'\ud83e\udde5',bg:'#c4a882'},
+          {name:'Bere',price:'450 TL',emoji:'\ud83c\udfa8',bg:'#3a2a1a'}
+        ],
+        totalPrice:'6.650 TL',saves:312,
+        aiDesc:'\ud83c\udfc6 <span class="mention">@ece.drip</span> <span class="capsule">Parisian Chic</span> ile 96 puan alarak efsaneler aras\u0131na girdi!',
+        folder:'oldmoney',isFav:false
+      },
+      {type:'refitch',badge:'RE-FITCH',time:'2g \u00f6nce',
+        fromUser:{name:'ece.drip',avatar:'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'},
+        toUser:{name:'mert.icon',avatar:'https://images.unsplash.com/photo-1516826957135-700ede19c6ce?w=100'},
+        refitchIcon:'\ud83d\udd25',refitchCount:34,
+        products:[{name:'Oversized Blazer',price:'2.450 TL',emoji:'\ud83e\udde5',bg:'#f5f0e8'}],
+        folder:'all',isFav:false
+      }
+    ]
+  },
+  'stilkolik':{
+    isMe:false,
+    name:'Ay\u015fe Demir',handle:'stilkolik',ig:'Minimal estetik \u2728 Sade ama etkili.\nModa edit\u00f6r\u00fc @fitchy',
+    stats:{parca:63,refitch:45,followers:'8.5K',hof:3},
+    isPodyum:true,avatar:'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400',
+    folders:[
+      {id:'all',name:'\u2728 T\u00fcm\u00fc',count:2},
+      {id:'hof',name:'\ud83c\udfc6 Hall of Fame',count:1}
+    ],
+    feed:[
+      {type:'collection',badge:'KOLEKS\u0130YON SIZINTISI',time:'5sa \u00f6nce',title:'Urban Minimalism',icon:'\ud83c\udfd9\ufe0f',
+        tags:['Minimal','Clean Lines'],
+        products:[
+          {name:'Basic Tee',price:'299 TL',emoji:'\ud83d\udc55',bg:'#2a2a3e'},
+          {name:'Wide-Leg Pantolon',price:'1.100 TL',emoji:'\ud83d\udc56',bg:'#3e3a2a'}
+        ],
+        totalPrice:'1.399 TL',saves:78,
+        aiDesc:'\u2728 <span class="mention">@stilkolik</span> minimal sokak stilini kaps\u00fcl dolab\u0131na ta\u015f\u0131yor.',
+        folder:'all',isFav:false
+      },
+      {type:'hof_entry',badge:'HALL OF FAME',time:'2g \u00f6nce',title:'Scandi Chic',icon:'\u2744\ufe0f',score:90,
+        tags:['Scandinavian','Neutral Tones'],
+        products:[
+          {name:'Y\u00fcn Kazak',price:'1.800 TL',emoji:'\ud83e\udde5',bg:'#d4c5a9'}
+        ],
+        totalPrice:'1.800 TL',saves:156,
+        aiDesc:'\ud83c\udfc6 <span class="mention">@stilkolik</span> <span class="capsule">Scandi Chic</span> ile Hall of Fame\'e girdi!',
+        folder:'hof',isFav:true
+      }
+    ]
+  },
+  'modahane':{
+    isMe:false,
+    name:'Modahane',handle:'modahane',ig:'Vintage & Retro \ud83d\udd70\ufe0f Eskiyi yeniden ke\u015ffet.\nAnkara vintage koleksiyoner',
+    stats:{parca:124,refitch:89,followers:'22K',hof:8},
+    isPodyum:false,avatar:'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=400',
+    folders:[
+      {id:'all',name:'\u2728 T\u00fcm\u00fc',count:2},
+      {id:'hof',name:'\ud83c\udfc6 Hall of Fame',count:1}
+    ],
+    feed:[
+      {type:'collection',badge:'KOLEKS\u0130YON SIZINTISI',time:'12sa \u00f6nce',title:'Retro Revival',icon:'\ud83d\udd70\ufe0f',
+        tags:['Vintage','70s Vibes'],
+        products:[
+          {name:'Kadife Blazer',price:'3.200 TL',emoji:'\ud83e\udde5',bg:'#5c2a2a'},
+          {name:'Retro G\u00f6zl\u00fck',price:'850 TL',emoji:'\ud83d\udd76\ufe0f',bg:'#c4a882'}
+        ],
+        totalPrice:'4.050 TL',saves:234,
+        aiDesc:'\u2728 <span class="mention">@modahane</span> vintage koleksiyonunu g\u00fcncelledi.',
+        folder:'all',isFav:false
+      },
+      {type:'hof_entry',badge:'HALL OF FAME',time:'3g \u00f6nce',title:'Ankara Vintage',icon:'\ud83c\udfdb\ufe0f',score:91,
+        tags:['Vintage','Turkish Style'],
+        products:[
+          {name:'Antika Broş',price:'1.200 TL',emoji:'\ud83d\udc8e',bg:'#2e1a3e'}
+        ],
+        totalPrice:'1.200 TL',saves:167,
+        aiDesc:'\ud83c\udfc6 <span class="mention">@modahane</span> Ankara vintage\'i ile efsane oldu!',
+        folder:'hof',isFav:true
+      }
+    ]
+  }
 };
 
-var _isPubFollowing=false;
+var _currentProfile=null;
+var _currentFolder='all';
 
 function openPubProfile(handleStr,avatarSrc){
   var cleanHandle=handleStr?handleStr.replace('@','').replace(/\s+/g,'').toLowerCase():'mertaltay';
@@ -4741,56 +4902,81 @@ function openPubProfile(handleStr,avatarSrc){
   if(!p){
     var displayName=cleanHandle.split('.')[0];
     displayName=displayName.charAt(0).toUpperCase()+displayName.slice(1);
-    p={name:displayName,handle:cleanHandle,tag:'Style Enthusiast',bio:'Moda benim dilim. \u2728',loc:'Global',
-      stats:{kombin:Math.floor(Math.random()*50)+10,followers:Math.floor(Math.random()*20)+'K',following:Math.floor(Math.random()*500)+100,avgScore:Math.floor(Math.random()*15)+75},
-      isHof:Math.random()>.5,hofCount:Math.floor(Math.random()*10)+1,hofAvg:92,verified:false,
-      images:[
-        {src:avatarSrc||'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',score:Math.floor(Math.random()*20)+75,emoji:'\ud83d\udd25'},
-        {src:'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400',score:88,emoji:'\u2728'},
-        {src:'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400',score:82,emoji:'\ud83d\udc85'}
-      ]};
+    p={
+      isMe:false,
+      name:displayName,handle:cleanHandle,ig:'Moda benim dilim. \u2728',
+      stats:{parca:Math.floor(Math.random()*50)+10,refitch:Math.floor(Math.random()*30)+5,followers:Math.floor(Math.random()*20)+'K',hof:Math.floor(Math.random()*5)},
+      isPodyum:Math.random()>.5,avatar:avatarSrc||'',
+      folders:[
+        {id:'all',name:'\u2728 T\u00fcm\u00fc',count:2},
+        {id:'hof',name:'\ud83c\udfc6 Hall of Fame',count:1}
+      ],
+      feed:[
+        {type:'collection',badge:'KOLEKS\u0130YON SIZINTISI',time:'5dk \u00f6nce',title:'Urban Essentials',icon:'\ud83c\udfd9\ufe0f',
+          tags:['Streetwear','Minimalist'],
+          products:[
+            {name:'Basic Tee',price:'299 TL',emoji:'\ud83d\udc55',bg:'#2a2a3e'},
+            {name:'Jogger',price:'599 TL',emoji:'\ud83d\udc56',bg:'#3e3a2a'}
+          ],
+          totalPrice:'898 TL',saves:Math.floor(Math.random()*200)+20,
+          aiDesc:'\u2728 <span class="mention">@'+cleanHandle+'</span> minimalist sokak stilini kaps\u00fcl dolab\u0131na ta\u015f\u0131yor.',
+          folder:'all'
+        },
+        {type:'hof_entry',badge:'HALL OF FAME',time:'1g \u00f6nce',title:'Street Style',icon:'\ud83d\udd25',score:91,
+          tags:['Street','Urban'],
+          products:[{name:'Kombin Par\u00e7as\u0131',price:'1.450 TL',emoji:'\ud83e\udde5',bg:'#f5f0e8'}],
+          totalPrice:'1.450 TL',saves:Math.floor(Math.random()*100)+30,
+          aiDesc:'\ud83c\udfc6 <span class="mention">@'+cleanHandle+'</span> <span class="capsule">Street Style</span> ile Hall of Fame\'e girdi!',
+          folder:'hof'
+        }
+      ]
+    };
   }
+
+  _currentProfile=p;
+  _currentFolder='all';
+
   document.getElementById('pubName').textContent=p.name;
   document.getElementById('pubHandle').textContent='@'+p.handle;
-  document.getElementById('pubTag').textContent=p.tag;
-  document.getElementById('pubBio').innerHTML=p.bio.replace(/\n/g,'<br>');
-  document.getElementById('pubLoc').textContent=p.loc;
-  var verEl=document.getElementById('pubVerified');
-  if(verEl)verEl.style.display=p.verified?'flex':'none';
-  if(avatarSrc){
-    document.getElementById('pubAvatarText').style.display='none';
-    document.getElementById('pubAvatarImg').style.display='block';
-    document.getElementById('pubAvatarImg').src=avatarSrc;
-  } else if(p.images&&p.images.length>0){
-    document.getElementById('pubAvatarText').style.display='none';
-    document.getElementById('pubAvatarImg').style.display='block';
-    document.getElementById('pubAvatarImg').src=p.images[0].src;
+  document.getElementById('pubIg').innerHTML=(p.ig||'').replace(/\n/g,'<br>');
+
+  var avWrap=document.getElementById('pubAvatarWrap');
+  var avImg=document.getElementById('pubAvatarImg');
+  var avTxt=document.getElementById('pubAvatarText');
+  var liveBadge=document.getElementById('pubLiveBadge');
+
+  if(p.isPodyum){avWrap.classList.add('in-podyum');liveBadge.style.display='block';}
+  else{avWrap.classList.remove('in-podyum');liveBadge.style.display='none';}
+
+  var imgSrc=avatarSrc||p.avatar||'';
+  if(imgSrc){
+    avTxt.style.display='none';avImg.style.display='block';avImg.src=imgSrc;
   } else {
-    document.getElementById('pubAvatarImg').style.display='none';
-    document.getElementById('pubAvatarText').style.display='flex';
-    document.getElementById('pubAvatarText').textContent=p.name.charAt(0).toUpperCase();
+    avImg.style.display='none';avTxt.style.display='flex';
+    avTxt.textContent=p.name.charAt(0).toUpperCase();
   }
-  document.getElementById('pubStat1').textContent=p.stats.kombin;
-  document.getElementById('pubStat2').textContent=p.stats.followers;
-  document.getElementById('pubStat3').textContent=p.stats.following;
-  document.getElementById('pubStat4').textContent=p.stats.avgScore;
+
+  document.getElementById('pubStatParca').textContent=p.stats.parca;
+  document.getElementById('pubStatRefitch').textContent=p.stats.refitch;
+  document.getElementById('pubStatFollowers').textContent=p.stats.followers;
+  document.getElementById('pubStatHof').textContent=p.stats.hof;
+
   var hofBanner=document.getElementById('pubHofBanner');
-  if(p.isHof||p.stats.avgScore>=90){
+  if(p.stats.hof>0){
     hofBanner.style.display='flex';
-    document.getElementById('pubHofDesc').textContent=p.hofCount+' kez Hall of Fame girişi \u2022 Ort. '+p.hofAvg+' puan';
+    document.getElementById('pubHofDesc').textContent=p.stats.hof+' kez Hall of Fame giri\u015fi \u2022 Ort. 92 puan';
   } else { hofBanner.style.display='none'; }
-  var grid=document.getElementById('pubGrid');
-  grid.innerHTML='';
-  if(p.images){
-    p.images.forEach(function(img){
-      var bClass=img.score>=90?'pub-grid-score high':'pub-grid-score';
-      grid.innerHTML+='<div class="pub-grid-item" onclick="_showToast(\'Kombin Detay\',\'Yakında açılacak\')"><img src="'+img.src+'" onerror="this.src=\'data:image/svg+xml,<svg xmlns=http://www.w3.org/2000/svg viewBox=0 0 100 100><rect fill=%231a1a2e width=100 height=100/></svg>\'"><div class="'+bClass+'">'+img.emoji+' '+img.score+'</div></div>';
-    });
+
+  var actionsBlock=document.getElementById('pubActionsBlock');
+  if(p.isMe){
+    actionsBlock.innerHTML='<button class="pub-btn-primary" onclick="_showToast(\'Profil Linki\',\'Kopyaland\u0131\')">\ud83d\udd17 Profili Payla\u015f</button><button class="pub-btn-secondary" onclick="_showToast(\'D\u00fczenleme\',\'Yak\u0131nda\')">\u270f\ufe0f D\u00fczenle</button>';
+  } else {
+    actionsBlock.innerHTML='<button class="pub-btn-primary" id="pubFollowBtn" onclick="togglePubFollow()">\u2728 Takip Et</button><button class="pub-btn-secondary" style="flex:0 0 50px" onclick="_showToast(\'Mesajlar\',\'Yak\u0131nda\')">\ud83d\udcac</button>';
   }
-  _isPubFollowing=false;
-  var btn=document.getElementById('pubFollowBtn');
-  btn.textContent='Takip Et';
-  btn.classList.remove('following');
+
+  _renderPubTabs();
+  _renderPubFeed();
+
   document.getElementById('pubProfileScreen').classList.add('show');
   document.getElementById('pubProfileScreen').scrollTop=0;
   document.body.style.overflow='hidden';
@@ -4803,12 +4989,120 @@ function closePubProfile(){
 
 function togglePubFollow(){
   var btn=document.getElementById('pubFollowBtn');
-  if(_isPubFollowing){
-    btn.textContent='Takip Et';btn.classList.remove('following');_isPubFollowing=false;
+  if(!btn)return;
+  if(btn.innerText.indexOf('Ediliyor')!==-1){
+    btn.innerHTML='\u2728 Takip Et';
+    btn.style.background='linear-gradient(90deg,#ff2079,#7000ff)';
+    btn.style.boxShadow='0 4px 20px rgba(245,0,139,.3)';
   } else {
-    btn.textContent='Takip Ediliyor \u2713';btn.classList.add('following');_isPubFollowing=true;
+    btn.innerHTML='Takip Ediliyor \u2713';
+    btn.style.background='rgba(255,255,255,.1)';
+    btn.style.boxShadow='none';
     if(navigator.vibrate)navigator.vibrate(50);
   }
+}
+
+function _renderPubTabs(){
+  var tabsHtml='';
+  _currentProfile.folders.forEach(function(f){
+    var isActive=_currentFolder===f.id?'active':'';
+    var isHof=f.id==='hof'?'hof-tab':'';
+    tabsHtml+='<div class="pub-tab '+isActive+' '+isHof+'" onclick="_switchPubFolder(\''+f.id+'\')">'+f.name+' <span class="pub-tab-count">'+f.count+'</span></div>';
+  });
+  document.getElementById('pubTabs').innerHTML=tabsHtml;
+}
+
+function _switchPubFolder(folderId){
+  _currentFolder=folderId;
+  _renderPubTabs();
+  _renderPubFeed();
+}
+
+function _renderPubFeed(){
+  var feedEl=document.getElementById('pubFeed');
+  var feedItems=_currentProfile.feed||[];
+
+  if(_currentFolder==='hof'){
+    feedItems=feedItems.filter(function(i){return i.type==='hof_entry';});
+  } else if(_currentFolder==='fav'){
+    feedItems=feedItems.filter(function(i){return i.isFav===true;});
+  } else if(_currentFolder!=='all'){
+    feedItems=feedItems.filter(function(i){return i.folder===_currentFolder;});
+  }
+
+  if(feedItems.length===0){
+    feedEl.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted);font-size:13px">Bu ak\u0131\u015fta hen\u00fcz payla\u015f\u0131m yok.</div>';
+    return;
+  }
+
+  var p=_currentProfile;
+  var html='';
+
+  feedItems.forEach(function(item){
+    var badgeClass=item.type==='collection'?'collection':(item.type==='hof_entry'?'hof':'refitch');
+    var badgeIcon=item.type==='hof_entry'?'\ud83c\udfc6':(item.type==='refitch'?'\ud83d\udd04':'\u2728');
+
+    html+='<div class="feed-post">';
+
+    var avatarInit=p.name?p.name.charAt(0).toUpperCase():'?';
+    html+='<div class="feed-post-header">';
+    html+='<img class="feed-avatar" src="'+(p.avatar||'')+'" onerror="this.outerHTML=\'<div class=feed-avatar style=display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:#fff;background:linear-gradient(135deg,var(--accent),var(--purple))>'+avatarInit+'</div>\'">';
+    html+='<div class="feed-user-info">';
+    html+='<div class="feed-user-name">'+p.name+' <span class="handle">@'+p.handle+'</span></div>';
+    html+='<div class="feed-user-time">'+item.time+'</div>';
+    html+='</div>';
+    html+='<div class="feed-badge '+badgeClass+'">'+badgeIcon+' '+item.badge+'</div>';
+    html+='</div>';
+
+    if(item.type==='collection'||item.type==='hof_entry'){
+      html+='<div class="feed-collection-title">';
+      html+='<h3>'+item.icon+' '+item.title+(item.score?' <span style="color:#ffd700;font-size:14px">\u2014 '+item.score+' puan</span>':'')+'</h3>';
+      if(item.tags){html+='<div class="feed-tags">'+item.tags.map(function(t){return '<span class="feed-tag">'+t+'</span>';}).join('')+'</div>';}
+      html+='</div>';
+    }
+
+    if(item.products&&item.products.length>0){
+      html+='<div class="feed-products-scroll">';
+      item.products.forEach(function(prod){
+        html+='<div class="feed-product" style="background:'+prod.bg+'" onclick="_showToast(\''+prod.name+'\',\'Detay yak\u0131nda\')">';
+        html+='<div style="width:100%;height:120px;display:flex;align-items:center;justify-content:center;font-size:48px">'+prod.emoji+'</div>';
+        html+='<div class="feed-product-info"><div class="feed-product-name">'+prod.name+'</div><div class="feed-product-price">'+prod.price+'</div></div>';
+        html+='</div>';
+      });
+      html+='</div>';
+    }
+
+    if(item.totalPrice){
+      html+='<div class="feed-stats-row"><span class="feed-total-price">'+item.totalPrice+'</span><span style="color:var(--muted)">\u00b7</span><span class="feed-saves">'+item.saves+' kay\u0131t</span></div>';
+    }
+
+    if(item.aiDesc){
+      html+='<div class="feed-ai-desc">'+item.aiDesc+'</div>';
+    }
+
+    if(item.type==='refitch'){
+      var from=item.fromUser;var to=item.toUser;
+      var fromInit=from.name?from.name.charAt(0).toUpperCase():'?';
+      var toInit=to.name?to.name.charAt(0).toUpperCase():'?';
+      html+='<div class="feed-refitch-flow">';
+      html+='<div class="feed-refitch-user"><img src="'+from.avatar+'" onerror="this.outerHTML=\'<span style=width:24px;height:24px;border-radius:50%;background:var(--accent);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#fff>'+fromInit+'</span>\'"> @'+from.name+'</div>';
+      html+='<span class="feed-refitch-arrow">\u2014</span>';
+      html+='<span class="feed-refitch-icon">'+item.refitchIcon+'</span>';
+      html+='<span class="feed-refitch-arrow">\u2014</span>';
+      html+='<div class="feed-refitch-user"><img src="'+to.avatar+'" onerror="this.outerHTML=\'<span style=width:24px;height:24px;border-radius:50%;background:var(--cyan);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#000>'+toInit+'</span>\'"> @'+to.name+'</div>';
+      html+='<span class="feed-refitch-count">\ud83d\udce6 '+item.refitchCount+' Re-fitch</span>';
+      html+='</div>';
+    }
+
+    html+='<div class="feed-actions">';
+    html+='<button class="feed-action-btn primary" onclick="_showToast(\'Kaydedildi!\',\'\u2728\')">\u2728 Kaydet</button>';
+    html+='<button class="feed-action-btn secondary" onclick="_showToast(\'Payla\u015f\u0131ld\u0131!\',\'\ud83d\udd17\')">\ud83d\udd17 Payla\u015f</button>';
+    html+='</div>';
+
+    html+='</div>';
+  });
+
+  feedEl.innerHTML=html;
 }
 
 
